@@ -1,0 +1,51 @@
+export type AppLanguage = 'en' | 'ar';
+
+type Dictionary = Record<string, string>;
+
+export const messages: Record<AppLanguage, Dictionary> = {
+  en: {
+    'nav.dashboard': 'Overview',
+    'nav.brandProfile': 'Brand profile',
+    'nav.contentPlans': 'Content plans',
+    'nav.aiStudio': 'AI studio',
+    'nav.posts': 'Content posts',
+    'nav.leads': 'Leads CRM',
+    'nav.tasks': 'Tasks',
+    'nav.reports': 'Reports',
+    'nav.members': 'Members',
+    'nav.notifications': 'Notifications',
+    'common.logout': 'Logout',
+    'common.language': 'Language',
+    'common.cancel': 'Cancel',
+    'common.save': 'Save',
+    'common.user': 'User',
+    'sidebar.tagline': 'Growth OS',
+    'sidebar.footer': 'Innovation meets stability',
+    'a11y.openMenu': 'Open menu',
+    'nav.campaigns': 'Campaigns',
+    'nav.responsibilities': 'Responsibilities',
+
+  },
+  ar: {
+    'nav.dashboard': 'نظرة عامة',
+    'nav.brandProfile': 'ملف العلامة التجارية',
+    'nav.contentPlans': 'خطط المحتوى',
+    'nav.aiStudio': 'استوديو الذكاء الاصطناعي',
+    'nav.posts': 'منشورات المحتوى',
+    'nav.leads': 'إدارة العملاء المحتملين',
+    'nav.tasks': 'المهام',
+    'nav.reports': 'التقارير',
+    'nav.members': 'الأعضاء',
+    'nav.notifications': 'الإشعارات',
+    'common.logout': 'تسجيل الخروج',
+    'common.language': 'اللغة',
+    'common.cancel': 'إلغاء',
+    'common.save': 'حفظ',
+    'common.user': 'المستخدم',
+    'sidebar.tagline': 'منصة النمو',
+    'sidebar.footer': 'الابتكار يلتقي بالاستقرار',
+    'a11y.openMenu': 'فتح القائمة',
+    'nav.campaigns': 'الحملات',
+    'nav.responsibilities': 'المسؤوليات',
+  },
+};

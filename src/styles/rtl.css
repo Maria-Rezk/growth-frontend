@@ -1,0 +1,21 @@
+/* RTL overrides — loaded after global.css. Only applies when <html dir="rtl">. */
+
+[dir="rtl"] .cell-right { text-align: left; }
+
+[dir="rtl"] .notification-badge { right: auto; left: -6px; }
+
+[dir="rtl"] .notifications-menu,
+[dir="rtl"] .notifications-panel { right: auto; left: 0; }
+
+[dir="rtl"] .skip-link { left: auto; right: 16px; }
+
+[dir="rtl"] .error-list { padding-left: 0; padding-right: 18px; }
+
+/* Active sidebar accent flips to the trailing edge */
+[dir="rtl"] .sidebar__link--active { box-shadow: inset -3px 0 0 var(--magenta); }
+
+/* Mobile drawer enters from the right in RTL */
+@media (max-width: 980px) {
+  [dir="rtl"] .sidebar { left: auto; right: 0; transform: translateX(110%); }
+  [dir="rtl"] .sidebar--open { transform: translateX(0); }
+}
