@@ -28,6 +28,9 @@ export const queryKeys = {
   posts: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'posts', filters ?? {}] as const,
   post: (companyId: string, postId: string) => ['companies', companyId, 'posts', postId] as const,
   leads: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'leads', filters ?? {}] as const,
+  // Nested under 'leads' on purpose: invalidating ['companies', id, 'leads']
+  // after a status change refreshes the list AND the pipeline counts.
+  leadCounts: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'leads', 'counts', filters ?? {}] as const,
   lead: (companyId: string, leadId: string) => ['companies', companyId, 'leads', leadId] as const,
   tasks: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'tasks', filters ?? {}] as const,
   task: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId] as const,

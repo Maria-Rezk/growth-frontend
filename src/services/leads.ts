@@ -98,6 +98,46 @@ export const leadsService = {
     };
   },
 
+  /**
+   * Per-status totals for the pipeline summary.
+   *
+   * Cannot be derived from the list response: that is filtered by the active
+   * status and capped by the page size, so counting it makes every other tile
+   * read zero the moment you filter, and under-reports past one page.
+   *
+   * One `limit=1` request per status reads the API's own `total` — seven tiny
+   * parallel round-trips instead of one large one. `source` and `search` are
+   * passed through so the tiles reflect the current search; `status` is
+   * deliberately not, since that is what the tiles set.
+   */
+  async statusCounts(
+    companyId: string,
+    statuses: readonly LeadStatus[],
+    params?: Omit<ListParams, 'status'>,
+  ): Promise<Record<string, number>> {
+    if (env.demoMode) {
+      const all = filterList(demoLeads.filter((lead) => lead.companyId === companyId), params);
+      return demoDelay(
+        statuses.reduce<Record<string, number>>((acc, status) => {
+          acc[status] = all.filter((lead) => lead.status === status).length;
+          return acc;
+        }, {}),
+      );
+    }
+
+    const results = await Promise.all(
+      statuses.map(async (status) => {
+        const response = await http.get(apiRoutes.leads.list(companyId), {
+          params: { ...params, status, limit: 1, offset: 0 },
+        });
+        const data = response.data as { items?: Lead[]; total?: number };
+        return [status, data.total ?? data.items?.length ?? 0] as const;
+      }),
+    );
+
+    return Object.fromEntries(results);
+  },
+
   async get(companyId: string, leadId: string): Promise<Lead> {
     if (env.demoMode) {
       const lead = demoLeads.find((item) => item.companyId === companyId && item.id === leadId);

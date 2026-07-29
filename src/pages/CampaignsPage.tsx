@@ -13,6 +13,7 @@ import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { applyServerFieldErrors } from '@/lib/forms';
 import { campaignsService } from '@/services/campaigns';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDate, humanize } from '@/utils/format';
@@ -57,8 +58,23 @@ function CampaignsInner({ companyId }: { companyId: string }) {
     { queryKey: queryKeys.campaigns(companyId, filters) },
   );
   const setStatusMutation = useMutation(campaignsService.setStatus, {
-    invalidateKeys: [queryKeys.campaigns(companyId, filters)],
+    // Prefix, not the exact filtered key — otherwise changing a status only
+    // refreshed the list you happened to be looking at.
+    invalidateKeys: [['companies', companyId, 'campaigns']],
   });
+
+  // Which row is mid-update. A shared boolean disabled every select at once.
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const changeStatus = async (campaignId: string, next: Campaign['status']) => {
+    setPendingId(campaignId);
+    try {
+      const result = await setStatusMutation.mutate(companyId, campaignId, next);
+      if (result) toast.success('Campaign status updated.');
+    } finally {
+      setPendingId(null);
+    }
+  };
 
   const rows = campaigns.data ?? [];
 
@@ -79,13 +95,15 @@ function CampaignsInner({ companyId }: { companyId: string }) {
         <Select
           aria-label={`Change status for ${c.name}`}
           value={c.status}
-          onChange={(event) => setStatusMutation.mutate(companyId, c.id, event.target.value as Campaign['status'])}
+          disabled={pendingId === c.id}
+          onChange={(event) => changeStatus(c.id, event.target.value as Campaign['status'])}
         >
           {Object.values(CampaignStatus).map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
         </Select>
       ),
     },
-  ], [companyId, setStatusMutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [pendingId]);
 
   return (
     <>
@@ -109,6 +127,8 @@ function CampaignsInner({ companyId }: { companyId: string }) {
         </div>
       </div>
 
+      {setStatusMutation.error ? <p className="error-box" role="alert">{setStatusMutation.error}</p> : null}
+
       <DataTable
         columns={columns}
         rows={rows}
@@ -119,20 +139,29 @@ function CampaignsInner({ companyId }: { companyId: string }) {
         emptyTitle="No campaigns yet"
       />
 
-      <CampaignModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} filters={filters} />
+      <CampaignModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} />
     </>
   );
 }
 
-function CampaignModal({ open, companyId, onClose, filters }: { open: boolean; companyId: string; onClose: () => void; filters: { status?: string; search?: string } }) {
-  const create = useMutation(campaignsService.create, {
-    invalidateKeys: [queryKeys.campaigns(companyId, filters)],
-  });
+function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId: string; onClose: () => void }) {
   const form = useForm<CampaignForm>({
     resolver: zodResolver(campaignSchema),
     defaultValues: { name: '', objective: CampaignObjective.LEADS, description: '', startDate: '', endDate: '', budget: '', currency: 'USD', targetAudience: '', notes: '' },
     mode: 'onBlur',
   });
+
+  const create = useMutation(campaignsService.create, {
+    // Prefix: a new campaign must appear under any active filter combination.
+    invalidateKeys: [['companies', companyId, 'campaigns']],
+    onError: (error) => applyServerFieldErrors(form, error),
+  });
+
+  const close = () => {
+    form.reset();
+    create.reset();
+    onClose();
+  };
 
   const submit = form.handleSubmit(async (values) => {
     const budgetNumber = values.budget?.trim() ? Number(values.budget) : undefined;
@@ -153,8 +182,7 @@ function CampaignModal({ open, companyId, onClose, filters }: { open: boolean; c
     });
     if (result) {
       toast.success('Campaign created.');
-      form.reset();
-      onClose();
+      close();
     } else if (create.error) {
       toast.error(create.error);
     }
@@ -163,9 +191,9 @@ function CampaignModal({ open, companyId, onClose, filters }: { open: boolean; c
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={close}
       title="Create campaign"
-      footer={<><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" form="campaign-form" loading={form.formState.isSubmitting || create.loading}>Create campaign</Button></>}
+      footer={<><Button variant="secondary" type="button" onClick={close}>Cancel</Button><Button type="submit" form="campaign-form" loading={form.formState.isSubmitting || create.loading}>Create campaign</Button></>}
     >
       <form id="campaign-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Name" htmlFor="campaign-name" error={form.formState.errors.name?.message}>

@@ -64,20 +64,56 @@ export interface Membership {
   company?: Company;
 }
 
+export interface BrandColor {
+  name: string;
+  hex: string;
+}
+
+export interface BrandService {
+  name: string;
+  description?: string;
+  priceRange?: string;
+}
+
+export interface BrandOffer {
+  title: string;
+  description?: string;
+  validUntil?: string;
+}
+
+/*
+  This previously described a completely different resource: flat strings for
+  `services`, `brandColors`, `serviceAreas` and fields (`companyName`,
+  `businessType`, `currentOffers`) the API does not have. Only `targetAudience`
+  and `toneOfVoice` overlapped with reality.
+
+  That mismatch is why BrandProfilePage carried three `as any` casts — the type
+  was fiction, so the only way to compile was to opt out of it. Corrected to
+  the shape the page actually sends and receives.
+*/
 export interface BrandProfile {
   id?: UUID;
   companyId?: UUID;
-  companyName: string;
-  businessType: string;
-  services: string;
+  brandName: string;
+  industry: string;
+  description: string;
   targetAudience: string;
   toneOfVoice: string;
-  brandColors: string;
-  currentOffers?: string;
-  serviceAreas?: string;
+  brandNotes?: string;
+  // String arrays on the wire; the form edits them as comma-separated text.
+  languages?: string[];
+  serviceAreas?: string[];
+  ctaPreferences?: string[];
+  forbiddenWords?: string[];
+  colors?: BrandColor[];
+  services?: BrandService[];
+  offers?: BrandOffer[];
   createdAt?: ISODate;
   updatedAt?: ISODate;
 }
+
+/** What the client may send. Server-owned fields are not writable. */
+export type BrandProfileInput = Omit<BrandProfile, 'id' | 'companyId' | 'createdAt' | 'updatedAt'>;
 
 export const PostStatus = {
   DRAFT: 'DRAFT',

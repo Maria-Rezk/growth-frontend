@@ -4,6 +4,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
+import { ErrorState } from '@/components/ui/State';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { reportsService } from '@/services/reports';
@@ -88,15 +89,24 @@ function ReportsInner({ companyId }: { companyId: string }) {
         </form>
       </Card>
 
+      {/* A failed overview left every metric reading 0, which is
+          indistinguishable from a period with no activity. */}
+      {overview.error ? (
+        <Card><ErrorState message={overview.error} onRetry={overview.refetch} /></Card>
+      ) : null}
+
       <div className="stat-grid stat-grid--3">
-        <MetricCard label="Posts" value={overview.data?.postsTotal ?? 0} />
-        <MetricCard label="Leads" value={overview.data?.leadsTotal ?? 0} />
-        <MetricCard label="Conversion" value={formatPercent(overview.data?.conversionRate)} />
+        <MetricCard label="Posts" value={metric(overview.data?.postsTotal, overview.loading)} />
+        <MetricCard label="Leads" value={metric(overview.data?.leadsTotal, overview.loading)} />
+        <MetricCard
+          label="Conversion"
+          value={metric(overview.data ? formatPercent(overview.data.conversionRate) : undefined, overview.loading)}
+        />
       </div>
 
       <div className="dashboard-grid">
-        <Breakdown title="Posts by status" data={overview.data?.postsByStatus} />
-        <Breakdown title="Leads by status" data={overview.data?.leadsByStatus} />
+        <Breakdown title="Posts by status" data={overview.data?.postsByStatus} loading={overview.loading} />
+        <Breakdown title="Leads by status" data={overview.data?.leadsByStatus} loading={overview.loading} />
       </div>
 
       <Card>
@@ -112,7 +122,13 @@ function ReportsInner({ companyId }: { companyId: string }) {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string | number }) {
+/** `—` rather than `0` when a number is loading or unavailable. */
+function metric(value: number | string | undefined, loading: boolean): string {
+  if (loading) return '—';
+  return value === undefined || value === null ? '—' : String(value);
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <Card className="metric-card">
       <span>{label}</span>
@@ -121,20 +137,20 @@ function MetricCard({ label, value }: { label: string; value: string | number })
   );
 }
 
-function Breakdown({ title, data }: { title: string; data?: Record<string, number> }) {
+function Breakdown({ title, data, loading }: { title: string; data?: Record<string, number>; loading: boolean }) {
   const entries = Object.entries(data ?? {});
   return (
     <Card>
       <CardHeader title={title} />
       <div className="content-card__body stack-list">
-        {entries.length
-          ? entries.map(([key, value]) => (
-            <div className="list-row" key={key}>
-              <span>{humanize(key)}</span>
-              <strong>{value}</strong>
-            </div>
-          ))
-          : <p className="muted">No data.</p>}
+        {loading ? <p className="muted">Loading…</p> : null}
+        {!loading && entries.length === 0 ? <p className="muted">No data for this period.</p> : null}
+        {!loading && entries.map(([key, value]) => (
+          <div className="list-row" key={key}>
+            <span>{humanize(key)}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
       </div>
     </Card>
   );

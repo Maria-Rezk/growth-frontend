@@ -3,9 +3,12 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ButtonLink } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/State';
 import { ActionCenter } from '@/components/domain/ActionCenter';
+import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync } from '@/hooks/useAsync';
+import { queryKeys } from '@/lib/queryClient';
 import { reportsService } from '@/services/reports';
 import { tasksService } from '@/services/tasks';
 import { leadsService } from '@/services/leads';
@@ -16,6 +19,23 @@ import { groupByStatus, needsLeadAction, needsPostAction, needsTaskAction, TASK_
 import { formatDate, formatPercent, humanize } from '@/utils/format';
 import { LeadStatus, PostStatus, TaskStatus, type ContentPost, type Task } from '@/types/domain';
 
+/** Statuses that make a post "in the approval queue" — mirrors needsPostAction. */
+const POST_ACTION_STATUSES = [PostStatus.READY_FOR_CLIENT, PostStatus.CHANGES_REQUESTED, PostStatus.APPROVED];
+/** Mirrors needsLeadAction. */
+const LEAD_ACTION_STATUSES = [LeadStatus.NEW, LeadStatus.INTERESTED, LeadStatus.WAITING_DECISION, LeadStatus.FOLLOW_UP_LATER];
+
+function sumStatuses(counts: Record<string, number> | undefined, statuses: readonly string[]): number | undefined {
+  if (!counts) return undefined;
+  return statuses.reduce((total, status) => total + (counts[status] ?? 0), 0);
+}
+
+/** `—` while loading or unavailable, so an absent number never reads as zero. */
+function display(value: number | string | undefined, loading: boolean): string {
+  if (loading) return '—';
+  if (value === undefined || value === null) return '—';
+  return String(value);
+}
+
 export function DashboardPage() {
   return <RequireCompany>{(companyId) => <DashboardInner companyId={companyId} />}</RequireCompany>;
 }
@@ -23,22 +43,64 @@ export function DashboardPage() {
 function DashboardInner({ companyId }: { companyId: string }) {
   const { memberships, activeCompany } = useCompany();
   const role = getActiveRole(memberships, companyId);
-  const overview = useAsync(() => reportsService.overview(companyId), [companyId]);
-  const tasks = useAsync(() => tasksService.list(companyId), [companyId]);
-  const leads = useAsync(() => leadsService.list(companyId), [companyId]);
-  const posts = useAsync(() => contentService.listPosts(companyId), [companyId]);
+
+  /*
+    Explicit query keys matter here. Without them useAsync falls back to a
+    key derived from factory.toString(), so these queries lived outside the
+    ['companies', id, 'leads' | 'posts' | 'tasks'] namespace: creating a lead
+    invalidated nothing on this page and the dashboard stayed stale until a
+    hard reload. These keys are prefix-matched by every existing mutation.
+  */
+  const overview = useAsync(
+    () => reportsService.overview(companyId),
+    [companyId],
+    { queryKey: queryKeys.reportOverview(companyId) },
+  );
+  const tasks = useAsync(
+    () => tasksService.list(companyId),
+    [companyId],
+    { queryKey: queryKeys.tasks(companyId, {}) },
+  );
+  const leads = useAsync(
+    () => leadsService.list(companyId),
+    [companyId],
+    { queryKey: queryKeys.leads(companyId, { view: 'dashboard' }) },
+  );
+  const posts = useAsync(
+    () => contentService.listPosts(companyId),
+    [companyId],
+    { queryKey: queryKeys.posts(companyId, {}) },
+  );
 
   const allPosts = posts.data ?? [];
   const allTasks = tasks.data ?? [];
   const allLeads = leads.data ?? [];
 
-  const postsByStatus = groupByStatus(allPosts);
+  /*
+    Counts come from the overview endpoint, which aggregates server-side.
+    Deriving them from these lists was wrong: leadsService.list and
+    listPosts unwrap `items` out of a paginated envelope, so past the
+    backend's default page size the dashboard silently under-reported its
+    headline numbers with nothing to indicate it.
+
+    The lists are still used for the Action center and the recent rows —
+    "show me a few things needing attention" is fine from a first page.
+    Counting is not.
+  */
+  const approvalQueueCount = sumStatuses(overview.data?.postsByStatus, POST_ACTION_STATUSES);
+  const activeLeadsCount = sumStatuses(overview.data?.leadsByStatus, LEAD_ACTION_STATUSES);
+
+  // No server aggregate exists for tasks, so this one is still list-derived.
   const tasksByStatus = groupByStatus(allTasks);
-  const leadsByStatus = groupByStatus(allLeads);
+  const openTasks = allTasks.filter(needsTaskAction);
 
   const approvalQueue = allPosts.filter(needsPostAction);
-  const openTasks = allTasks.filter(needsTaskAction);
   const activeLeads = allLeads.filter(needsLeadAction);
+
+  const postsByStatus = overview.data?.postsByStatus;
+  const leadsByStatus = overview.data?.leadsByStatus;
+
+  const anyError = overview.error ?? posts.error ?? leads.error ?? tasks.error;
 
   return (
     <>
@@ -51,16 +113,56 @@ function DashboardInner({ companyId }: { companyId: string }) {
         </div>
         <div className="page-header__action">
           {role ? <Badge tone="neutral">{roleLabel(role)}</Badge> : null}
-          <ButtonLink to="/leads" variant="secondary" size="sm">Add lead</ButtonLink>
-          <ButtonLink to="/posts" size="sm">Create content</ButtonLink>
+          <RoleGate permission="leads:manage">
+            <ButtonLink to="/leads" variant="secondary" size="sm">Add lead</ButtonLink>
+          </RoleGate>
+          <RoleGate permission="posts:create">
+            <ButtonLink to="/posts" size="sm">Create content</ButtonLink>
+          </RoleGate>
         </div>
       </div>
 
+      {/* A failed request used to leave every tile reading 0, which is
+          indistinguishable from an empty workspace. */}
+      {anyError ? (
+        <Card>
+          <ErrorState
+            message={anyError}
+            onRetry={() => {
+              void overview.refetch();
+              void posts.refetch();
+              void leads.refetch();
+              void tasks.refetch();
+            }}
+          />
+        </Card>
+      ) : null}
+
       <div className="stat-grid">
-        <MetricCard label="Approval queue" value={approvalQueue.length} helper="Posts awaiting client or agency action" tone="accent" />
-        <MetricCard label="Active leads" value={activeLeads.length} helper="New, interested or waiting decision" tone="info" />
-        <MetricCard label="Open tasks" value={openTasks.length} helper="Execution work not completed yet" tone="warning" />
-        <MetricCard label="Conversion rate" value={formatPercent(overview.data?.conversionRate)} helper="Won leads against total pipeline" tone="success" />
+        <MetricCard
+          label="Approval queue"
+          value={display(approvalQueueCount, overview.loading)}
+          helper="Posts awaiting client or agency action"
+          tone="accent"
+        />
+        <MetricCard
+          label="Active leads"
+          value={display(activeLeadsCount, overview.loading)}
+          helper="New, interested, waiting decision or follow-up"
+          tone="info"
+        />
+        <MetricCard
+          label="Open tasks"
+          value={display(openTasks.length, tasks.loading)}
+          helper="Execution work not completed yet"
+          tone="warning"
+        />
+        <MetricCard
+          label="Conversion rate"
+          value={display(overview.data ? formatPercent(overview.data.conversionRate) : undefined, overview.loading)}
+          helper="Won leads against total pipeline"
+          tone="success"
+        />
       </div>
 
       <div className="dashboard-grid dashboard-grid--senior">
@@ -72,10 +174,10 @@ function DashboardInner({ companyId }: { companyId: string }) {
         <Card>
           <CardHeader title="Delivery health" subtitle="Signals account managers should watch." />
           <div className="insight-list">
-            <Insight label="Ready for client" value={postsByStatus[PostStatus.READY_FOR_CLIENT]?.length ?? 0} to="/posts" />
-            <Insight label="Changes requested" value={postsByStatus[PostStatus.CHANGES_REQUESTED]?.length ?? 0} to="/posts" />
-            <Insight label="Leads waiting decision" value={leadsByStatus[LeadStatus.WAITING_DECISION]?.length ?? 0} to="/leads" />
-            <Insight label="Blocked tasks" value={tasksByStatus[TaskStatus.BLOCKED]?.length ?? 0} to="/tasks" />
+            <Insight label="Ready for client" value={postsByStatus?.[PostStatus.READY_FOR_CLIENT]} loading={overview.loading} to="/posts" />
+            <Insight label="Changes requested" value={postsByStatus?.[PostStatus.CHANGES_REQUESTED]} loading={overview.loading} to="/posts" />
+            <Insight label="Leads waiting decision" value={leadsByStatus?.[LeadStatus.WAITING_DECISION]} loading={overview.loading} to="/leads" />
+            <Insight label="Blocked tasks" value={tasksByStatus[TaskStatus.BLOCKED]?.length ?? 0} loading={tasks.loading} to="/tasks" />
           </div>
           {overview.data?.recommendations?.length ? (
             <div className="recommendation-stack">
@@ -95,21 +197,22 @@ function DashboardInner({ companyId }: { companyId: string }) {
             subtitle="Where every post currently sits."
             action={<ButtonLink to="/posts" variant="ghost" size="sm">Open board</ButtonLink>}
           />
+          {/* Every status, not a hand-picked six. The old list omitted
+              Changes requested — the status the card below calls out as the
+              one to watch — and Canceled. */}
           <div className="mini-pipeline">
-            {[
-              PostStatus.DRAFT,
-              PostStatus.IN_INTERNAL_REVIEW,
-              PostStatus.READY_FOR_CLIENT,
-              PostStatus.APPROVED,
-              PostStatus.SCHEDULED,
-              PostStatus.PUBLISHED,
-            ].map((status) => (
-              <MiniStage key={status} label={humanize(status)} value={postsByStatus[status]?.length ?? 0} />
+            {Object.values(PostStatus).map((status) => (
+              <MiniStage
+                key={status}
+                label={humanize(status)}
+                value={postsByStatus?.[status]}
+                loading={overview.loading}
+              />
             ))}
           </div>
           <div className="stack-list compact-list">
-            {posts.loading ? <p className="muted">Loading content workflow…</p> : null}
-            {!posts.loading && allPosts.length === 0 ? <p className="muted">No content posts yet.</p> : null}
+            {posts.loading ? <p className="muted">Loading recent content…</p> : null}
+            {!posts.loading && !posts.error && allPosts.length === 0 ? <p className="muted">No content posts yet.</p> : null}
             {allPosts.slice(0, 5).map((post) => <PostRow key={post.id} post={post} />)}
           </div>
         </Card>
@@ -122,12 +225,17 @@ function DashboardInner({ companyId }: { companyId: string }) {
           />
           <div className="mini-pipeline">
             {TASK_BOARD.map((status) => (
-              <MiniStage key={status} label={humanize(status)} value={tasksByStatus[status]?.length ?? 0} />
+              <MiniStage
+                key={status}
+                label={humanize(status)}
+                value={tasksByStatus[status]?.length ?? 0}
+                loading={tasks.loading}
+              />
             ))}
           </div>
           <div className="stack-list compact-list">
             {tasks.loading ? <p className="muted">Loading task board…</p> : null}
-            {!tasks.loading && openTasks.length === 0 ? <p className="muted">No open tasks.</p> : null}
+            {!tasks.loading && !tasks.error && openTasks.length === 0 ? <p className="muted">No open tasks.</p> : null}
             {openTasks.slice(0, 5).map((task) => <TaskRow key={task.id} task={task} />)}
           </div>
         </Card>
@@ -143,7 +251,7 @@ function MetricCard({
   tone,
 }: {
   label: string;
-  value: string | number;
+  value: string;
   helper: string;
   tone: 'accent' | 'info' | 'warning' | 'success';
 }) {
@@ -156,19 +264,19 @@ function MetricCard({
   );
 }
 
-function Insight({ label, value, to }: { label: string; value: number; to: string }) {
+function Insight({ label, value, loading, to }: { label: string; value?: number; loading: boolean; to: string }) {
   return (
     <Link to={to} className="insight-row">
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>{display(value, loading)}</strong>
     </Link>
   );
 }
 
-function MiniStage({ label, value }: { label: string; value: number }) {
+function MiniStage({ label, value, loading }: { label: string; value?: number; loading: boolean }) {
   return (
     <div className="mini-stage">
-      <strong>{value}</strong>
+      <strong>{display(value, loading)}</strong>
       <span>{label}</span>
     </div>
   );

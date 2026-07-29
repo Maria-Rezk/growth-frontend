@@ -13,9 +13,9 @@ import {
   moveTaskStatus,
   pushNotification,
 } from '@/services/demoStore';
+import { filesService } from '@/services/files';
 import type {
   ListParams,
-  StoredFile,
   Task,
   TaskActivityLog,
   TaskAttachment,
@@ -141,13 +141,14 @@ export const tasksService = {
     const response = await http.get(apiRoutes.tasks.activityLogs(companyId, taskId));
     return unwrap<TaskActivityLog[]>(response.data);
   },
+  /**
+   * Delegates to filesService rather than posting the multipart body itself.
+   * The inline version duplicated the upload logic and, more importantly,
+   * skipped filesService's demo-mode branch — so attaching a file in demo mode
+   * fired a real network request and failed.
+   */
   async uploadAndAttach(companyId: string, taskId: string, file: File): Promise<TaskAttachment> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const upload = await http.post(apiRoutes.files.upload(companyId), formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    const storedFile = unwrap<StoredFile>(upload.data);
+    const storedFile = await filesService.upload(companyId, file);
     return tasksService.attachFile(companyId, taskId, storedFile.id);
   },
   async listMine(companyId: string, params?: ListParams): Promise<Task[]> {

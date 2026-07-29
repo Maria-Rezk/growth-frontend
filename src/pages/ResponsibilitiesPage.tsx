@@ -326,6 +326,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
   const [sortOrder, setSortOrder] = useState('0');
   const [isActive, setIsActive] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const resetForm = () => {
     setEditing(null);
@@ -382,10 +383,15 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
       `Delete "${area.name}"? All responsibility assignments in this row will be removed too. This cannot be undone.`,
     );
     if (!confirmed) return;
-    const result = await remove.mutate(companyId, area.id);
-    if (result !== null) {
-      toast.success('Area deleted.');
-      if (editing?.id === area.id) resetForm();
+    setDeletingId(area.id);
+    try {
+      const result = await remove.mutate(companyId, area.id);
+      if (result !== null) {
+        toast.success('Area deleted.');
+        if (editing?.id === area.id) resetForm();
+      }
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -411,7 +417,17 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
               <div className="raci-areas__actions">
                 <Badge tone={area.isActive ? 'success' : 'neutral'}>{area.isActive ? 'Active' : 'Inactive'}</Badge>
                 <Button variant="secondary" size="sm" onClick={() => startEdit(area)}>Edit</Button>
-                <Button variant="danger" size="sm" onClick={() => deleteArea(area)} loading={remove.loading}>Delete</Button>
+                {/* Per-row: `remove.loading` spun every Delete button at once,
+                    on an action that cascades to assignments. */}
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => deleteArea(area)}
+                  loading={deletingId === area.id}
+                  disabled={deletingId !== null}
+                >
+                  Delete
+                </Button>
               </div>
             </div>
           ))}

@@ -7,12 +7,18 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
+import { FormErrorSummary } from '@/components/ui/FormErrorSummary';
 import { LoadingState, ErrorState } from '@/components/ui/State';
+import { RoleGate } from '@/components/domain/RoleGate';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning';
+import { applyServerFieldErrors } from '@/lib/forms';
 import { brandProfilesService } from '@/services/brandProfiles';
 import { queryKeys } from '@/lib/queryClient';
+import type { BrandProfile, BrandProfileInput } from '@/types/domain';
 
-// Schema matches the backend brand-profile contract.
+const HEX = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
 const brandProfileSchema = z.object({
   brandName: z.string().trim().min(2, 'Brand name is required.'),
   industry: z.string().trim().min(2, 'Industry is required.'),
@@ -26,14 +32,17 @@ const brandProfileSchema = z.object({
   ctaPreferences: z.string().optional().default(''),
   forbiddenWords: z.string().optional().default(''),
   // structured arrays, edited as rows
-  colors: z.array(z.object({ name: z.string().trim().min(1, 'Name'), hex: z.string().trim().min(1, 'Hex') })),
+  colors: z.array(z.object({
+    name: z.string().trim().min(1, 'Colour name is required.'),
+    hex: z.string().trim().regex(HEX, 'Use a hex value such as #C9144B.'),
+  })),
   services: z.array(z.object({
-    name: z.string().trim().min(1, 'Service name required'),
+    name: z.string().trim().min(1, 'Service name is required.'),
     description: z.string().optional().default(''),
     priceRange: z.string().optional().default(''),
   })),
   offers: z.array(z.object({
-    title: z.string().trim().min(1, 'Title required'),
+    title: z.string().trim().min(1, 'Offer title is required.'),
     description: z.string().optional().default(''),
     validUntil: z.string().optional().default(''),
   })),
@@ -47,8 +56,46 @@ const EMPTY: BrandProfileForm = {
   colors: [], services: [], offers: [],
 };
 
-const listToText = (value: unknown) => (Array.isArray(value) ? value.join(', ') : (value as string) ?? '');
+const listToText = (value?: string[]) => (Array.isArray(value) ? value.join(', ') : '');
 const textToList = (value?: string) => (value ? value.split(',').map((item) => item.trim()).filter(Boolean) : []);
+
+/** API shape -> form shape. Typed both ends now that BrandProfile is accurate. */
+function toFormValues(profile: BrandProfile): BrandProfileForm {
+  return {
+    brandName: profile.brandName ?? '',
+    industry: profile.industry ?? '',
+    description: profile.description ?? '',
+    targetAudience: profile.targetAudience ?? '',
+    toneOfVoice: profile.toneOfVoice ?? '',
+    brandNotes: profile.brandNotes ?? '',
+    languages: listToText(profile.languages),
+    serviceAreas: listToText(profile.serviceAreas),
+    ctaPreferences: listToText(profile.ctaPreferences),
+    forbiddenWords: listToText(profile.forbiddenWords),
+    colors: (profile.colors ?? []).map((c) => ({ name: c.name ?? '', hex: c.hex ?? '' })),
+    services: (profile.services ?? []).map((s) => ({ name: s.name ?? '', description: s.description ?? '', priceRange: s.priceRange ?? '' })),
+    offers: (profile.offers ?? []).map((o) => ({ title: o.title ?? '', description: o.description ?? '', validUntil: o.validUntil ?? '' })),
+  };
+}
+
+/** Form shape -> API payload. */
+function toPayload(values: BrandProfileForm): BrandProfileInput {
+  return {
+    brandName: values.brandName,
+    industry: values.industry,
+    description: values.description,
+    targetAudience: values.targetAudience,
+    toneOfVoice: values.toneOfVoice,
+    brandNotes: values.brandNotes || undefined,
+    languages: textToList(values.languages),
+    serviceAreas: textToList(values.serviceAreas),
+    ctaPreferences: textToList(values.ctaPreferences),
+    forbiddenWords: textToList(values.forbiddenWords),
+    colors: values.colors.map((c) => ({ name: c.name, hex: c.hex.startsWith('#') ? c.hex : `#${c.hex}` })),
+    services: values.services.map((s) => ({ name: s.name, description: s.description || undefined, priceRange: s.priceRange || undefined })),
+    offers: values.offers.map((o) => ({ title: o.title, description: o.description || undefined, validUntil: o.validUntil || undefined })),
+  };
+}
 
 export function BrandProfilePage() {
   return <RequireCompany>{(companyId) => <BrandProfileInner companyId={companyId} />}</RequireCompany>;
@@ -60,167 +107,209 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
     [companyId],
     { queryKey: queryKeys.brandProfile(companyId) },
   );
-  const save = useMutation(brandProfilesService.upsert, { invalidateKeys: [queryKeys.brandProfile(companyId)] });
 
   const form = useForm<BrandProfileForm>({ resolver: zodResolver(brandProfileSchema), defaultValues: EMPTY, mode: 'onBlur' });
+
+  const save = useMutation(brandProfilesService.upsert, {
+    invalidateKeys: [queryKeys.brandProfile(companyId)],
+    onError: (error) => applyServerFieldErrors(form, error),
+  });
+
   const colors = useFieldArray({ control: form.control, name: 'colors' });
   const services = useFieldArray({ control: form.control, name: 'services' });
   const offers = useFieldArray({ control: form.control, name: 'offers' });
 
+  const isDirty = form.formState.isDirty;
+  // This form is long enough to represent real work. Warn before a tab close
+  // or reload; in-app navigation still needs a data-router blocker.
+  useUnsavedChangesWarning(isDirty);
+
   useEffect(() => {
     if (!profile.data) return;
-    const d = profile.data as any;
-    form.reset({
-      brandName: d.brandName ?? '',
-      industry: d.industry ?? '',
-      description: d.description ?? '',
-      targetAudience: d.targetAudience ?? '',
-      toneOfVoice: d.toneOfVoice ?? '',
-      brandNotes: d.brandNotes ?? '',
-      languages: listToText(d.languages),
-      serviceAreas: listToText(d.serviceAreas),
-      ctaPreferences: listToText(d.ctaPreferences),
-      forbiddenWords: listToText(d.forbiddenWords),
-      colors: Array.isArray(d.colors) ? d.colors.map((c: any) => ({ name: c.name ?? '', hex: c.hex ?? '' })) : [],
-      services: Array.isArray(d.services) ? d.services.map((s: any) => ({ name: s.name ?? '', description: s.description ?? '', priceRange: s.priceRange ?? '' })) : [],
-      offers: Array.isArray(d.offers) ? d.offers.map((o: any) => ({ title: o.title ?? '', description: o.description ?? '', validUntil: o.validUntil ?? '' })) : [],
-    });
+    // `reset` (not setValue) so isDirty returns to false and the loaded values
+    // become the new baseline for the dirty check.
+    form.reset(toFormValues(profile.data));
   }, [form, profile.data]);
 
   const submit = form.handleSubmit(async (values) => {
-    const payload = {
-      brandName: values.brandName,
-      industry: values.industry,
-      description: values.description,
-      targetAudience: values.targetAudience,
-      toneOfVoice: values.toneOfVoice,
-      brandNotes: values.brandNotes || undefined,
-      languages: textToList(values.languages),
-      serviceAreas: textToList(values.serviceAreas),
-      ctaPreferences: textToList(values.ctaPreferences),
-      forbiddenWords: textToList(values.forbiddenWords),
-      colors: values.colors,
-      services: values.services.map((s) => ({ name: s.name, description: s.description || undefined, priceRange: s.priceRange || undefined })),
-      offers: values.offers.map((o) => ({ title: o.title, description: o.description || undefined, validUntil: o.validUntil || undefined })),
-    };
-    const result = await save.mutate(companyId, payload as any, Boolean(profile.data));
+    const result = await save.mutate(companyId, toPayload(values), Boolean(profile.data));
     if (result) {
       profile.setData(result);
+      form.reset(toFormValues(result));
       toast.success('Brand profile saved.');
     }
   });
 
-  if (profile.loading) return <LoadingState />;
-  if (profile.error) return <ErrorState message={profile.error} onRetry={profile.refetch} />;
+  if (profile.loading) return <Card><LoadingState label="Loading brand profile…" /></Card>;
+  if (profile.error) return <Card><ErrorState message={profile.error} onRetry={profile.refetch} /></Card>;
 
   return (
     <>
-      <PageHeader title="Brand profile" subtitle="The source of truth for AI prompts, content workflows and client strategy." />
-      <Card className="form-card">
-        <form className="form-grid" onSubmit={submit} noValidate>
-          <div className="grid-2">
-            <Field label="Brand name" htmlFor="brandName" error={form.formState.errors.brandName?.message}>
-              <Input id="brandName" {...form.register('brandName')} />
-            </Field>
-            <Field label="Industry" htmlFor="industry" error={form.formState.errors.industry?.message}>
-              <Input id="industry" {...form.register('industry')} />
-            </Field>
-          </div>
+      <PageHeader
+        title="Brand profile"
+        subtitle="The source of truth for AI prompts, content workflows and client strategy."
+      />
 
-          <Field label="Description" htmlFor="description" error={form.formState.errors.description?.message}>
-            <Textarea id="description" rows={3} {...form.register('description')} />
-          </Field>
-          <Field label="Target audience" htmlFor="targetAudience" error={form.formState.errors.targetAudience?.message}>
-            <Textarea id="targetAudience" rows={3} {...form.register('targetAudience')} />
-          </Field>
-
-          <div className="grid-2">
-            <Field label="Tone of voice" htmlFor="toneOfVoice" error={form.formState.errors.toneOfVoice?.message}>
-              <Input id="toneOfVoice" placeholder="Premium, calm, reassuring" {...form.register('toneOfVoice')} />
-            </Field>
-            <Field label="Languages" htmlFor="languages" hint="Comma-separated, e.g. ar, en">
-              <Input id="languages" {...form.register('languages')} />
-            </Field>
-          </div>
-
-          <div className="grid-2">
-            <Field label="Service areas" htmlFor="serviceAreas" hint="Comma-separated">
-              <Input id="serviceAreas" {...form.register('serviceAreas')} />
-            </Field>
-            <Field label="CTA preferences" htmlFor="ctaPreferences" hint="Comma-separated">
-              <Input id="ctaPreferences" {...form.register('ctaPreferences')} />
-            </Field>
-          </div>
-
-          <Field label="Forbidden words" htmlFor="forbiddenWords" hint="Comma-separated. The AI will avoid these.">
-            <Input id="forbiddenWords" {...form.register('forbiddenWords')} />
-          </Field>
-
-          {/* Colors */}
-          <Card className="content-card">
-            <CardHeader title="Brand colors" action={<Button type="button" variant="secondary" size="sm" onClick={() => colors.append({ name: '', hex: '' })}>Add color</Button>} />
-            <div className="content-card__body stack-list">
-              {colors.fields.length === 0 ? <p className="muted">No colors yet.</p> : null}
-              {colors.fields.map((fieldItem, index) => (
-                <div key={fieldItem.id} className="grid-2">
-                  <Field label="Name" htmlFor={`color-name-${index}`}><Input id={`color-name-${index}`} {...form.register(`colors.${index}.name`)} /></Field>
-                  <div className="row-with-remove">
-                    <Field label="Hex" htmlFor={`color-hex-${index}`}><Input id={`color-hex-${index}`} placeholder="#F4E8D8" {...form.register(`colors.${index}.hex`)} /></Field>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => colors.remove(index)} aria-label={`Remove color ${index + 1}`}>Remove</Button>
-                  </div>
-                </div>
-              ))}
+      <form className="form-grid" onSubmit={submit} noValidate>
+        <Card>
+          <CardHeader title="Identity" subtitle="How the brand describes itself." />
+          <div className="form-card form-grid">
+            <div className="grid-2">
+              <Field label="Brand name" htmlFor="brandName" error={form.formState.errors.brandName?.message}>
+                <Input id="brandName" aria-invalid={Boolean(form.formState.errors.brandName)} {...form.register('brandName')} />
+              </Field>
+              <Field label="Industry" htmlFor="industry" error={form.formState.errors.industry?.message}>
+                <Input id="industry" aria-invalid={Boolean(form.formState.errors.industry)} {...form.register('industry')} />
+              </Field>
             </div>
-          </Card>
 
-          {/* Services */}
-          <Card className="content-card">
-            <CardHeader title="Services" action={<Button type="button" variant="secondary" size="sm" onClick={() => services.append({ name: '', description: '', priceRange: '' })}>Add service</Button>} />
-            <div className="content-card__body stack-list">
-              {services.fields.length === 0 ? <p className="muted">No services yet.</p> : null}
-              {services.fields.map((fieldItem, index) => (
-                <div key={fieldItem.id} className="form-grid bordered-row">
+            <Field label="Description" htmlFor="description" error={form.formState.errors.description?.message}>
+              <Textarea id="description" rows={3} aria-invalid={Boolean(form.formState.errors.description)} {...form.register('description')} />
+            </Field>
+            <Field label="Target audience" htmlFor="targetAudience" error={form.formState.errors.targetAudience?.message}>
+              <Textarea id="targetAudience" rows={3} aria-invalid={Boolean(form.formState.errors.targetAudience)} {...form.register('targetAudience')} />
+            </Field>
+
+            <div className="grid-2">
+              <Field label="Tone of voice" htmlFor="toneOfVoice" error={form.formState.errors.toneOfVoice?.message}>
+                <Input id="toneOfVoice" placeholder="Premium, calm, reassuring" aria-invalid={Boolean(form.formState.errors.toneOfVoice)} {...form.register('toneOfVoice')} />
+              </Field>
+              <Field label="Languages" htmlFor="languages" hint="Comma-separated, e.g. ar, en">
+                <Input id="languages" {...form.register('languages')} />
+              </Field>
+            </div>
+
+            <div className="grid-2">
+              <Field label="Service areas" htmlFor="serviceAreas" hint="Comma-separated">
+                <Input id="serviceAreas" {...form.register('serviceAreas')} />
+              </Field>
+              <Field label="CTA preferences" htmlFor="ctaPreferences" hint="Comma-separated">
+                <Input id="ctaPreferences" {...form.register('ctaPreferences')} />
+              </Field>
+            </div>
+
+            <Field label="Forbidden words" htmlFor="forbiddenWords" hint="Comma-separated. The AI will avoid these.">
+              <Input id="forbiddenWords" {...form.register('forbiddenWords')} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Brand colours"
+            action={<Button type="button" variant="secondary" size="sm" onClick={() => colors.append({ name: '', hex: '#000000' })}>Add colour</Button>}
+          />
+          <div className="form-card stack-list">
+            {colors.fields.length === 0 ? <p className="muted">No colours yet.</p> : null}
+            {colors.fields.map((fieldItem, index) => (
+              <div key={fieldItem.id} className="repeat-row">
+                <Field label="Name" htmlFor={`color-name-${index}`} error={form.formState.errors.colors?.[index]?.name?.message}>
+                  <Input id={`color-name-${index}`} {...form.register(`colors.${index}.name`)} />
+                </Field>
+                <Field label="Hex" htmlFor={`color-hex-${index}`} error={form.formState.errors.colors?.[index]?.hex?.message}>
+                  <Input id={`color-hex-${index}`} placeholder="#C9144B" {...form.register(`colors.${index}.hex`)} />
+                </Field>
+                {/* Native swatch bound to the same field — typing updates the
+                    picker and picking updates the text. */}
+                <Field label="Pick" htmlFor={`color-swatch-${index}`}>
+                  <input
+                    id={`color-swatch-${index}`}
+                    className="color-swatch"
+                    type="color"
+                    value={HEX.test(form.watch(`colors.${index}.hex`) ?? '') ? form.watch(`colors.${index}.hex`) : '#000000'}
+                    onChange={(e) => form.setValue(`colors.${index}.hex`, e.target.value, { shouldDirty: true })}
+                  />
+                </Field>
+                <Button type="button" variant="secondary" size="sm" onClick={() => colors.remove(index)} aria-label={`Remove colour ${index + 1}`}>Remove</Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Services"
+            action={<Button type="button" variant="secondary" size="sm" onClick={() => services.append({ name: '', description: '', priceRange: '' })}>Add service</Button>}
+          />
+          <div className="form-card stack-list">
+            {services.fields.length === 0 ? <p className="muted">No services yet.</p> : null}
+            {services.fields.map((fieldItem, index) => (
+              <div key={fieldItem.id} className="bordered-row">
+                <div className="bordered-row__head">
+                  <strong>Service {index + 1}</strong>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => services.remove(index)} aria-label={`Remove service ${index + 1}`}>Remove</Button>
+                </div>
+                <div className="grid-2">
                   <Field label="Name" htmlFor={`svc-name-${index}`} error={form.formState.errors.services?.[index]?.name?.message}>
                     <Input id={`svc-name-${index}`} {...form.register(`services.${index}.name`)} />
                   </Field>
-                  <Field label="Description" htmlFor={`svc-desc-${index}`}><Textarea id={`svc-desc-${index}`} rows={2} {...form.register(`services.${index}.description`)} /></Field>
-                  <div className="row-with-remove">
-                    <Field label="Price range" htmlFor={`svc-price-${index}`}><Input id={`svc-price-${index}`} {...form.register(`services.${index}.priceRange`)} /></Field>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => services.remove(index)} aria-label={`Remove service ${index + 1}`}>Remove</Button>
-                  </div>
+                  <Field label="Price range" htmlFor={`svc-price-${index}`}>
+                    <Input id={`svc-price-${index}`} {...form.register(`services.${index}.priceRange`)} />
+                  </Field>
                 </div>
-              ))}
-            </div>
-          </Card>
+                <Field label="Description" htmlFor={`svc-desc-${index}`}>
+                  <Textarea id={`svc-desc-${index}`} rows={2} {...form.register(`services.${index}.description`)} />
+                </Field>
+              </div>
+            ))}
+          </div>
+        </Card>
 
-          {/* Offers */}
-          <Card className="content-card">
-            <CardHeader title="Offers" action={<Button type="button" variant="secondary" size="sm" onClick={() => offers.append({ title: '', description: '', validUntil: '' })}>Add offer</Button>} />
-            <div className="content-card__body stack-list">
-              {offers.fields.length === 0 ? <p className="muted">No offers yet.</p> : null}
-              {offers.fields.map((fieldItem, index) => (
-                <div key={fieldItem.id} className="form-grid bordered-row">
+        <Card>
+          <CardHeader
+            title="Offers"
+            action={<Button type="button" variant="secondary" size="sm" onClick={() => offers.append({ title: '', description: '', validUntil: '' })}>Add offer</Button>}
+          />
+          <div className="form-card stack-list">
+            {offers.fields.length === 0 ? <p className="muted">No offers yet.</p> : null}
+            {offers.fields.map((fieldItem, index) => (
+              <div key={fieldItem.id} className="bordered-row">
+                <div className="bordered-row__head">
+                  <strong>Offer {index + 1}</strong>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => offers.remove(index)} aria-label={`Remove offer ${index + 1}`}>Remove</Button>
+                </div>
+                <div className="grid-2">
                   <Field label="Title" htmlFor={`offer-title-${index}`} error={form.formState.errors.offers?.[index]?.title?.message}>
                     <Input id={`offer-title-${index}`} {...form.register(`offers.${index}.title`)} />
                   </Field>
-                  <Field label="Description" htmlFor={`offer-desc-${index}`}><Textarea id={`offer-desc-${index}`} rows={2} {...form.register(`offers.${index}.description`)} /></Field>
-                  <div className="row-with-remove">
-                    <Field label="Valid until" htmlFor={`offer-valid-${index}`}><Input id={`offer-valid-${index}`} type="date" {...form.register(`offers.${index}.validUntil`)} /></Field>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => offers.remove(index)} aria-label={`Remove offer ${index + 1}`}>Remove</Button>
-                  </div>
+                  <Field label="Valid until" htmlFor={`offer-valid-${index}`}>
+                    <Input id={`offer-valid-${index}`} type="date" {...form.register(`offers.${index}.validUntil`)} />
+                  </Field>
                 </div>
-              ))}
+                <Field label="Description" htmlFor={`offer-desc-${index}`}>
+                  <Textarea id={`offer-desc-${index}`} rows={2} {...form.register(`offers.${index}.description`)} />
+                </Field>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="form-card form-grid">
+            <Field label="Brand notes" htmlFor="brandNotes" hint="Internal guidance for the AI, e.g. claims to avoid.">
+              <Textarea id="brandNotes" rows={3} {...form.register('brandNotes')} />
+            </Field>
+
+            {/* The errors are otherwise invisible: a validation failure on a
+                field far above the fold left the submit doing nothing. */}
+            <FormErrorSummary errors={form.formState.errors} />
+            {save.error ? <p className="error-box" role="alert">{save.error}</p> : null}
+
+            <div className="form-status-row">
+              <span>
+                {isDirty
+                  ? <span className="unsaved-pill">Unsaved changes</span>
+                  : <span className="muted">All changes saved.</span>}
+              </span>
+              <RoleGate permission="brand:edit" fallback={<span className="muted">Your role cannot edit the brand profile.</span>}>
+                <Button type="submit" loading={form.formState.isSubmitting || save.loading} disabled={!isDirty}>
+                  Save brand profile
+                </Button>
+              </RoleGate>
             </div>
-          </Card>
-
-          <Field label="Brand notes" htmlFor="brandNotes" hint="Internal guidance for the AI, e.g. claims to avoid.">
-            <Textarea id="brandNotes" rows={3} {...form.register('brandNotes')} />
-          </Field>
-
-          {save.error ? <p className="error-box" role="alert">{save.error}</p> : null}
-          <div className="form-actions"><Button type="submit" loading={form.formState.isSubmitting || save.loading}>Save brand profile</Button></div>
-        </form>
-      </Card>
+          </div>
+        </Card>
+      </form>
     </>
   );
 }

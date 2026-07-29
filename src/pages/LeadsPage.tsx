@@ -5,23 +5,25 @@ import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
-import { PageHeader } from '@/components/ui/Card';
+import { PageHeader, Card } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { Pagination } from '@/components/ui/Pagination';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { applyServerFieldErrors } from '@/lib/forms';
 import { leadsService } from '@/services/leads';
 import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
-import { LEAD_PIPELINE, groupByStatus } from '@/utils/workflow';
+import { LEAD_PIPELINE } from '@/utils/workflow';
 import { LeadStatus, LeadSource, type Lead } from '@/types/domain';
 
 const STATUS_OPTIONS = Object.values(LeadStatus);
@@ -73,7 +75,26 @@ function LeadsInner({ companyId }: { companyId: string }) {
     [companyId, status, source, debouncedSearch, page, view],
     { queryKey: queryKeys.leads(companyId, filters) },
   );
-  const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
+
+  /*
+    Counts come from their own request, deliberately WITHOUT the status
+    filter. Deriving them from `leads.data.items` meant clicking a tile
+    filtered the list and then zeroed every other tile — the control
+    destroyed its own readout. Search and source still apply, so the tiles
+    answer "how many leads match my search, per stage".
+  */
+  const countFilters = { source: source || undefined, search: debouncedSearch || undefined };
+  const counts = useAsync(
+    () => leadsService.statusCounts(companyId, LEAD_PIPELINE, countFilters),
+    [companyId, source, debouncedSearch],
+    { queryKey: queryKeys.leadCounts(companyId, countFilters) },
+  );
+
+  const members = useAsync(
+    () => companiesService.members(companyId),
+    [companyId],
+    { queryKey: queryKeys.companyMembers(companyId) },
+  );
 
   // Any filter or view change restarts from page 1 so offsets stay valid.
   const setStatusFilter = (value: string) => { setStatus(value); setPage(1); };
@@ -84,13 +105,17 @@ function LeadsInner({ companyId }: { companyId: string }) {
   const assigneeName = useMemo<AssigneeNameFn>(() => {
     const map = new Map<string, string>();
     (members.data ?? []).forEach((m) => map.set(m.userId, m.user?.fullName ?? m.user?.email ?? m.userId));
-    return (id) => (id ? map.get(id) ?? 'Assigned' : 'Unassigned');
-  }, [members.data]);
+    // While members are still loading, say so rather than claiming "Assigned"
+    // for a name we simply haven't fetched yet.
+    return (id) => {
+      if (!id) return 'Unassigned';
+      return map.get(id) ?? (members.loading ? '…' : 'Unknown member');
+    };
+  }, [members.data, members.loading]);
 
   const rows = leads.data?.items ?? [];
   const total = leads.data?.total ?? rows.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const grouped = groupByStatus(rows);
 
   const columns = useMemo<Column<Lead>[]>(() => [
     { key: 'name', header: 'Lead', sortValue: (lead) => lead.name, render: (lead) => <div><Link className="table-link" to={`/leads/${lead.id}`}>{lead.name}</Link><p className="muted">{lead.email ?? lead.phone ?? 'No contact'}</p></div> },
@@ -115,9 +140,15 @@ function LeadsInner({ companyId }: { companyId: string }) {
 
       <div className="pipeline-summary card">
         {LEAD_PIPELINE.map((item) => (
-          <button key={item} type="button" className="pipeline-summary__item" onClick={() => setStatusFilter(status === item ? '' : item)} aria-pressed={status === item}>
+          <button
+            key={item}
+            type="button"
+            className="pipeline-summary__item"
+            onClick={() => setStatusFilter(status === item ? '' : item)}
+            aria-pressed={status === item}
+          >
             <span>{humanize(item)}</span>
-            <strong>{grouped[item]?.length ?? 0}</strong>
+            <strong>{counts.loading ? '—' : counts.data?.[item] ?? 0}</strong>
           </button>
         ))}
       </div>
@@ -149,22 +180,86 @@ function LeadsInner({ companyId }: { companyId: string }) {
       </div>
 
       {view === 'pipeline' ? (
-        <section className="board-section" aria-label="Sales pipeline board">
-          <KanbanBoard columns={LEAD_PIPELINE} items={rows} renderCard={(lead) => <LeadBoardCard lead={lead} assigneeName={assigneeName(lead.assignedToId)} />} emptyText="No leads here." />
-          {leads.loading ? <p className="muted">Loading pipeline…</p> : null}
-          {leads.refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}
-          {leads.error ? <p className="error-box" role="alert">{leads.error}</p> : null}
-          {totalPages > 1 ? <Pagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
-        </section>
+        <PipelineView
+          loading={leads.loading}
+          refreshing={leads.refreshing}
+          error={leads.error}
+          rows={rows}
+          onRetry={leads.refetch}
+          assigneeName={assigneeName}
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       ) : (
         <>
-          <DataTable columns={columns} rows={rows} rowKey={(lead) => lead.id} loading={leads.loading} error={leads.error} onRetry={leads.refetch} emptyTitle="No leads yet" />
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={(lead) => lead.id}
+            loading={leads.loading}
+            error={leads.error}
+            onRetry={leads.refetch}
+            emptyTitle="No leads yet"
+          />
           {totalPages > 1 ? <Pagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
           {total > 0 ? <p className="muted">Showing {rows.length} of {total} leads.</p> : null}
         </>
       )}
+
       <LeadModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} />
     </>
+  );
+}
+
+/**
+ * The board previously rendered with `items={[]}` while loading, so all seven
+ * columns read "No leads here" before popping to real data, and an error
+ * appeared *below* a board that was still showing empty columns.
+ */
+function PipelineView({
+  loading,
+  refreshing,
+  error,
+  rows,
+  onRetry,
+  assigneeName,
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  loading: boolean;
+  refreshing: boolean;
+  error: string | null;
+  rows: Lead[];
+  onRetry: () => void;
+  assigneeName: AssigneeNameFn;
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (loading) return <Card><LoadingState label="Loading pipeline…" /></Card>;
+  if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
+
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <EmptyState title="No leads match these filters" description="Clear the search or choose a different stage." />
+      </Card>
+    );
+  }
+
+  return (
+    <section className="board-section" aria-label="Sales pipeline board">
+      {refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}
+      <KanbanBoard
+        columns={LEAD_PIPELINE}
+        items={rows}
+        renderCard={(lead) => <LeadBoardCard lead={lead} assigneeName={assigneeName(lead.assignedToId)} />}
+        emptyText="No leads here."
+      />
+      {totalPages > 1 ? <Pagination page={page} totalPages={totalPages} onPageChange={onPageChange} /> : null}
+    </section>
   );
 }
 
@@ -189,12 +284,25 @@ function LeadBoardCard({ lead, assigneeName }: { lead: Lead; assigneeName: strin
 }
 
 function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: string; onClose: () => void }) {
-  const create = useMutation(leadsService.create, { invalidateKeys: [['companies', companyId, 'leads']] });
   const form = useForm<LeadForm>({
     resolver: zodResolver(leadSchema),
     defaultValues: { name: '', email: '', phone: '', source: LeadSource.INSTAGRAM, interestedService: '', notes: '', nextFollowUpAt: '' },
     mode: 'onBlur',
   });
+
+  const create = useMutation(leadsService.create, {
+    // Prefix key: refreshes every filtered list AND the pipeline counts.
+    invalidateKeys: [['companies', companyId, 'leads']],
+    onError: (error) => applyServerFieldErrors(form, error),
+  });
+
+  // Clear both the form and the mutation, otherwise a previous error is still
+  // on screen the next time the modal opens.
+  const close = () => {
+    form.reset();
+    create.reset();
+    onClose();
+  };
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
@@ -209,20 +317,29 @@ function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: str
     });
     if (result) {
       toast.success('Lead created.');
-      form.reset();
-      onClose();
+      close();
     }
   });
 
   return (
-    <Modal open={open} onClose={onClose} title="Create lead" footer={<><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" form="lead-form" loading={form.formState.isSubmitting || create.loading}>Create lead</Button></>}>
+    <Modal
+      open={open}
+      onClose={close}
+      title="Create lead"
+      footer={
+        <>
+          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button type="submit" form="lead-form" loading={form.formState.isSubmitting || create.loading}>Create lead</Button>
+        </>
+      }
+    >
       <form id="lead-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Name" htmlFor="lead-name" error={form.formState.errors.name?.message}>
-          <Input id="lead-name" {...form.register('name')} />
+          <Input id="lead-name" aria-invalid={Boolean(form.formState.errors.name)} {...form.register('name')} />
         </Field>
         <div className="grid-2">
           <Field label="Email" htmlFor="lead-email" error={form.formState.errors.email?.message}>
-            <Input id="lead-email" type="email" {...form.register('email')} />
+            <Input id="lead-email" type="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
           </Field>
           <Field label="Phone" htmlFor="lead-phone" error={form.formState.errors.phone?.message}>
             <Input id="lead-phone" {...form.register('phone')} />

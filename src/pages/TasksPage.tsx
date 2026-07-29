@@ -5,17 +5,19 @@ import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
-import { PageHeader } from '@/components/ui/Card';
+import { PageHeader, Card } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { applyServerFieldErrors } from '@/lib/forms';
 import { tasksService } from '@/services/tasks';
 import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
@@ -37,6 +39,11 @@ const taskSchema = z.object({
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
+
+/** Overdue only applies to work someone is still expected to complete. */
+function isTaskOverdue(task: Task): boolean {
+  return isOverdue(task.dueDate) && task.status !== TaskStatus.DONE && task.status !== TaskStatus.CANCELED;
+}
 
 export function TasksPage() {
   return <RequireCompany>{(companyId) => <TasksInner companyId={companyId} />}</RequireCompany>;
@@ -60,22 +67,45 @@ function TasksInner({ companyId }: { companyId: string }) {
   );
   const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
 
+  /*
+    The alert tiles are workspace-level KPIs, so they must not be computed
+    from `tasks.data` — that is the *filtered* result. Filtering to Done made
+    "Overdue" read 0; filtering to Low priority made "High priority" read 0,
+    while the tile copy claimed "across all statuses".
+
+    Scope still applies (All vs My tasks) because that is the frame the user
+    has chosen, but the field filters do not. One extra unfiltered request,
+    cached separately.
+  */
+  const alertScope = { scope };
+  const alertTasks = useAsync(
+    () => (scope === 'mine' ? tasksService.listMine(companyId) : tasksService.list(companyId)),
+    [companyId, scope],
+    { queryKey: [...queryKeys.tasks(companyId, alertScope), 'alerts'] },
+  );
+
   // Resolve assignedToId (a user id) to a display name using company members.
   const assigneeName = useMemo<AssigneeNameFn>(() => {
     const map = new Map<string, string>();
     (members.data ?? []).forEach((m) => map.set(m.userId, m.user?.fullName ?? m.user?.email ?? m.userId));
-    return (id) => (id ? map.get(id) ?? 'Assigned' : 'Unassigned');
-  }, [members.data]);
+    // Don't claim "Assigned" for a name that simply hasn't loaded yet.
+    return (id) => {
+      if (!id) return 'Unassigned';
+      return map.get(id) ?? (members.loading ? '…' : 'Unknown member');
+    };
+  }, [members.data, members.loading]);
 
   const rows = tasks.data ?? [];
-  const overdueCount = rows.filter((task) => isOverdue(task.dueDate) && task.status !== TaskStatus.DONE).length;
+  const alertRows = alertTasks.data ?? [];
+  const overdueCount = alertRows.filter(isTaskOverdue).length;
+  const highPriorityCount = alertRows.filter((task) => task.priority === TaskPriority.HIGH || task.priority === TaskPriority.URGENT).length;
 
   const columns = useMemo<Column<Task>[]>(() => [
     { key: 'title', header: 'Task', sortValue: (task) => task.title, render: (task) => <div><Link className="table-link" to={`/tasks/${task.id}`}>{task.title}</Link><p className="muted">{humanize(task.type)}</p></div> },
     { key: 'status', header: 'Status', sortValue: (task) => task.status, render: (task) => <StatusBadge value={task.status} /> },
     { key: 'priority', header: 'Priority', sortValue: (task) => task.priority, render: (task) => <StatusBadge value={task.priority} /> },
     { key: 'assignee', header: 'Assigned', sortValue: (task) => assigneeName(task.assignedToId), render: (task) => assigneeName(task.assignedToId) },
-    { key: 'due', header: 'Due', sortValue: (task) => task.dueDate ?? '', render: (task) => <span className={isOverdue(task.dueDate) && task.status !== TaskStatus.DONE ? 'danger-text' : undefined}>{formatDateTime(task.dueDate)}</span> },
+    { key: 'due', header: 'Due', sortValue: (task) => task.dueDate ?? '', render: (task) => <span className={isTaskOverdue(task) ? 'danger-text' : undefined}>{formatDateTime(task.dueDate)}</span> },
     { key: 'actions', header: '', className: 'cell-right', render: (task) => <ButtonLink to={`/tasks/${task.id}`} variant="secondary" size="sm">Open</ButtonLink> },
   ], [assigneeName]);
 
@@ -94,26 +124,30 @@ function TasksInner({ companyId }: { companyId: string }) {
       <div className="task-alerts">
         <div className="task-alert card">
           <span>Overdue tasks</span>
-          <strong>{overdueCount}</strong>
-          <p>These require manager review before new work is accepted.</p>
+          <strong>{alertTasks.loading ? '—' : overdueCount}</strong>
+          <p>Past their due date and not done or canceled.</p>
         </div>
         <div className="task-alert card">
           <span>High priority</span>
-          <strong>{rows.filter((task) => task.priority === TaskPriority.HIGH || task.priority === TaskPriority.URGENT).length}</strong>
-          <p>Urgent and high-priority items across all statuses.</p>
+          <strong>{alertTasks.loading ? '—' : highPriorityCount}</strong>
+          <p>Urgent and high-priority items, ignoring the filters below.</p>
         </div>
       </div>
 
       <div className="toolbar card">
         <div className="toolbar__filters toolbar__filters--wide">
-          <Field label="Scope" htmlFor="task-scope">
+          {/* A <label htmlFor> pointing at a role="group" that has no id is a
+              dangling association. SegmentedControl already names itself with
+              aria-label, so this just needs a visual heading. */}
+          <div className="field">
+            <span className="field__label">Scope</span>
             <SegmentedControl<Scope>
               label="Task scope"
               value={scope}
               onChange={setScope}
               options={[{ label: 'All tasks', value: 'all' }, { label: 'My tasks', value: 'mine' }]}
             />
-          </Field>
+          </div>
           <Field label="Search" htmlFor="task-search"><Input id="task-search" placeholder="Search task title" value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
           <Field label="Status" htmlFor="task-filter"><Select id="task-filter" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{Object.values(TaskStatus).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
           <Field label="Priority" htmlFor="task-priority-filter"><Select id="task-priority-filter" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">All priorities</option>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
@@ -128,17 +162,69 @@ function TasksInner({ companyId }: { companyId: string }) {
       </div>
 
       {view === 'board' ? (
-        <section className="board-section" aria-label={scope === 'mine' ? 'My tasks board' : 'Internal execution board'}>
-          <KanbanBoard columns={TASK_BOARD} items={rows} renderCard={(task) => <TaskBoardCard task={task} assigneeName={assigneeName(task.assignedToId)} />} emptyText={scope === 'mine' ? 'No tasks assigned to you here.' : 'No tasks here.'} />
-          {tasks.loading ? <p className="muted">Loading tasks…</p> : null}
-          {tasks.refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}
-          {tasks.error ? <p className="error-box" role="alert">{tasks.error}</p> : null}
-        </section>
+        <TaskBoardView
+          loading={tasks.loading}
+          refreshing={tasks.refreshing}
+          error={tasks.error}
+          rows={rows}
+          onRetry={tasks.refetch}
+          assigneeName={assigneeName}
+          scope={scope}
+        />
       ) : (
         <DataTable columns={columns} rows={rows} rowKey={(task) => task.id} loading={tasks.loading} error={tasks.error} onRetry={tasks.refetch} emptyTitle={scope === 'mine' ? 'No tasks assigned to you' : 'No tasks found'} />
       )}
       <TaskModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} members={members.data ?? []} />
     </>
+  );
+}
+
+/**
+ * The board used to render with `items={[]}` while loading, so every column
+ * read "No tasks here" before popping to real data, and an error appeared
+ * below a board that was still showing stale empty columns.
+ */
+function TaskBoardView({
+  loading,
+  refreshing,
+  error,
+  rows,
+  onRetry,
+  assigneeName,
+  scope,
+}: {
+  loading: boolean;
+  refreshing: boolean;
+  error: string | null;
+  rows: Task[];
+  onRetry: () => void;
+  assigneeName: AssigneeNameFn;
+  scope: Scope;
+}) {
+  if (loading) return <Card><LoadingState label="Loading tasks…" /></Card>;
+  if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
+
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <EmptyState
+          title={scope === 'mine' ? 'No tasks assigned to you' : 'No tasks match these filters'}
+          description="Clear the search or choose different filters."
+        />
+      </Card>
+    );
+  }
+
+  return (
+    <section className="board-section" aria-label={scope === 'mine' ? 'My tasks board' : 'Internal execution board'}>
+      {refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}
+      <KanbanBoard
+        columns={TASK_BOARD}
+        items={rows}
+        renderCard={(task) => <TaskBoardCard task={task} assigneeName={assigneeName(task.assignedToId)} />}
+        emptyText={scope === 'mine' ? 'No tasks assigned to you here.' : 'No tasks here.'}
+      />
+    </section>
   );
 }
 
@@ -155,7 +241,8 @@ function TaskBoardCard({ task, assigneeName }: { task: Task; assigneeName: strin
         <span>{assigneeName}</span>
       </div>
       <div className="kanban-card__footer">
-        <span className={isOverdue(task.dueDate) && task.status !== TaskStatus.DONE ? 'danger-text' : undefined}>{isOverdue(task.dueDate) && task.status !== TaskStatus.DONE ? 'Overdue' : 'Due'}</span>
+        {/* A canceled task can't be overdue — nobody is expected to finish it. */}
+        <span className={isTaskOverdue(task) ? 'danger-text' : undefined}>{isTaskOverdue(task) ? 'Overdue' : 'Due'}</span>
         <strong>{formatDateTime(task.dueDate)}</strong>
       </div>
     </Link>
@@ -163,12 +250,23 @@ function TaskBoardCard({ task, assigneeName }: { task: Task; assigneeName: strin
 }
 
 function TaskModal({ open, companyId, onClose, members }: { open: boolean; companyId: string; onClose: () => void; members: Array<{ id: string; userId: string; role: string; user?: { fullName?: string; email?: string } }> }) {
-  const create = useMutation(tasksService.create, { invalidateKeys: [['companies', companyId, 'tasks']] });
   const form = useForm<TaskForm>({
     resolver: zodResolver(taskSchema),
     defaultValues: { title: '', description: '', type: TaskType.GENERAL, priority: TaskPriority.MEDIUM, assignedToId: '', dueDate: '' },
     mode: 'onBlur',
   });
+
+  const create = useMutation(tasksService.create, {
+    invalidateKeys: [['companies', companyId, 'tasks']],
+    onError: (error) => applyServerFieldErrors(form, error),
+  });
+
+  // Reset the mutation too, or a previous error is still on screen next open.
+  const close = () => {
+    form.reset();
+    create.reset();
+    onClose();
+  };
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
@@ -181,13 +279,12 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
     });
     if (result) {
       toast.success('Task created.');
-      form.reset();
-      onClose();
+      close();
     }
   });
 
   return (
-    <Modal open={open} onClose={onClose} title="Create task" footer={<><Button variant="secondary" type="button" onClick={onClose}>Cancel</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading}>Create task</Button></>}>
+    <Modal open={open} onClose={close} title="Create task" footer={<><Button variant="secondary" type="button" onClick={close}>Cancel</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading}>Create task</Button></>}>
       <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
           <Input id="task-title" {...form.register('title')} />

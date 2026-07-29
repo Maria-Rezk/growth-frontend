@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { notificationsService } from '@/services/notifications';
 import { queryKeys } from '@/lib/queryClient';
@@ -41,6 +41,16 @@ export function NotificationsPage() {
   const markRead = useMutation(notificationsService.markRead, { invalidateKeys: INVALIDATE_NOTIFICATIONS });
   const markAll = useMutation(notificationsService.markAllRead, { invalidateKeys: INVALIDATE_NOTIFICATIONS });
   const [filters, setFilters] = useState<NotificationFiltersValue>(DEFAULT_FILTERS);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const markOne = async (id: string) => {
+    setPendingId(id);
+    try {
+      await markRead.mutate(id);
+    } finally {
+      setPendingId(null);
+    }
+  };
 
   const notificationTypes = useMemo<NotificationType[]>(() => {
     const types = new Set((notifications.data ?? []).map((notification) => notification.type));
@@ -62,31 +72,43 @@ export function NotificationsPage() {
       <PageHeader
         title="Notifications"
         subtitle="System events from tasks, leads, approvals, invitations and reports."
-        action={<Button variant="secondary" size="sm" onClick={() => markAll.mutate()} loading={markAll.loading}>Mark all read</Button>}
+        action={(
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => markAll.mutate()}
+            loading={markAll.loading}
+            disabled={unreadCount === 0}
+          >
+            Mark all read
+          </Button>
+        )}
       />
 
       <div className="notification-summary-grid">
         <Card className="metric-card">
           <span>Total</span>
-          <strong>{notifications.data?.length ?? 0}</strong>
+          <strong>{notifications.loading ? '—' : notifications.data?.length ?? 0}</strong>
         </Card>
         <Card className="metric-card metric-card--accent">
           <span>Unread</span>
-          <strong>{unreadCount}</strong>
+          <strong>{notifications.loading ? '—' : unreadCount}</strong>
         </Card>
         <Card className="metric-card">
           <span>Matching filters</span>
-          <strong>{filteredNotifications.length}</strong>
+          <strong>{notifications.loading ? '—' : filteredNotifications.length}</strong>
         </Card>
       </div>
 
       <NotificationFilters value={filters} notificationTypes={notificationTypes} onChange={setFilters} />
 
       <Card className="notifications-list-card">
-        {notifications.loading ? <p className="muted">Loading notifications…</p> : null}
+        {notifications.loading ? <LoadingState label="Loading notifications…" /> : null}
         {notifications.error ? (
           <ErrorState message={notifications.error} onRetry={notifications.refetch} />
         ) : null}
+        {markRead.error ? <p className="error-box" role="alert">{markRead.error}</p> : null}
+        {markAll.error ? <p className="error-box" role="alert">{markAll.error}</p> : null}
         {!notifications.loading && !notifications.error && filteredNotifications.length === 0 ? (
           <EmptyState title="No notifications found" description="Try changing the filters or clearing the search field." />
         ) : null}
@@ -95,7 +117,15 @@ export function NotificationsPage() {
             key={notification.id}
             notification={notification}
             action={!notification.readAt ? (
-              <Button variant="secondary" size="sm" loading={markRead.loading} onClick={() => markRead.mutate(notification.id)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                /* Per-item, not markRead.loading — a shared boolean put a
+                   spinner on every unread row at once. */
+                loading={pendingId === notification.id}
+                disabled={pendingId !== null}
+                onClick={() => markOne(notification.id)}
+              >
                 Mark read
               </Button>
             ) : null}

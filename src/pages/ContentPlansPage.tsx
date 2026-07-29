@@ -11,6 +11,8 @@ import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { applyServerFieldErrors } from '@/lib/forms';
+import { queryKeys } from '@/lib/queryClient';
 import { contentService } from '@/services/content';
 import { formatDateTime } from '@/utils/format';
 import type { ContentPlan } from '@/types/domain';
@@ -35,7 +37,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
   const plans = useAsync(
     () => contentService.listPlans(companyId),
     [companyId],
-    { queryKey: ['companies', companyId, 'content-plans'] },
+    { queryKey: queryKeys.contentPlans(companyId) },
   );
   const rows = plans.data ?? [];
 
@@ -104,14 +106,23 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
 }
 
 function PlanFormModal({ open, companyId, onClose }: { open: boolean; companyId: string; onClose: () => void }) {
-  const create = useMutation(contentService.createPlan, {
-    invalidateKeys: [['companies', companyId, 'content-plans']],
-  });
   const form = useForm<PlanForm>({
     resolver: zodResolver(planSchema),
     defaultValues: { title: '', month: now.getMonth() + 1, year: now.getFullYear(), goal: '' },
     mode: 'onBlur',
   });
+
+  const create = useMutation(contentService.createPlan, {
+    invalidateKeys: [queryKeys.contentPlans(companyId)],
+    onError: (error) => applyServerFieldErrors(form, error),
+  });
+
+  // Reset the mutation too, or a previous error is still shown on reopen.
+  const close = () => {
+    form.reset();
+    create.reset();
+    onClose();
+  };
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
@@ -122,19 +133,18 @@ function PlanFormModal({ open, companyId, onClose }: { open: boolean; companyId:
     });
     if (result) {
       toast.success('Content plan created.');
-      form.reset();
-      onClose();
+      close();
     }
   });
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={close}
       title="Create content plan"
       footer={
         <>
-          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
           <Button type="submit" form="plan-form" loading={form.formState.isSubmitting || create.loading}>Create plan</Button>
         </>
       }
