@@ -6,12 +6,11 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -81,17 +80,17 @@ function PostsInner({ companyId }: { companyId: string }) {
     { key: 'status', header: 'Status', sortValue: (post) => post.status, render: (post) => <StatusBadge value={post.status} /> },
     { key: 'date', header: 'Scheduled', sortValue: (post) => post.scheduledAt ?? '', render: (post) => formatDateTime(post.scheduledAt) },
     { key: 'created', header: 'Created', sortValue: (post) => post.createdAt ?? '', render: (post) => formatDateTime(post.createdAt) },
-    { key: 'actions', header: '', className: 'cell-right', render: (post) => <Link to={`/posts/${post.id}`}><Button variant="secondary" size="sm">Open</Button></Link> },
+    { key: 'actions', header: '', className: 'cell-right', render: (post) => <ButtonLink to={`/posts/${post.id}`} variant="secondary" size="sm">Open</ButtonLink> },
   ], []);
 
   return (
     <>
       <PageHeader
-        title="Content command board"
-        subtitle="Manage posts as a workflow: draft, internal review, client approval, scheduling and publishing."
+        title="Content posts"
+        subtitle="Draft, internal review, client approval, scheduling and publishing."
         action={
-          <RoleGate permission="posts:create" fallback={<Button disabled>New post</Button>}>
-            <Button onClick={() => setCreateOpen(true)}>New post</Button>
+          <RoleGate permission="posts:create" fallback={<Button size="sm" disabled>New post</Button>}>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>New post</Button>
           </RoleGate>
         }
       />
@@ -126,8 +125,7 @@ function PostsInner({ companyId }: { companyId: string }) {
       </div>
 
       {view === 'board' ? (
-        <section className="board-section">
-          <SectionHeader eyebrow="Workflow" title="Approval and publishing board" subtitle="Cards show the most important operational data: platform, format, schedule and status." />
+        <section className="board-section" aria-label="Approval and publishing board">
           <KanbanBoard
             columns={[PostStatus.DRAFT, PostStatus.IN_INTERNAL_REVIEW, PostStatus.READY_FOR_CLIENT, PostStatus.CHANGES_REQUESTED, PostStatus.APPROVED, PostStatus.SCHEDULED, PostStatus.PUBLISHED]}
             items={rows}

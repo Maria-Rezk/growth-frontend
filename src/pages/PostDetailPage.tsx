@@ -1,8 +1,8 @@
 import { FormEvent, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
 import { LoadingState, ErrorState } from '@/components/ui/State';
 import { Badge } from '@/components/ui/Badge';
@@ -98,8 +98,8 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
     <>
       <PageHeader
         title={post.data.title}
-        subtitle="A single view for caption, visual brief, assets, comments and approval decisions."
-        action={<Link to="/posts"><Button variant="secondary">Back</Button></Link>}
+        subtitle="Caption, visual brief, assets, comments and approval decisions."
+        action={<ButtonLink to="/posts" variant="secondary" size="sm">Back to posts</ButtonLink>}
       />
 
       <WorkflowStepper status={post.data.status} />
@@ -128,7 +128,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
             <div className="content-card__body stack-list">
               {visibleComments.map((item) => (
                 <div className="comment" key={item.id}>
-                  <div className="kanban-card__head">
+                  <div className="comment__head">
                     <strong>{item.author?.fullName ?? 'Team member'}</strong>
                     {item.isInternal ? <Badge tone="warning">Internal</Badge> : null}
                   </div>
@@ -162,7 +162,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
 
         <aside className="detail-side">
           <Card className="content-card action-panel">
-            <CardHeader title="Approval actions" subtitle="Only available actions should be used according to role and workflow state." />
+            <CardHeader title="Approval actions" subtitle="Available actions depend on your role and the current workflow state." />
             <div className="content-card__body form-grid">
               <RoleGate permission="posts:submit" fallback={<p className="muted">You cannot submit posts from this role.</p>}>
                 <Button onClick={() => transition('submit')} loading={submitReview.loading}>Submit to client</Button>

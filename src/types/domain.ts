@@ -404,6 +404,26 @@ export interface CampaignOverview {
 
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELED';
 
+/**
+ * Roles that `POST /companies/:companyId/invitations` accepts.
+ *
+ * Deliberately narrower than `CompanyMembershipRole`. The invite endpoint
+ * validates against its own list and 400s on anything else — the API
+ * collection pins this with a "Validation Test - Invalid Role" request.
+ * Widening this array without widening the backend DTO first will produce
+ * options the user can select but the server will refuse.
+ *
+ * Note this is *not* the same set as the member role-change endpoint
+ * (`PATCH /companies/:companyId/members/:membershipId`), which can move an
+ * existing member to any role.
+ */
+export const INVITABLE_ROLES = [
+  CompanyMembershipRole.CLIENT_REVIEWER,
+  CompanyMembershipRole.SALES_AGENT,
+] as const;
+
+export type InvitableRole = (typeof INVITABLE_ROLES)[number];
+
 export interface Invitation {
   id: UUID;
   companyId: UUID;

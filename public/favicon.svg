@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="1360 20 400 400">
+  <!--
+    The "1" mark lifted from the full lockup, cropped to a square viewBox.
+    Wordmark paths are omitted deliberately: at 16x16 the full lockup is an
+    unreadable smudge, and the accent glyph alone is what people recognise.
+
+    No background rect — a transparent favicon adapts to light and dark
+    browser chrome. The magenta reads against both.
+  -->
+  <defs>
+    <radialGradient
+      id="a"
+      cx="1475.21"
+      cy="193.88"
+      fx="1475.21"
+      fy="193.88"
+      r="52.23"
+      gradientTransform="translate(2428.76 1387.41) rotate(-143.68) scale(1 2.05)"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop offset=".38" stop-color="#540721" />
+      <stop offset="1" stop-color="#c9144b" />
+    </radialGradient>
+  </defs>
+  <path fill="url(#a)" d="M1491.23,120.26l-76.86,265.93,63.59.02,76.85-265.9-63.58-.05Z" />
+  <path fill="#c9144b" d="M1554.81,120.3c-23.57,71.33-104.24,126.13-173.78,129.02l16.19-56.05c40.08-2.83,80.14-34.39,94.02-72.98h63.58Z" />
+  <polygon fill="#c9144b" points="1693.03 91.89 1738.92 35.63 1424.57 60.21 1702.3 60.21 1693.03 91.89" />
+</svg>

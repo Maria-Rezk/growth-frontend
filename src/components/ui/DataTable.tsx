@@ -86,7 +86,9 @@ export function DataTable<T>({
                     {sortable ? (
                       <button className="table-sort-button" type="button" onClick={() => toggleSort(column.key)}>
                         <span>{column.header}</span>
-                        <span aria-hidden="true">{sortKey === column.key ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+                        <span className={sortKey === column.key ? 'table-sort-icon table-sort-icon--active' : 'table-sort-icon'} aria-hidden="true">
+                          {sortKey === column.key ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
                       </button>
                     ) : column.header}
                   </th>

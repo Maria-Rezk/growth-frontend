@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { RequireCompany } from '@/components/layout/RequireCompany';
-import { PageHeader, Card } from '@/components/ui/Card';
+import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -113,11 +113,11 @@ function AiStudioInner({ companyId }: { companyId: string }) {
 
   return (
     <>
-      <PageHeader title="AI studio" subtitle="The model suggests, a human reviews, the system applies. Nothing reaches a client without review." />
+      <PageHeader title="AI studio" subtitle="The model drafts, a human reviews, the system applies. Nothing reaches a client unreviewed." />
 
-      <Card className="card">
-        <SectionHeader eyebrow="Generate" title="New AI draft" subtitle="Choose the output type and give clear brand-specific direction." />
-        <form className="form-grid" onSubmit={submit} noValidate>
+      <Card>
+        <CardHeader title="New draft" subtitle="Choose the output type and give clear brand-specific direction." />
+        <form className="form-grid form-card" onSubmit={submit} noValidate>
           <div className="grid-2">
             <Field label="Output type" htmlFor="ai-type">
               <Select id="ai-type" {...form.register('type')}>
@@ -169,8 +169,11 @@ function AiStudioInner({ companyId }: { companyId: string }) {
         </form>
       </Card>
 
-      <section className="board-section">
-        <SectionHeader eyebrow="Review & apply" title="Recent generations" subtitle="Apply turns an approved draft into real plans, posts or captions." />
+      <section className="section-block">
+        <SectionHeader
+          title="Recent generations"
+          subtitle="Applying turns a reviewed draft into real plans, posts or captions."
+        />
         {generations.loading ? <p className="muted">Loading generations…</p> : null}
         {generations.refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}
         {generations.error ? <p className="error-box" role="alert">{generations.error}</p> : null}
@@ -206,9 +209,9 @@ function GenerationOutput({ output }: { output: unknown }) {
         {record?.summary ? <p className="muted">{String(record.summary)}</p> : null}
         {posts.map((post, index) => (
           <div key={index} className="bordered-row">
-            <div className="kanban-card__head">
+            <div className="bordered-row__head">
               <strong>{post.title ?? `Post ${index + 1}`}</strong>
-              <div className="kanban-card__meta">
+              <div className="bordered-row__meta">
                 {post.platform ? <Badge tone="neutral">{humanize(post.platform)}</Badge> : null}
                 {post.contentType ? <Badge tone="neutral">{humanize(post.contentType)}</Badge> : null}
               </div>
@@ -265,7 +268,7 @@ function GenerationOutput({ output }: { output: unknown }) {
 
   // Fallback: raw JSON for anything we don't recognize.
   return (
-    <pre className="ai-output" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.85rem' }}>
+    <pre className="ai-output">
       {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
     </pre>
   );
@@ -283,12 +286,14 @@ function GenerationCard({ companyId, generation, canApply }: { companyId: string
   const title = (record?.title as string | undefined) ?? humanize(generation.type);
 
   return (
-    <Card className="card">
-      <div className="kanban-card__head">
-        <strong>{title}</strong>
-        {applied ? <Badge tone="success">Applied</Badge> : <Badge tone="info">Draft</Badge>}
+    <Card className="generation-card">
+      <div className="generation-card__head">
+        <div>
+          <strong>{title}</strong>
+          {generation.prompt ? <p className="muted">{generation.prompt}</p> : null}
+        </div>
+        {applied ? <Badge tone="success">Applied</Badge> : <Badge tone="neutral">Draft</Badge>}
       </div>
-      {generation.prompt ? <p className="muted">{generation.prompt}</p> : null}
 
       {generation.type === AiGenerationType.CONTENT_PLAN_PREVIEW ? (
         <ApplyContentPlan companyId={companyId} generation={generation} canApply={canApply} applied={applied} onApplied={() => setApplied(true)} invalidateKeys={invalidateKeys} />
@@ -298,7 +303,7 @@ function GenerationCard({ companyId, generation, canApply }: { companyId: string
         <ApplyCaptions companyId={companyId} generation={generation} canApply={canApply} applied={applied} onApplied={() => setApplied(true)} invalidateKeys={invalidateKeys} />
       )}
 
-      <div className="kanban-card__footer">
+      <div className="generation-card__footer">
         <span>{formatDateTime(generation.createdAt)}</span>
       </div>
     </Card>
@@ -332,9 +337,9 @@ function ApplyContentPlan({ companyId, generation, canApply, applied, onApplied,
       <div className="stack-list">
         {posts.map((post, index) => (
           <div key={index} className="bordered-row">
-            <div className="kanban-card__head">
+            <div className="bordered-row__head">
               <strong>{post.title ?? `Post ${index + 1}`}</strong>
-              <div className="kanban-card__meta">
+              <div className="bordered-row__meta">
                 {post.platform ? <Badge tone="neutral">{humanize(post.platform)}</Badge> : null}
                 {post.contentType ? <Badge tone="neutral">{humanize(post.contentType)}</Badge> : null}
               </div>
@@ -356,8 +361,7 @@ function ApplyContentPlan({ companyId, generation, canApply, applied, onApplied,
           </label>
         </div>
       ) : null}
-      <div className="kanban-card__footer">
-        <span />
+      <div className="generation-actions">
         <Button size="sm" onClick={run} loading={apply.loading} disabled={!canApply || applied}>{applied ? 'Applied' : 'Apply plan'}</Button>
       </div>
       {apply.error ? <p className="error-box" role="alert">{apply.error}</p> : null}
@@ -387,7 +391,7 @@ function ApplyPostIdeas({ companyId, generation, canApply, applied, onApplied, i
         const isApplied = appliedIndexes.includes(index);
         return (
           <div key={index} className="bordered-row">
-            <div className="kanban-card__head">
+            <div className="bordered-row__head">
               <strong>{String(ideaRecord?.title ?? `Idea ${index + 1}`)}</strong>
               <Button size="sm" onClick={() => run(index)} loading={apply.loading} disabled={!canApply || isApplied}>{isApplied ? 'Created' : 'Apply this idea'}</Button>
             </div>
@@ -427,8 +431,7 @@ function ApplyCaptions({ companyId, generation, canApply, applied, onApplied, in
       {captions.map((caption, index) => (
         <div key={index} className="bordered-row">
           <p className="pre-wrap">{typeof caption === 'string' ? caption : JSON.stringify(caption)}</p>
-          <div className="kanban-card__footer">
-            <span />
+          <div className="generation-actions">
             <Button size="sm" onClick={() => run(index)} loading={apply.loading} disabled={!canApply || !postId || appliedIndex === index}>{appliedIndex === index ? 'Applied' : 'Apply to post'}</Button>
           </div>
         </div>

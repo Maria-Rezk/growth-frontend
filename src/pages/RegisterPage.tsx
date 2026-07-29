@@ -5,6 +5,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Fields';
+import { Logo } from '@/components/brand/Logo';
 
 const registerSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name is required.'),
@@ -34,9 +35,10 @@ export function RegisterPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-brand">
-          <span className="brand-mark">1</span>
-          <div><strong>Create workspace access</strong><p>Register your platform account.</p></div>
+          <Logo height={36} title="Solu1ions Business Development" />
+          <p>Register your platform account.</p>
         </div>
+        <h1>Create account</h1>
         <form className="form-grid" onSubmit={submit} noValidate>
           <Field label="Full name" htmlFor="name" error={form.formState.errors.fullName?.message}>
             <Input id="name" autoComplete="name" aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />

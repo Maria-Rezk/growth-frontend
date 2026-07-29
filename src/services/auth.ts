@@ -27,14 +27,22 @@ export const authService = {
     const response = await http.get(apiRoutes.auth.me);
     return unwrap<User & { memberships?: Membership[] }>(response.data);
   },
+  /**
+   * Accepts an invitation.
+   *
+   * The API takes `{ token, fullName, password }` for a new user and `{ token }`
+   * alone for an existing one. No `email` — the address is already bound to the
+   * token, and a mismatched one would be unresolvable. Optional fields are
+   * omitted rather than sent empty, which would trip @IsNotEmpty / @MinLength
+   * on the DTO.
+   */
   async acceptInvitation(payload: {
     token: string;
     fullName?: string;
-    email?: string;
     password?: string;
   }): Promise<AcceptInvitationResult> {
     if (env.demoMode) {
-      const user: User = { ...demoUser, email: payload.email ?? demoUser.email, fullName: payload.fullName ?? demoUser.fullName };
+      const user: User = { ...demoUser, fullName: payload.fullName ?? demoUser.fullName };
       const membership: Membership = {
         id: makeId('membership'),
         companyId: demoCompany.id,
@@ -46,8 +54,12 @@ export const authService = {
       };
       return demoDelay({ user, membership });
     }
+    const body: Record<string, string> = { token: payload.token };
+    if (payload.fullName?.trim()) body.fullName = payload.fullName.trim();
+    if (payload.password) body.password = payload.password;
+
     // Live response is { user, membership } with NO accessToken — read directly.
-    const response = await http.post(apiRoutes.auth.acceptInvitation, payload);
+    const response = await http.post(apiRoutes.auth.acceptInvitation, body);
     return response.data as AcceptInvitationResult;
   },
 };

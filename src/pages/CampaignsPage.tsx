@@ -92,7 +92,7 @@ function CampaignsInner({ companyId }: { companyId: string }) {
       <PageHeader
         title="Campaigns"
         subtitle="Plan and track marketing campaigns across posts, leads and tasks."
-        action={<Button onClick={() => setCreateOpen(true)}>New campaign</Button>}
+        action={<Button size="sm" onClick={() => setCreateOpen(true)}>New campaign</Button>}
       />
 
       <div className="toolbar card">

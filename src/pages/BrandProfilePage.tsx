@@ -115,7 +115,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
 
   return (
     <>
-      <PageHeader title="Brand profile" subtitle="The source of truth for AI prompts, content workflows and client-specific strategy." />
+      <PageHeader title="Brand profile" subtitle="The source of truth for AI prompts, content workflows and client strategy." />
       <Card className="form-card">
         <form className="form-grid" onSubmit={submit} noValidate>
           <div className="grid-2">

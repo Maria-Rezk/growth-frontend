@@ -5,6 +5,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Fields';
+import { Logo } from '@/components/brand/Logo';
 
 const loginSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
@@ -37,11 +38,8 @@ export function LoginPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-brand">
-          <span className="brand-mark">1</span>
-          <div>
-            <strong>Solu1ions Growth OS</strong>
-            <p>Agency CRM, content approvals, tasks and reports.</p>
-          </div>
+          <Logo height={36} title="Solu1ions Business Development" />
+          <p>Content approvals, leads and delivery in one workspace.</p>
         </div>
         <h1>Sign in</h1>
         <form className="form-grid" onSubmit={submit} noValidate>

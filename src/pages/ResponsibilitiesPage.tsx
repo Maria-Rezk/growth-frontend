@@ -59,7 +59,7 @@ function ResponsibilitiesInner({ companyId }: { companyId: string }) {
       <PageHeader
         title="Responsibility matrix"
         subtitle="Who does what per service area. Rows are service areas, columns are team members."
-        action={canManage ? <Button variant="secondary" onClick={() => setAreasOpen(true)}>Manage areas</Button> : undefined}
+        action={canManage ? <Button variant="secondary" size="sm" onClick={() => setAreasOpen(true)}>Manage areas</Button> : undefined}
       />
 
       {matrix.loading ? <LoadingState label="Loading matrix…" /> : null}
@@ -112,19 +112,23 @@ function MatrixGrid({
 }) {
   if (!matrix.areas.length) {
     return (
-      <EmptyState
-        title="No service areas yet"
-        description="Service areas are the rows of the matrix (e.g. Social Media, Marketing)."
-        action={canManage ? <Button onClick={onOpenAreas}>Add your first area</Button> : undefined}
-      />
+      <Card>
+        <EmptyState
+          title="No service areas yet"
+          description="Service areas are the rows of the matrix, e.g. Social media, Marketing."
+          action={canManage ? <Button size="sm" onClick={onOpenAreas}>Add your first area</Button> : undefined}
+        />
+      </Card>
     );
   }
   if (!matrix.members.length) {
     return (
-      <EmptyState
-        title="No assignable team members"
-        description="Only active staff members (non-client roles) appear as columns. Add members first."
-      />
+      <Card>
+        <EmptyState
+          title="No assignable team members"
+          description="Only active staff members (non-client roles) appear as columns. Add members first."
+        />
+      </Card>
     );
   }
 

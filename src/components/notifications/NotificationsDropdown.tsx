@@ -5,6 +5,7 @@ import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useNotifications } from '@/context/NotificationsContext';
 import { notificationsService } from '@/services/notifications';
 import type { AppNotification } from '@/types/domain';
+import { BellIcon } from '@/components/ui/icons';
 import { NotificationItem } from './NotificationItem';
 import { notificationLink } from './notificationMeta';
 
@@ -66,7 +67,7 @@ export function NotificationsDropdown() {
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        🔔
+        <BellIcon size={18} />
         {unreadCount > 0 ? <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
       </button>
 

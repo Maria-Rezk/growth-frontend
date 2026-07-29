@@ -1,8 +1,8 @@
 import { FormEvent, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Select, Textarea } from '@/components/ui/Fields';
 import { LoadingState, ErrorState } from '@/components/ui/State';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -57,7 +57,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
 
   return (
     <>
-      <PageHeader title={lead.data.name} subtitle="Lead detail, status history and sales notes." action={<Link to="/leads"><Button variant="secondary">Back</Button></Link>} />
+      <PageHeader title={lead.data.name} subtitle="Lead detail, status history and sales notes." action={<ButtonLink to="/leads" variant="secondary" size="sm">Back to leads</ButtonLink>} />
       <div className="detail-grid">
         <section className="detail-main">
           <Card className="content-card"><CardHeader title="Lead overview" action={<StatusBadge value={lead.data.status} />} /><div className="content-card__body key-values">

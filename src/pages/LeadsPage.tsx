@@ -6,13 +6,12 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { Pagination } from '@/components/ui/Pagination';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -99,17 +98,17 @@ function LeadsInner({ companyId }: { companyId: string }) {
     { key: 'status', header: 'Status', sortValue: (lead) => lead.status, render: (lead) => <StatusBadge value={lead.status} /> },
     { key: 'assigned', header: 'Assigned', sortValue: (lead) => assigneeName(lead.assignedToId), render: (lead) => assigneeName(lead.assignedToId) },
     { key: 'created', header: 'Created', sortValue: (lead) => lead.createdAt ?? '', render: (lead) => formatDateTime(lead.createdAt) },
-    { key: 'actions', header: '', className: 'cell-right', render: (lead) => <Link to={`/leads/${lead.id}`}><Button variant="secondary" size="sm">Open</Button></Link> },
+    { key: 'actions', header: '', className: 'cell-right', render: (lead) => <ButtonLink to={`/leads/${lead.id}`} variant="secondary" size="sm">Open</ButtonLink> },
   ], [assigneeName]);
 
   return (
     <>
       <PageHeader
-        title="Leads pipeline"
-        subtitle="Turn social inquiries and website forms into assigned, tracked sales opportunities."
+        title="Leads"
+        subtitle="Social enquiries and website forms, assigned and tracked through to close."
         action={
-          <RoleGate permission="leads:manage" fallback={<Button disabled>New lead</Button>}>
-            <Button onClick={() => setCreateOpen(true)}>New lead</Button>
+          <RoleGate permission="leads:manage" fallback={<Button size="sm" disabled>New lead</Button>}>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>New lead</Button>
           </RoleGate>
         }
       />
@@ -150,8 +149,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
       </div>
 
       {view === 'pipeline' ? (
-        <section className="board-section">
-          <SectionHeader eyebrow="CRM" title="Sales pipeline board" subtitle="Use this view during daily sales review and follow-up planning." />
+        <section className="board-section" aria-label="Sales pipeline board">
           <KanbanBoard columns={LEAD_PIPELINE} items={rows} renderCard={(lead) => <LeadBoardCard lead={lead} assigneeName={assigneeName(lead.assignedToId)} />} emptyText="No leads here." />
           {leads.loading ? <p className="muted">Loading pipeline…</p> : null}
           {leads.refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}

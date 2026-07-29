@@ -14,7 +14,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (payload: LoginRequest) => Promise<boolean>;
   register: (payload: RegisterRequest) => Promise<boolean>;
-  acceptInvitation: (payload: { token: string; fullName?: string; email?: string; password?: string }) => Promise<AcceptResult>;
+  acceptInvitation: (payload: { token: string; fullName?: string; password?: string }) => Promise<AcceptResult>;
   logout: () => void;
   reloadUser: () => Promise<void>;
 }
@@ -112,13 +112,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const acceptInvitation = useCallback(
-    async (payload: { token: string; fullName?: string; email?: string; password?: string }): Promise<AcceptResult> => {
+    async (payload: { token: string; fullName?: string; password?: string }): Promise<AcceptResult> => {
       setError(null);
       try {
         const result = await authService.acceptInvitation(payload);
         // The accept endpoint creates the user/membership but returns no token.
-        // When we have credentials (new-user flow), chain a login to get a session.
-        const email = result.user?.email ?? payload.email;
+        // When we have credentials (new-user flow), chain a login to get a
+        // session. The email comes from the response — the invitee never types
+        // one, since the address is fixed by the invitation.
+        const email = result.user?.email;
         if (email && payload.password) {
           try {
             applyAuth(await authService.login({ email, password: payload.password }));

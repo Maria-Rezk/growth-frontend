@@ -6,12 +6,11 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -77,17 +76,17 @@ function TasksInner({ companyId }: { companyId: string }) {
     { key: 'priority', header: 'Priority', sortValue: (task) => task.priority, render: (task) => <StatusBadge value={task.priority} /> },
     { key: 'assignee', header: 'Assigned', sortValue: (task) => assigneeName(task.assignedToId), render: (task) => assigneeName(task.assignedToId) },
     { key: 'due', header: 'Due', sortValue: (task) => task.dueDate ?? '', render: (task) => <span className={isOverdue(task.dueDate) && task.status !== TaskStatus.DONE ? 'danger-text' : undefined}>{formatDateTime(task.dueDate)}</span> },
-    { key: 'actions', header: '', className: 'cell-right', render: (task) => <Link to={`/tasks/${task.id}`}><Button variant="secondary" size="sm">Open</Button></Link> },
+    { key: 'actions', header: '', className: 'cell-right', render: (task) => <ButtonLink to={`/tasks/${task.id}`} variant="secondary" size="sm">Open</ButtonLink> },
   ], [assigneeName]);
 
   return (
     <>
       <PageHeader
-        title="Execution board"
-        subtitle="Manage internal agency work for copywriting, design, publishing, reporting and sales follow-up."
+        title="Tasks"
+        subtitle="Internal work across copywriting, design, publishing, reporting and sales follow-up."
         action={
-          <RoleGate permission="tasks:manage" fallback={<Button disabled>New task</Button>}>
-            <Button onClick={() => setCreateOpen(true)}>New task</Button>
+          <RoleGate permission="tasks:manage" fallback={<Button size="sm" disabled>New task</Button>}>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>New task</Button>
           </RoleGate>
         }
       />
@@ -129,8 +128,7 @@ function TasksInner({ companyId }: { companyId: string }) {
       </div>
 
       {view === 'board' ? (
-        <section className="board-section">
-          <SectionHeader eyebrow="Delivery" title={scope === 'mine' ? 'My tasks' : 'Internal execution board'} subtitle="Organized by current status so the team can unblock work faster." />
+        <section className="board-section" aria-label={scope === 'mine' ? 'My tasks board' : 'Internal execution board'}>
           <KanbanBoard columns={TASK_BOARD} items={rows} renderCard={(task) => <TaskBoardCard task={task} assigneeName={assigneeName(task.assignedToId)} />} emptyText={scope === 'mine' ? 'No tasks assigned to you here.' : 'No tasks here.'} />
           {tasks.loading ? <p className="muted">Loading tasks…</p> : null}
           {tasks.refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}

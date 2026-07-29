@@ -67,22 +67,28 @@ function ReportsInner({ companyId }: { companyId: string }) {
   return (
     <>
       <PageHeader title="Reports" subtitle="Overview metrics, monthly report generation and recommendations." />
-      <form className="filter-card filter-card--spread" onSubmit={submit}>
-        <div className="filter-row">
-          <Field label="Month" htmlFor="month" error={monthError ?? undefined}>
-            <Input id="month" type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
-          </Field>
-          <Field label="Year" htmlFor="year">
-            <Input id="year" type="number" min={2024} value={year} onChange={(event) => setYear(Number(event.target.value))} />
-          </Field>
-        </div>
-        <Field label="Notes (optional)" htmlFor="notes" hint="Included with the generated report — e.g. performance summary or recommendations.">
-          <Textarea id="notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
-        </Field>
-        <Button type="submit" loading={generate.loading}>Generate monthly report</Button>
-      </form>
 
-      <div className="stat-grid">
+      <Card>
+        <CardHeader title="Generate monthly report" subtitle="Metrics are calculated for the selected period." />
+        <form className="form-card form-grid" onSubmit={submit}>
+          <div className="grid-2">
+            <Field label="Month" htmlFor="month" error={monthError ?? undefined}>
+              <Input id="month" type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
+            </Field>
+            <Field label="Year" htmlFor="year">
+              <Input id="year" type="number" min={2024} value={year} onChange={(event) => setYear(Number(event.target.value))} />
+            </Field>
+          </div>
+          <Field label="Notes" htmlFor="notes" hint="Optional. Included with the generated report.">
+            <Textarea id="notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </Field>
+          <div className="form-actions">
+            <Button type="submit" loading={generate.loading}>Generate report</Button>
+          </div>
+        </form>
+      </Card>
+
+      <div className="stat-grid stat-grid--3">
         <MetricCard label="Posts" value={overview.data?.postsTotal ?? 0} />
         <MetricCard label="Leads" value={overview.data?.leadsTotal ?? 0} />
         <MetricCard label="Conversion" value={formatPercent(overview.data?.conversionRate)} />
@@ -93,7 +99,7 @@ function ReportsInner({ companyId }: { companyId: string }) {
         <Breakdown title="Leads by status" data={overview.data?.leadsByStatus} />
       </div>
 
-      <Card className="content-card">
+      <Card>
         <CardHeader title="Recommendations" />
         <div className="content-card__body stack-list">
           {overview.loading ? <p className="muted">Loading recommendations…</p> : null}
@@ -107,12 +113,29 @@ function ReportsInner({ companyId }: { companyId: string }) {
 }
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
-  return <Card className="metric-card"><span>{label}</span><strong>{value}</strong></Card>;
+  return (
+    <Card className="metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </Card>
+  );
 }
 
 function Breakdown({ title, data }: { title: string; data?: Record<string, number> }) {
   const entries = Object.entries(data ?? {});
   return (
-    <Card className="content-card"><CardHeader title={title} /><div className="content-card__body stack-list">{entries.length ? entries.map(([key, value]) => <div className="list-row" key={key}><span>{humanize(key)}</span><strong>{value}</strong></div>) : <p className="muted">No data.</p>}</div></Card>
+    <Card>
+      <CardHeader title={title} />
+      <div className="content-card__body stack-list">
+        {entries.length
+          ? entries.map(([key, value]) => (
+            <div className="list-row" key={key}>
+              <span>{humanize(key)}</span>
+              <strong>{value}</strong>
+            </div>
+          ))
+          : <p className="muted">No data.</p>}
+      </div>
+    </Card>
   );
 }

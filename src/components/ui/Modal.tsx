@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { CloseIcon } from '@/components/ui/icons';
 
 export function Modal({
   open,
@@ -70,7 +71,7 @@ export function Modal({
         <header className="modal__header">
           <h2 id={titleId}>{title}</h2>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close dialog">
-            ×
+            <CloseIcon size={17} />
           </button>
         </header>
         <div className="modal__body">{children}</div>

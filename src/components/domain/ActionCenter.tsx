@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/Button';
+import { ButtonLink } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
@@ -54,8 +54,8 @@ export function ActionCenter({ posts, leads, tasks }: { posts: ContentPost[]; le
       ))}
       {queue.length === 0 ? <p className="muted">No urgent operational items right now.</p> : null}
       <div className="action-center__footer">
-        <Link to="/tasks"><Button variant="secondary" size="sm">Open task board</Button></Link>
-        <Link to="/posts"><Button variant="ghost" size="sm">Open content</Button></Link>
+        <ButtonLink to="/tasks" variant="secondary" size="sm">Open task board</ButtonLink>
+        <ButtonLink to="/posts" variant="ghost" size="sm">Open content</ButtonLink>
       </div>
     </div>
   );

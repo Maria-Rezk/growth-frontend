@@ -1,8 +1,8 @@
 import { FormEvent, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Select, Textarea, Input } from '@/components/ui/Fields';
 import { LoadingState, ErrorState } from '@/components/ui/State';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -65,7 +65,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
 
   return (
     <>
-      <PageHeader title={task.data.title} subtitle="Task detail, collaboration and activity log." action={<Link to="/tasks"><Button variant="secondary">Back</Button></Link>} />
+      <PageHeader title={task.data.title} subtitle="Task detail, collaboration and activity log." action={<ButtonLink to="/tasks" variant="secondary" size="sm">Back to tasks</ButtonLink>} />
       <div className="detail-grid">
         <section className="detail-main">
           <Card className="content-card"><CardHeader title="Task" action={<StatusBadge value={task.data.status} />} /><div className="content-card__body"><p className="pre-wrap">{task.data.description || 'No description.'}</p><div className="key-values"><div><span>Priority</span><strong><StatusBadge value={task.data.priority} /></strong></div><div><span>Type</span><strong>{humanize(task.data.type)}</strong></div><div><span>Assigned</span><strong>{resolveName(task.data.assignedToId)}</strong></div><div><span>Due</span><strong>{formatDateTime(task.data.dueDate)}</strong></div></div></div></Card>

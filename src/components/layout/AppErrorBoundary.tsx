@@ -29,7 +29,10 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, AppErro
     return (
       <main className="fatal-shell" role="alert">
         <section className="fatal-card">
-          <span className="brand-mark">1</span>
+          {/* Deliberately the CSS-only mark, not <Logo>. This screen is the
+              last line of defence — it must not depend on a context provider
+              that may be the very thing that just threw. */}
+          <span className="brand-mark" aria-hidden="true">1</span>
           <div>
             <p className="eyebrow">Interface recovery</p>
             <h1>Something broke in this view.</h1>
@@ -38,7 +41,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, AppErro
             </p>
           </div>
           <pre className="fatal-message">{this.state.message}</pre>
-          <div className="hero-actions">
+          <div className="button-row">
             <Button type="button" onClick={this.reset}>Try again</Button>
             <Button type="button" variant="secondary" onClick={() => window.location.assign('/dashboard')}>Go to dashboard</Button>
           </div>

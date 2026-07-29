@@ -72,6 +72,13 @@ type MutationOptions<Args extends unknown[], Result> = {
   /** Query keys to invalidate on success. Partial keys match all sub-keys (prefix match). */
   invalidateKeys?: ReadonlyArray<readonly unknown[]>;
   onSuccess?: (result: Result, args: Args) => void;
+  /**
+   * Receives the *raw* rejection, not the flattened message — use it with
+   * `applyServerFieldErrors` to map an API 400 onto the right form fields.
+   * `mutate()` swallows the throw, and the `error` string below has already
+   * lost `fieldErrors`, so this is the only place they're reachable.
+   */
+  onError?: (error: unknown, args: Args) => void;
 };
 
 export function useMutation<Args extends unknown[], Result>(
@@ -87,6 +94,9 @@ export function useMutation<Args extends unknown[], Result>(
         void queryClient.invalidateQueries({ queryKey: key });
       });
       options?.onSuccess?.(result, args);
+    },
+    onError: (error, args) => {
+      options?.onError?.(error, args);
     },
   });
 

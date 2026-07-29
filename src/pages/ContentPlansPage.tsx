@@ -3,10 +3,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
-import { Link } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
@@ -72,7 +71,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
       key: 'actions',
       header: '',
       className: 'cell-right',
-      render: () => <Link to="/posts"><Button variant="secondary" size="sm">View posts</Button></Link>,
+      render: () => <ButtonLink to="/posts" variant="secondary" size="sm">View posts</ButtonLink>,
     },
   ], []);
 
@@ -80,10 +79,10 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
     <>
       <PageHeader
         title="Content plans"
-        subtitle="Group posts into monthly plans. Generate a plan with AI, review it, then apply it into posts."
+        subtitle="Group posts into monthly plans. Generate with AI, review, then apply into posts."
         action={
-          <RoleGate permission="posts:create" fallback={<Button disabled>New plan</Button>}>
-            <Button onClick={() => setCreateOpen(true)}>New plan</Button>
+          <RoleGate permission="posts:create" fallback={<Button size="sm" disabled>New plan</Button>}>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>New plan</Button>
           </RoleGate>
         }
       />

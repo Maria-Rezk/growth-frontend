@@ -1,0 +1,25 @@
+# Solu1ions Growth OS is an authenticated internal application. Nothing here
+# is meant to be in a public index.
+#
+# Crawling is deliberately ALLOWED. This looks wrong, and it is the single
+# most common mistake when removing a site from search:
+#
+#   `Disallow: /` blocks crawling, not indexing. A blocked URL can still be
+#   listed (as a bare link with no snippet) if anything points at it — and
+#   because the crawler is no longer allowed to fetch the page, it can never
+#   see the <meta name="robots" content="noindex"> tag that would actually
+#   remove it. The result is a URL stuck in the index permanently.
+#
+# So: let crawlers in, let them read `noindex` in index.html, and the pages
+# drop out on the next crawl.
+#
+# To clear the existing solu1ions.tech result faster:
+#   1. Keep the noindex meta tag in index.html.
+#   2. Google Search Console -> Removals -> temporary removal (~1 day).
+#   3. Leave noindex in place so removal becomes permanent.
+#
+# Once Search Console reports the URLs as "Excluded by noindex tag", you may
+# switch this to `Disallow: /` to save crawl budget. Not before.
+
+User-agent: *
+Allow: /

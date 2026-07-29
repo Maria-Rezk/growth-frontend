@@ -25,6 +25,9 @@ import { ResponsibilitiesPage } from '@/pages/ResponsibilitiesPage';
 export function App() {
   return (
     <Routes>
+      {/* Public. `/accept-invitation` must stay outside ProtectedRoute — an
+          invitee following the emailed link has no session yet. Moving it
+          inside would bounce them to /login and break the whole flow. */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
@@ -43,7 +46,7 @@ export function App() {
           <Route path="/leads/:leadId" element={<LeadDetailPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
-          <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="/campaigns" element={<CampaignsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/members" element={<MembersPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

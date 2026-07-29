@@ -2,7 +2,7 @@ import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
 import { demoDelay, demoInvitations, makeId, pushNotification } from '@/services/demoStore';
-import type { CompanyMembershipRole, Invitation, InvitationCreateResult } from '@/types/domain';
+import type { InvitableRole, Invitation, InvitationCreateResult } from '@/types/domain';
 
 export const invitationsService = {
   async list(companyId: string): Promise<Invitation[]> {
@@ -10,9 +10,14 @@ export const invitationsService = {
     const response = await http.get(apiRoutes.invitations.list(companyId));
     return unwrap<Invitation[]>(response.data);
   },
+  /**
+   * `role` is typed as InvitableRole, not CompanyMembershipRole — the endpoint
+   * rejects the wider set, so a mismatch is a compile error rather than a
+   * runtime 400.
+   */
   async create(
     companyId: string,
-    payload: { email: string; role: CompanyMembershipRole; fullName: string },
+    payload: { email: string; role: InvitableRole; fullName: string },
   ): Promise<InvitationCreateResult> {
     if (env.demoMode) {
       const invitation: Invitation = {
