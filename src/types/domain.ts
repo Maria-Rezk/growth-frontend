@@ -7,11 +7,22 @@ export interface ApiErrorShape {
   fieldErrors?: Record<string, string>;
 }
 
+export const PlatformRole = {
+  USER: 'USER',
+  AGENCY_ADMIN: 'AGENCY_ADMIN',
+  SUPER_ADMIN: 'SUPER_ADMIN',
+} as const;
+export type PlatformRole = (typeof PlatformRole)[keyof typeof PlatformRole];
+
+export function isPlatformAdmin(role?: PlatformRole): boolean {
+  return role === PlatformRole.AGENCY_ADMIN || role === PlatformRole.SUPER_ADMIN;
+}
+
 export interface User {
   id: UUID;
   email: string;
   fullName?: string;
-  platformRole?: 'USER' | 'AGENCY_ADMIN';
+  platformRole?: PlatformRole;
   status?: string;
   createdAt?: ISODate;
   updatedAt?: ISODate;
@@ -20,10 +31,6 @@ export interface User {
 export interface LoginRequest {
   email: string;
   password: string;
-}
-
-export interface RegisterRequest extends LoginRequest {
-  fullName: string;
 }
 
 export interface AuthResponse {
@@ -45,10 +52,20 @@ export type CompanyMembershipRole =
 
 export type MembershipStatus = 'ACTIVE' | 'SUSPENDED';
 
+export type CompanyStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+
 export interface Company {
   id: UUID;
   name: string;
+  industry?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  country?: string | null;
+  status?: CompanyStatus;
+  createdById?: UUID;
   createdAt?: ISODate;
+  updatedAt?: ISODate;
 }
 
 export interface Membership {
@@ -579,7 +596,7 @@ export interface AssignmentMemberUser {
   id: UUID;
   email: string;
   fullName: string;
-  platformRole: 'USER' | 'AGENCY_ADMIN' | 'SUPER_ADMIN';
+  platformRole: PlatformRole;
   status: string;
   createdAt: ISODate;
   updatedAt: ISODate;
@@ -648,4 +665,33 @@ export interface Paginated<T> {
   total: number;
   limit: number;
   offset: number;
+}
+
+// ===========================================================================
+// Platform employee administration (POST/GET/PATCH /users, /companies/:id/members)
+// ===========================================================================
+
+export interface EmployeeClientMembership {
+  membershipId: UUID;
+  companyId: UUID;
+  companyName: string;
+  role: CompanyMembershipRole;
+}
+
+export interface Employee extends User {
+  clients: EmployeeClientMembership[];
+}
+
+export interface CreateEmployeePayload {
+  fullName: string;
+  email: string;
+  password: string;
+  platformRole?: PlatformRole;
+}
+
+export interface UpdateEmployeePayload {
+  fullName?: string;
+  platformRole?: PlatformRole;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  password?: string;
 }

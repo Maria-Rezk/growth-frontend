@@ -75,7 +75,7 @@ function MembersInner({ companyId }: { companyId: string }) {
     <>
       <PageHeader
         title="Members"
-        subtitle="Company roles, client reviewers and team access."
+        subtitle="Client roles, reviewers and team access."
         action={canManage ? <Button size="sm" onClick={() => setInviteOpen(true)}>Invite member</Button> : undefined}
       />
 

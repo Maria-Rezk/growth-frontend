@@ -1,16 +1,21 @@
-import { Navigate } from 'react-router-dom';
 import { useCompany } from '@/context/CompanyContext';
-import { ErrorState, LoadingState } from '@/components/ui/State';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 
 export function RequireCompany({ children }: { children: (companyId: string) => React.ReactNode }) {
   const { activeCompanyId, companies, loading, error, refreshCompanies } = useCompany();
 
-  if (loading) return <LoadingState label="Loading workspace…" />;
+  if (loading) return <LoadingState label="Loading clients…" />;
   if (error) return <ErrorState message={error} onRetry={refreshCompanies} />;
 
-  // Authenticated but no workspace yet → guide them to create one.
+  // Employees never create clients — an admin assigns them to one. An empty
+  // list just means nobody has done that yet, not a broken state.
   if (!activeCompanyId || companies.length === 0) {
-    return <Navigate to="/create-company" replace />;
+    return (
+      <EmptyState
+        title="No client assigned yet"
+        description="You are not assigned to any client yet — ask your manager."
+      />
+    );
   }
 
   return <>{children(activeCompanyId)}</>;

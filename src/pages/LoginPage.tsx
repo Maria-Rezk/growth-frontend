@@ -52,7 +52,7 @@ export function LoginPage() {
           {error ? <p className="error-box" role="alert">{error}</p> : null}
           <Button type="submit" loading={form.formState.isSubmitting}>Login</Button>
         </form>
-        <p className="auth-footnote">No account? <Link to="/register">Create one</Link> · <Link to="/accept-invitation">Accept invitation</Link></p>
+        <p className="auth-footnote">Have an invitation? <Link to="/accept-invitation">Accept invitation</Link></p>
       </section>
     </main>
   );

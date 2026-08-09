@@ -1,7 +1,7 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
-import { demoCompany, demoDelay, demoMemberships, makeId } from '@/services/demoStore';
+import { demoCompany, demoDelay, demoEmployees, demoMemberships, makeId } from '@/services/demoStore';
 import type { Company, Membership, CompanyMembershipRole, MembershipStatus } from '@/types/domain';
 
 export const companiesService = {
@@ -37,5 +37,24 @@ export const companiesService = {
   async removeMember(companyId: string, membershipId: string): Promise<void> {
     if (env.demoMode) return demoDelay(undefined);
     await http.delete(apiRoutes.companies.member(companyId, membershipId));
+  },
+  async addMember(companyId: string, payload: { userId: string; role: CompanyMembershipRole }): Promise<Membership> {
+    if (env.demoMode) {
+      const membership: Membership = {
+        id: makeId('membership'),
+        companyId,
+        userId: payload.userId,
+        role: payload.role,
+        status: 'ACTIVE',
+      };
+      demoMemberships.push(membership);
+      const employee = demoEmployees.find((item) => item.id === payload.userId);
+      if (employee) {
+        employee.clients.push({ membershipId: membership.id, companyId, companyName: demoCompany.name, role: payload.role });
+      }
+      return demoDelay(membership);
+    }
+    const response = await http.post(apiRoutes.companies.members(companyId), payload);
+    return unwrap<Membership>(response.data);
   },
 };

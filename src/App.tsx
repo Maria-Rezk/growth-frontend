@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LoginPage } from '@/pages/LoginPage';
-import { RegisterPage } from '@/pages/RegisterPage';
 import { AcceptInvitationPage } from '@/pages/AcceptInvitationPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { BrandProfilePage } from '@/pages/BrandProfilePage';
@@ -18,9 +17,10 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { MembersPage } from '@/pages/MembersPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
-import { CreateCompanyPage } from './pages/CreateCompanyPage';
 import { CampaignsPage } from '@/pages/CampaignsPage';
 import { ResponsibilitiesPage } from '@/pages/ResponsibilitiesPage';
+import { EmployeesPage } from '@/pages/EmployeesPage';
+import { ClientsPage } from '@/pages/ClientsPage';
 
 export function App() {
   return (
@@ -29,14 +29,12 @@ export function App() {
           invitee following the emailed link has no session yet. Moving it
           inside would bounce them to /login and break the whole flow. */}
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
       <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/create-company" element={<CreateCompanyPage />} />
           <Route path="/brand-profile" element={<BrandProfilePage />} />
           <Route path="/content-plans" element={<ContentPlansPage />} />
           <Route path="/ai-studio" element={<AiStudioPage />} />
@@ -51,6 +49,8 @@ export function App() {
           <Route path="/members" element={<MembersPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/responsibilities" element={<ResponsibilitiesPage />} />
+          <Route path="/admin/employees" element={<EmployeesPage />} />
+          <Route path="/admin/clients" element={<ClientsPage />} />
         </Route>
       </Route>
       

@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { authService } from '@/services/auth';
 import { env } from '@/config/env';
 import { errorMessage, setUnauthorizedHandler, tokenStorage } from '@/lib/http';
-import type { AuthResponse, LoginRequest, RegisterRequest, User } from '@/types/domain';
+import { demoUser as DEMO_USER } from '@/services/demoStore';
+import type { AuthResponse, LoginRequest, User } from '@/types/domain';
 
 type AcceptResult = { accepted: boolean; authenticated: boolean };
 
@@ -13,19 +14,12 @@ interface AuthContextValue {
   error: string | null;
   isAuthenticated: boolean;
   login: (payload: LoginRequest) => Promise<boolean>;
-  register: (payload: RegisterRequest) => Promise<boolean>;
   acceptInvitation: (payload: { token: string; fullName?: string; password?: string }) => Promise<AcceptResult>;
   logout: () => void;
   reloadUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const DEMO_USER: User = {
-  id: 'demo-user',
-  email: 'demo@solu1ions.com',
-  fullName: 'Demo User',
-};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => (env.demoMode ? DEMO_USER : null));
@@ -97,20 +91,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applyAuth],
   );
 
-  const register = useCallback(
-    async (payload: RegisterRequest) => {
-      setError(null);
-      try {
-        applyAuth(await authService.register(payload));
-        return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Registration failed.');
-        return false;
-      }
-    },
-    [applyAuth],
-  );
-
   const acceptInvitation = useCallback(
     async (payload: { token: string; fullName?: string; password?: string }): Promise<AcceptResult> => {
       setError(null);
@@ -146,12 +126,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error,
       isAuthenticated: Boolean(token && user),
       login,
-      register,
       acceptInvitation,
       logout,
       reloadUser,
     }),
-    [acceptInvitation, error, loading, login, logout, register, reloadUser, token, user],
+    [acceptInvitation, error, loading, login, logout, reloadUser, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

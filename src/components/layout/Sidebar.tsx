@@ -2,11 +2,14 @@ import type { ComponentType, SVGProps } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useLocale } from '@/context/LocaleContext';
+import { useAuth } from '@/context/AuthContext';
 import { Logo } from '@/components/brand/Logo';
+import { isPlatformAdmin } from '@/types/domain';
 import {
   BellIcon,
   BrandIcon,
   CampaignIcon,
+  GlobeIcon,
   LeadIcon,
   MatrixIcon,
   MembersIcon,
@@ -69,9 +72,19 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+const PLATFORM_ADMIN_GROUP: NavGroup = {
+  key: 'nav.group.platformAdmin',
+  items: [
+    { to: '/admin/employees', key: 'nav.employees', icon: MembersIcon },
+    { to: '/admin/clients', key: 'nav.clients', icon: GlobeIcon },
+  ],
+};
+
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { unreadCount } = useNotifications();
   const { t } = useLocale();
+  const { user } = useAuth();
+  const navGroups = isPlatformAdmin(user?.platformRole) ? [...NAV_GROUPS, PLATFORM_ADMIN_GROUP] : NAV_GROUPS;
 
   return (
     <aside className={open ? 'sidebar sidebar--open' : 'sidebar'}>
@@ -82,7 +95,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       </Link>
 
       <nav className="sidebar__nav" aria-label="Main navigation">
-        {NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <div key={group.key} className="sidebar__group">
             <p className="sidebar__group-label">{t(group.key)}</p>
             {group.items.map(({ to, key, icon: Icon }) => (

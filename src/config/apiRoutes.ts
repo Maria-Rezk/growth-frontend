@@ -1,9 +1,14 @@
 export const apiRoutes = {
   auth: {
     login: '/auth/login',
-    register: '/auth/register',
     me: '/auth/me',
     acceptInvitation: '/auth/accept-invitation',
+  },
+  users: {
+    list: '/users',
+    create: '/users',
+    detail: (userId: string) => `/users/${userId}`,
+    update: (userId: string) => `/users/${userId}`,
   },
   companies: {
     list: '/companies',

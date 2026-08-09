@@ -8,11 +8,11 @@
  */
 export const appRoutes = {
   login: '/login',
-  register: '/register',
   acceptInvitation: '/accept-invitation',
   dashboard: '/dashboard',
-  createCompany: '/create-company',
   members: '/members',
+  adminEmployees: '/admin/employees',
+  adminClients: '/admin/clients',
 } as const;
 
 /**

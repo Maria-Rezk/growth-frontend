@@ -4,6 +4,7 @@ import type {
   Company,
   ContentPlan,
   ContentPost,
+  Employee,
   Invitation,
   Lead,
   LeadNote,
@@ -39,6 +40,8 @@ export const demoUser: User = {
   id: 'demo-user',
   email: 'demo@solu1ions.com',
   fullName: 'Demo User',
+  platformRole: 'SUPER_ADMIN',
+  status: 'ACTIVE',
   createdAt: iso(-30),
 };
 
@@ -243,6 +246,22 @@ export let demoCampaigns: Campaign[] = [
     notes: 'Budget increased after initial lead quality review.',
     createdAt: iso(-1),
     updatedAt: iso(0),
+  },
+];
+
+export let demoEmployees: Employee[] = [
+  {
+    ...demoUser,
+    clients: [{ membershipId: demoMemberships[0].id, companyId: demoCompany.id, companyName: demoCompany.name, role: 'ACCOUNT_MANAGER' }],
+  },
+  {
+    id: 'demo-designer',
+    email: 'designer@solu1ions.com',
+    fullName: 'Demo Designer',
+    platformRole: 'USER',
+    status: 'ACTIVE',
+    createdAt: iso(-20),
+    clients: [{ membershipId: demoMemberships[1].id, companyId: demoCompany.id, companyName: demoCompany.name, role: 'DESIGNER' }],
   },
 ];
 

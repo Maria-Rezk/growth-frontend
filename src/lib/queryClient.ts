@@ -23,6 +23,7 @@ export const queryClient = new QueryClient({
 
 export const queryKeys = {
   companies: ['companies'] as const,
+  employees: ['employees'] as const,
   companyMembers: (companyId: string) => ['companies', companyId, 'members'] as const,
   brandProfile: (companyId: string) => ['companies', companyId, 'brand-profile'] as const,
   posts: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'posts', filters ?? {}] as const,

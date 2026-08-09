@@ -7,7 +7,6 @@ import type {
   AuthResponse,
   LoginRequest,
   Membership,
-  RegisterRequest,
   User,
 } from '@/types/domain';
 
@@ -15,11 +14,6 @@ export const authService = {
   async login(payload: LoginRequest): Promise<AuthResponse> {
     if (env.demoMode) return demoDelay({ accessToken: 'demo-token', user: { ...demoUser, email: payload.email } });
     const response = await http.post(apiRoutes.auth.login, payload);
-    return unwrap<AuthResponse>(response.data);
-  },
-  async register(payload: RegisterRequest): Promise<AuthResponse> {
-    if (env.demoMode) return demoDelay({ accessToken: 'demo-token', user: { ...demoUser, email: payload.email, fullName: payload.fullName } });
-    const response = await http.post(apiRoutes.auth.register, payload);
     return unwrap<AuthResponse>(response.data);
   },
   async me(): Promise<User & { memberships?: Membership[] }> {
