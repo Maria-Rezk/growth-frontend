@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
-import { appRoutes } from '@/config/appRoutes';
+import { appRoutes, unwrapInvitationToken } from '@/config/appRoutes';
 
 /*
   Contract: POST /auth/accept-invitation
@@ -42,7 +42,7 @@ export function AcceptInvitationPage() {
   const { acceptInvitation, isAuthenticated, error } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const initialToken = useMemo(() => params.get('token') ?? '', [params]);
+  const initialToken = useMemo(() => unwrapInvitationToken(params.get('token') ?? ''), [params]);
 
   const form = useForm<InvitationForm>({
     resolver: zodResolver(invitationSchema),
@@ -54,7 +54,7 @@ export function AcceptInvitationPage() {
 
   const submit = form.handleSubmit(async (values) => {
     const result = await acceptInvitation({
-      token: values.token.trim(),
+      token: unwrapInvitationToken(values.token),
       fullName: values.fullName?.trim() || undefined,
       password: values.password || undefined,
     });
