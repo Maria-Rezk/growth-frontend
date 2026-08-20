@@ -2487,6 +2487,249 @@ a.list-row:hover strong {
   outline-offset: 2px;
 }
 
+/* ------------------------------------------------------------- My work */
+/* Cross-client employee screen: the client is a tag on the row, and work is
+   grouped by when it is due rather than by who it belongs to. */
+.client-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+}
+
+.client-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.client-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.client-chip--active {
+  background: var(--accent-soft);
+  border-color: var(--magenta-border);
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.client-chip em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.client-chip--active em {
+  color: var(--accent-text);
+}
+
+.due-group {
+  margin-bottom: var(--s-4);
+}
+
+.due-group--overdue {
+  border-color: var(--danger-border);
+}
+
+.work-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.work-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.work-row:last-child {
+  border-bottom: 0;
+}
+
+.work-row__main {
+  min-width: 0;
+}
+
+.work-row__title {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.work-row__title:hover {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.work-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.work-row__tags {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.work-row__actions {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: flex-end;
+}
+
+.client-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+  font-size: 12px;
+}
+
+/* -------------------------------------------- Responsibility routing */
+.routing-summary {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+}
+
+.routing-summary__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: 13px;
+}
+
+.routing-summary__row span {
+  color: var(--muted);
+}
+
+.routing-summary__row strong {
+  font-weight: 500;
+}
+
+/* ----------------------------------------------- Monthly commitment */
+.commitment-verdict {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: var(--s-1);
+}
+
+.commitment-verdict--behind {
+  color: var(--danger);
+}
+
+.commitment-verdict--ok {
+  color: var(--success);
+}
+
+.commitment-list {
+  list-style: none;
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-4);
+}
+
+.commitment-row__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.commitment-row__head strong {
+  font-weight: 500;
+}
+
+.commitment-row__count {
+  margin-inline-start: auto;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.commitment-bar {
+  position: relative;
+  height: 6px;
+  margin: var(--s-2) 0 var(--s-1);
+  border-radius: 999px;
+  background: var(--n-100);
+  overflow: hidden;
+}
+
+.commitment-bar__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--info);
+}
+
+.commitment-bar__fill--complete {
+  background: var(--success);
+}
+
+.commitment-bar__fill--behind {
+  background: var(--warning);
+}
+
+.commitment-bar__fill--not-started {
+  background: var(--danger);
+}
+
+/* Where the month's pace sits — the bar is "enough" only past this mark. */
+.commitment-bar__pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ink-secondary);
+  opacity: .5;
+}
+
+.commitment-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s-3);
+}
+
+@media (max-width: 760px) {
+  .work-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .work-row__tags,
+  .work-row__actions {
+    justify-content: flex-start;
+  }
+}
+
 /* ------------------------------------------------------------ Responsive */
 @media (max-width: 1180px) {
   .dashboard-grid--senior {

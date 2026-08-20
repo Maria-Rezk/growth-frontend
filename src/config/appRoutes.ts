@@ -9,6 +9,7 @@
 export const appRoutes = {
   login: '/login',
   acceptInvitation: '/accept-invitation',
+  myWork: '/my-work',
   dashboard: '/dashboard',
   members: '/members',
   adminEmployees: '/admin/employees',

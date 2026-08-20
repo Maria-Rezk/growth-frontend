@@ -21,6 +21,9 @@ export const queryClient = new QueryClient({
   },
 });
 
+/** Prefix that invalidates every cross-client "my work" query at once. */
+export const MY_WORK_KEY = ['my-work'] as const;
+
 export const queryKeys = {
   companies: ['companies'] as const,
   employees: ['employees'] as const,
@@ -34,6 +37,13 @@ export const queryKeys = {
   leadCounts: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'leads', 'counts', filters ?? {}] as const,
   lead: (companyId: string, leadId: string) => ['companies', companyId, 'leads', leadId] as const,
   tasks: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'tasks', filters ?? {}] as const,
+  /*
+    "My work" spans clients, so it cannot live under ['companies', id, …] and
+    is not reached by the prefix invalidations every task mutation fires.
+    Anything that changes a task must invalidate MY_WORK_KEY as well.
+  */
+  myWork: (companyIds: readonly string[], filters?: Record<string, unknown>) =>
+    ['my-work', [...companyIds].sort().join('|'), filters ?? {}] as const,
   task: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId] as const,
   reports: (companyId: string) => ['companies', companyId, 'reports'] as const,
   contentPlans: (companyId: string) => ['companies', companyId, 'content-plans'] as const,

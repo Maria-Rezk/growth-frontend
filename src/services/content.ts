@@ -171,14 +171,30 @@ export const contentService = {
     return unwrap<ContentPost>(response.data);
   },
 
+  /**
+   * Edits the content of a post — never its status.
+   *
+   * `status` is stripped from the payload on purpose. A post's status belongs
+   * to the five approval operations below (submit-review, approve,
+   * request-changes, reject, publish): each one checks the caller's role,
+   * writes an approval log and notifies the people waiting on it. A PATCH that
+   * carries `status` bypasses all three, which is how a post could go from
+   * Draft straight to Published without the client ever seeing it.
+   *
+   * The backend fix is to drop `status` from `UpdateContentPostDto`; this is
+   * the same rule enforced on the client so the app never depends on that door
+   * being open.
+   */
   async updatePost(companyId: string, postId: string, payload: Partial<ContentPost>): Promise<ContentPost> {
+    const { status: _status, ...content } = payload;
+
     if (env.demoMode) {
       const post = demoPosts.find((item) => item.companyId === companyId && item.id === postId);
       if (!post) throw new Error('Post not found.');
-      Object.assign(post, payload, { updatedAt: new Date().toISOString() });
+      Object.assign(post, content, { updatedAt: new Date().toISOString() });
       return demoDelay(post);
     }
-    const response = await http.patch(apiRoutes.posts.detail(companyId, postId), payload);
+    const response = await http.patch(apiRoutes.posts.detail(companyId, postId), content);
     return unwrap<ContentPost>(response.data);
   },
 
@@ -264,9 +280,11 @@ export const contentService = {
     return extractPost(response.data);
   },
 
-  async setStatus(companyId: string, postId: string, status: PostStatus): Promise<ContentPost> {
-    return contentService.updatePost(companyId, postId, { status });
-  },
+  /*
+    There is deliberately no `setStatus` here. It existed as a thin wrapper
+    around `updatePost({ status })` — a second, unaudited way to move a post
+    through the workflow. Use the approval operations above instead.
+  */
 
   async approvalLogs(companyId: string, postId: string): Promise<PostApprovalLog[]> {
     if (env.demoMode) return demoDelay(demoPostLogs.filter((log) => log.postId === postId));

@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
+import { appRoutes } from '@/config/appRoutes';
 
 const loginSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
@@ -24,12 +25,12 @@ export function LoginPage() {
     mode: 'onBlur',
   });
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to={appRoutes.myWork} replace />;
 
   const submit = form.handleSubmit(async (values) => {
     const ok = await login(values);
     if (ok) {
-      const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/dashboard';
+      const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? appRoutes.myWork;
       navigate(from, { replace: true });
     }
   });

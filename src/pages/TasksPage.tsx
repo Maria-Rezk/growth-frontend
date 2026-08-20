@@ -20,8 +20,10 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { tasksService } from '@/services/tasks';
 import { companiesService } from '@/services/companies';
+import { responsibilitiesService } from '@/services/responsibilities';
 import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
+import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
 import { TaskPriority, TaskStatus, TaskType, type Task } from '@/types/domain';
 
@@ -256,6 +258,39 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
     mode: 'onBlur',
   });
 
+  /*
+    The responsibility matrix decides who this work belongs to.
+
+    Until now the matrix was a page nobody opened: it recorded that Dina works
+    on Instagram content and Amir approves it, but every task was still routed
+    by whoever happened to be filling in this form. Picking an area here reads
+    the matrix and fills in the assignee, and names who approves and who is
+    told when it slips.
+
+    It fills the field rather than locking it — the person creating the task
+    can still override, which is what "expected" means as opposed to
+    "permitted". Persisting the area on the task itself (so routing survives
+    creation and can drive reassignment) needs a `responsibilityAreaId` field
+    on the task API.
+  */
+  const [areaId, setAreaId] = useState('');
+  const matrix = useAsync(
+    () => responsibilitiesService.matrix(companyId),
+    [companyId],
+    { queryKey: queryKeys.responsibilityMatrix(companyId), enabled: open },
+  );
+  const routing = useMemo(() => routingForArea(matrix.data, areaId), [areaId, matrix.data]);
+
+  const chooseArea = (nextAreaId: string) => {
+    setAreaId(nextAreaId);
+    const suggested = routingForArea(matrix.data, nextAreaId).executor;
+    // Only prefill someone the Assign to list actually offers. Selecting a
+    // value with no matching <option> silently falls back to the first one,
+    // which would assign the task to the wrong person.
+    const assignable = suggested && members.some((member) => member.userId === suggested.userId);
+    form.setValue('assignedToId', assignable ? suggested.userId : '', { shouldDirty: true });
+  };
+
   const create = useMutation(tasksService.create, {
     invalidateKeys: [['companies', companyId, 'tasks']],
     onError: (error) => applyServerFieldErrors(form, error),
@@ -265,6 +300,7 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
   const close = () => {
     form.reset();
     create.reset();
+    setAreaId('');
     onClose();
   };
 
@@ -300,6 +336,26 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
             <Select id="task-priority" {...form.register('priority')}>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select>
           </Field>
         </div>
+        <Field
+          label="Responsibility area"
+          htmlFor="task-area"
+          hint="Optional. Picking an area routes the task using the responsibility matrix."
+        >
+          <Select id="task-area" value={areaId} onChange={(event) => chooseArea(event.target.value)} disabled={matrix.loading}>
+            <option value="">{matrix.loading ? 'Loading areas…' : 'No area — assign manually'}</option>
+            {(matrix.data?.areas ?? []).map((area) => (
+              <option key={area.id} value={area.id}>{area.name}</option>
+            ))}
+          </Select>
+        </Field>
+
+        {areaId ? (
+          <RoutingSummary
+            routing={routing}
+            executorIsMember={Boolean(routing.executor && members.some((member) => member.userId === routing.executor?.userId))}
+          />
+        ) : null}
+
         <div className="grid-2">
           <Field label="Assign to" htmlFor="task-assignee" hint="Optional. Leave unassigned if not decided.">
             <Select id="task-assignee" {...form.register('assignedToId')}>
@@ -318,5 +374,38 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>
+  );
+}
+
+/** What the matrix says about this area, in the words the matrix uses. */
+function RoutingSummary({ routing, executorIsMember }: { routing: AreaRouting; executorIsMember: boolean }) {
+  const rows: Array<{ label: string; value: string }> = [
+    { label: 'Works on it', value: memberLabel(routing.executor) },
+    { label: 'Approves', value: memberLabel(routing.approver) },
+    { label: 'Supervises', value: memberLabel(routing.supervisor) },
+  ];
+  if (routing.informed.length) {
+    rows.push({ label: 'Informed', value: routing.informed.map(memberLabel).join(', ') });
+  }
+
+  return (
+    <div className="routing-summary">
+      <p className="eyebrow">From the responsibility matrix</p>
+      {rows.map((row) => (
+        <div className="routing-summary__row" key={row.label}>
+          <span>{row.label}</span>
+          <strong>{row.value}</strong>
+        </div>
+      ))}
+      {!routing.executor ? (
+        <p className="muted">Nobody is set to work on this area yet — assign someone manually, or fill the matrix in.</p>
+      ) : null}
+      {routing.executor && !executorIsMember ? (
+        <p className="muted">
+          {memberLabel(routing.executor)} is named in the matrix but is not an active member of this client, so the
+          assignee was left empty.
+        </p>
+      ) : null}
+    </div>
   );
 }

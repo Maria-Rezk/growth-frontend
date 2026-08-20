@@ -16,7 +16,7 @@ import { contentService } from '@/services/content';
 import { filesService } from '@/services/files';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, fromInputDateTime, humanize } from '@/utils/format';
-import { CompanyMembershipRole, PostStatus } from '@/types/domain';
+import { CompanyMembershipRole } from '@/types/domain';
 
 export function PostDetailPage() {
   const { postId = '' } = useParams();
@@ -67,9 +67,14 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
     await reloadAll();
   };
 
+  /*
+    Sets the publish date only. It used to also send `status: SCHEDULED`,
+    which is a status change dressed up as an edit — the workflow's status is
+    owned by the approval operations, not by a PATCH. The date is planning
+    metadata; the post moves to Published when someone publishes it.
+  */
   const schedulePost = async () => {
     const result = await schedule.mutate(companyId, postId, {
-      status: PostStatus.SCHEDULED,
       scheduledAt: fromInputDateTime(scheduleAt),
     });
     if (result) { post.setData(result); await reloadAll(); }
@@ -180,10 +185,14 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
                 <Button onClick={() => transition('publish')} loading={publish.loading}>Mark published</Button>
               </RoleGate>
               <RoleGate permission="posts:publish">
-                <Field label="Schedule date" htmlFor="schedule-at">
+                <Field
+                  label="Planned publish date"
+                  htmlFor="schedule-at"
+                  hint="Planning only — the post still moves to Published through the approval actions above."
+                >
                   <Input id="schedule-at" type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} />
                 </Field>
-                <Button variant="secondary" onClick={schedulePost} loading={schedule.loading} disabled={!scheduleAt}>Schedule</Button>
+                <Button variant="secondary" onClick={schedulePost} loading={schedule.loading} disabled={!scheduleAt}>Save publish date</Button>
               </RoleGate>
               {(submitReview.error || approve.error || requestChanges.error || reject.error || publish.error) ? (
                 <p className="error-box" role="alert">

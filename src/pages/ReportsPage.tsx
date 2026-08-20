@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
 import { ErrorState } from '@/components/ui/State';
 import { DataTable, type Column } from '@/components/ui/DataTable';
+import { CommitmentPanel } from '@/components/domain/CommitmentPanel';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useCompany } from '@/context/CompanyContext';
 import { reportsService } from '@/services/reports';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize, formatPercent } from '@/utils/format';
@@ -17,6 +19,7 @@ export function ReportsPage() {
 }
 
 function ReportsInner({ companyId }: { companyId: string }) {
+  const { activeCompany } = useCompany();
   const current = new Date();
   const [month, setMonth] = useState(current.getMonth() + 1);
   const [year, setYear] = useState(current.getFullYear());
@@ -65,9 +68,25 @@ function ReportsInner({ companyId }: { companyId: string }) {
     }
   };
 
+  // Reports the team has actually generated for the selected period — the
+  // delivered side of the "monthly report" commitment line.
+  const reportsInPeriod = (reports.data ?? []).filter(
+    (report) => report.month === month && report.year === year,
+  ).length;
+
   return (
     <>
-      <PageHeader title="Reports" subtitle="Overview metrics, monthly report generation and recommendations." />
+      <PageHeader title="Reports" subtitle="Are we behind on what we promised, and what has shipped so far." />
+
+      <CommitmentPanel
+        companyId={companyId}
+        companyName={activeCompany?.name ?? 'this client'}
+        month={month}
+        year={year}
+        overview={overview.data}
+        overviewLoading={overview.loading}
+        reportsInPeriod={reportsInPeriod}
+      />
 
       <Card>
         <CardHeader title="Generate monthly report" subtitle="Metrics are calculated for the selected period." />

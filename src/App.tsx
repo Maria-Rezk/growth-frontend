@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { AcceptInvitationPage } from '@/pages/AcceptInvitationPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { MyWorkPage } from '@/pages/MyWorkPage';
 import { BrandProfilePage } from '@/pages/BrandProfilePage';
 import { ContentPlansPage } from '@/pages/ContentPlansPage';
 import { AiStudioPage } from '@/pages/AiStudioPage';
@@ -33,7 +34,10 @@ export function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          {/* An employee lands on their own work, not on a client they
+              first have to choose. /dashboard stays the per-client overview. */}
+          <Route index element={<Navigate to="/my-work" replace />} />
+          <Route path="/my-work" element={<MyWorkPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/brand-profile" element={<BrandProfilePage />} />
           <Route path="/content-plans" element={<ContentPlansPage />} />

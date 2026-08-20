@@ -9,6 +9,7 @@ import {
   BellIcon,
   BrandIcon,
   CampaignIcon,
+  ClockIcon,
   GlobeIcon,
   LeadIcon,
   MatrixIcon,
@@ -38,6 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'nav.group.workspace',
     items: [
+      { to: '/my-work', key: 'nav.myWork', icon: ClockIcon },
       { to: '/dashboard', key: 'nav.dashboard', icon: OverviewIcon },
       { to: '/brand-profile', key: 'nav.brandProfile', icon: BrandIcon },
     ],
