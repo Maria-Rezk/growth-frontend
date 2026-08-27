@@ -44,6 +44,9 @@ export function AttentionFeed({ filters }: { filters: DashboardFilters }) {
     navigation or the page renders someone else's task.
   */
   const open = (item: AttentionItem, path: string) => {
+    // A row whose client reference did not arrive cannot switch workspace;
+    // navigating anyway would open the entity under whoever is active now.
+    if (!item.client?.id) return;
     setActiveCompanyId(item.client.id);
     navigate(path);
   };
@@ -75,7 +78,7 @@ export function AttentionFeed({ filters }: { filters: DashboardFilters }) {
                       <strong>{item.title}</strong>
                       <span className="attention-row__reason">{reason}</span>
                       <span className="attention-row__meta">
-                        {item.client.name}
+                        {item.client?.name ?? 'Unknown client'}
                         {' · '}
                         {item.owner ? item.owner.name : 'Unassigned'}
                         {item.dueAt ? ` · due ${formatDateTime(item.dueAt)}` : ''}
@@ -90,7 +93,7 @@ export function AttentionFeed({ filters }: { filters: DashboardFilters }) {
 
                 return (
                   <li key={`${item.type}-${item.entityId}`}>
-                    {path ? (
+                    {path && item.client?.id ? (
                       <button type="button" className="attention-row attention-row--action" onClick={() => open(item, path)}>
                         {meta}
                       </button>

@@ -63,7 +63,7 @@ export function ContentPlansCard({ filters, enabled = true }: { filters: Dashboa
     >
       {(data: ContentPlansGrid) => {
         // MISSING first; everything else alphabetical.
-        const rows = [...data.clients].sort((left, right) => {
+        const rows = [...(data.clients ?? [])].sort((left, right) => {
           if (left.status !== right.status) {
             if (left.status === 'MISSING') return -1;
             if (right.status === 'MISSING') return 1;
@@ -74,7 +74,7 @@ export function ContentPlansCard({ filters, enabled = true }: { filters: Dashboa
         return (
           <>
             <StatStrip>
-              {Object.entries(data.byStatus).map(([status, count]) => (
+              {Object.entries(data.byStatus ?? {}).map(([status, count]) => (
                 <Stat
                   key={status}
                   label={humanize(status)}

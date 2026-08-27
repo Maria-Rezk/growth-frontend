@@ -43,6 +43,7 @@ export function OverdueLeadsModal({
   });
 
   const openLead = (row: OverdueLeadRow) => {
+    if (!row.client?.id) return;
     setActiveCompanyId(row.client.id);
     navigate(`/leads/${row.leadId}`);
     onClose();
@@ -73,7 +74,7 @@ export function OverdueLeadsModal({
                     {data.items.map((row) => (
                       <tr key={row.leadId}>
                         <td><strong>{row.leadName}</strong></td>
-                        <td>{row.client.name}</td>
+                        <td>{row.client?.name ?? 'Unknown client'}</td>
                         <td>{row.assignedTo?.name ?? <span className="muted">Unassigned</span>}</td>
                         <td><Badge tone="neutral">{humanize(row.status)}</Badge></td>
                         <td>{formatDate(row.followUpDate)}</td>
@@ -83,7 +84,14 @@ export function OverdueLeadsModal({
                           </Badge>
                         </td>
                         <td className="cell-right">
-                          <Button variant="secondary" size="sm" onClick={() => openLead(row)}>Open lead</Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={!row.client?.id}
+                            onClick={() => openLead(row)}
+                          >
+                            Open lead
+                          </Button>
                         </td>
                       </tr>
                     ))}

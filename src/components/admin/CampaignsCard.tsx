@@ -20,50 +20,54 @@ export function CampaignsCard({ filters, enabled = true }: { filters: DashboardF
 
   return (
     <WidgetCard title="Campaigns" subtitle="What is live and how far along it is." state={state} rows={6}>
-      {(data: CampaignsSummary) => (
+      {(data: CampaignsSummary) => {
+        const counts = data.counts ?? ({} as CampaignsSummary['counts']);
+        const active = data.active ?? [];
+        return (
         <>
           <StatStrip>
-            <Stat label="Active" value={data.counts.active} tone="info" />
-            <Stat label="Draft" value={data.counts.draft} />
-            <Stat label="Paused" value={data.counts.paused} />
-            <Stat label="Completed" value={data.counts.completed} tone="success" />
-            <Stat label="Ending soon" value={data.counts.endingSoon} tone="warning" />
-            <Stat label="With overdue tasks" value={data.counts.withOverdueTasks} tone="warning" />
+            <Stat label="Active" value={counts.active ?? '—'} tone="info" />
+            <Stat label="Draft" value={counts.draft ?? '—'} />
+            <Stat label="Paused" value={counts.paused ?? '—'} />
+            <Stat label="Completed" value={counts.completed ?? '—'} tone="success" />
+            <Stat label="Ending soon" value={counts.endingSoon ?? '—'} tone="warning" />
+            <Stat label="With overdue tasks" value={counts.withOverdueTasks ?? '—'} tone="warning" />
           </StatStrip>
 
-          {data.active.length === 0 ? (
+          {active.length === 0 ? (
             <EmptyState title="No active campaigns" />
           ) : (
             <ul className="campaign-list">
-              {data.active.map((campaign) => (
+              {active.map((campaign) => (
                 <li key={campaign.campaignId} className="campaign-row">
                   <div className="campaign-row__head">
                     <strong>{campaign.name}</strong>
                     <span className="muted">
-                      {campaign.client.name} · {humanize(campaign.objective)} ·{' '}
+                      {campaign.client?.name ?? 'Unknown client'} · {humanize(campaign.objective)} ·{' '}
                       {formatDate(campaign.startDate)} – {formatDate(campaign.endDate)}
                     </span>
                   </div>
                   <div className="campaign-row__progress">
-                    <Progress label="Tasks" done={campaign.tasks.completed} total={campaign.tasks.total} />
-                    <Progress label="Posts" done={campaign.posts.published} total={campaign.posts.total} />
-                    <Progress label="Leads won" done={campaign.leads.won} total={campaign.leads.total} />
+                    <Progress label="Tasks" done={campaign.tasks?.completed} total={campaign.tasks?.total} />
+                    <Progress label="Posts" done={campaign.posts?.published} total={campaign.posts?.total} />
+                    <Progress label="Leads won" done={campaign.leads?.won} total={campaign.leads?.total} />
                   </div>
                 </li>
               ))}
             </ul>
           )}
         </>
-      )}
+        );
+      }}
     </WidgetCard>
   );
 }
 
-function Progress({ label, done, total }: { label: string; done: number; total: number }) {
+function Progress({ label, done, total }: { label: string; done?: number; total?: number }) {
   return (
     <div className="campaign-progress">
       <span className="campaign-progress__label">{label}</span>
-      <strong>{done} of {total}</strong>
+      <strong>{done ?? '—'} of {total ?? '—'}</strong>
     </div>
   );
 }

@@ -25,16 +25,16 @@ export function AutomationsCard({ filters, enabled = true }: { filters: Dashboar
             <Stat label="Inactive rules" value={data.inactiveRules} />
           </StatStrip>
 
-          {data.lastFailedRuns.length === 0 ? (
+          {(data.lastFailedRuns ?? []).length === 0 ? (
             <EmptyState title="No failures" description="Every automation run today completed." />
           ) : (
             <ul className="failure-list">
-              {data.lastFailedRuns.map((run) => (
+              {(data.lastFailedRuns ?? []).map((run) => (
                 <li key={run.runId} className="failure-row">
                   <div>
                     <strong>{run.ruleName}</strong>
                     <p className="muted">
-                      {run.client.name} · {humanize(run.trigger)} → {humanize(run.action)}
+                      {run.client?.name ?? 'Unknown client'} · {humanize(run.trigger)} → {humanize(run.action)}
                     </p>
                   </div>
                   {/* The error string is the only clue for debugging a broken rule — show it verbatim. */}

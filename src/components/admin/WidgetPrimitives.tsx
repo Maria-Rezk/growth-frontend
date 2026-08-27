@@ -18,17 +18,20 @@ export function StatBars({
   /** Statuses to mark as needing action. */
   highlight?: readonly string[];
 }) {
+  // `counts` is required by the contract but absent from some backend
+  // examples; an unguarded Object.keys here would take the whole card down.
+  const safeCounts = counts ?? {};
   const keys = [
-    ...order.filter((key) => key in counts),
-    ...Object.keys(counts).filter((key) => !order.includes(key)),
+    ...order.filter((key) => key in safeCounts),
+    ...Object.keys(safeCounts).filter((key) => !order.includes(key)),
   ];
-  const max = Math.max(1, ...keys.map((key) => counts[key] ?? 0));
+  const max = Math.max(1, ...keys.map((key) => safeCounts[key] ?? 0));
   const highlighted = new Set(highlight ?? []);
 
   return (
     <ul className="stat-bars">
       {keys.map((key) => {
-        const value = counts[key] ?? 0;
+        const value = safeCounts[key] ?? 0;
         return (
           <li key={key} className={highlighted.has(key) ? 'stat-bar stat-bar--attention' : 'stat-bar'}>
             <span className="stat-bar__label">{label(key)}</span>

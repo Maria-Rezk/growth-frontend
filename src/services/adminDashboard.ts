@@ -70,22 +70,46 @@ async function specGet<T>(path: string, filters: DashboardFilters = {}): Promise
   }
 }
 
+/**
+ * Guarantees the pagination envelope, whatever arrives.
+ *
+ * The backend task list and the frontend integration guide do not describe
+ * these payloads identically — several backend examples omit fields the guide
+ * documents. A widget that maps over `items` or reads `pagination.totalPages`
+ * crashes on a leaner-than-agreed response, taking the card down instead of
+ * degrading. Normalising here keeps that defence in one place rather than
+ * scattering optional chaining through every table.
+ */
+function toPage<T>(raw: PageEnvelope<T> | null): PageEnvelope<T> | null {
+  if (raw === null) return null;
+  const items = Array.isArray(raw.items) ? raw.items : [];
+  return {
+    items,
+    pagination: raw.pagination ?? { page: 1, limit: items.length || 20, total: items.length, totalPages: 1 },
+  };
+}
+
 const routes = apiRoutes.admin.dashboard;
 
 export const adminDashboardService = {
   overview: (filters: DashboardFilters) => specGet<AdminOverview>(routes.overview, filters),
-  attention: (filters: DashboardFilters) => specGet<PageEnvelope<AttentionItem>>(routes.attention, filters),
+  attention: async (filters: DashboardFilters) =>
+    toPage(await specGet<PageEnvelope<AttentionItem>>(routes.attention, filters)),
   content: (filters: DashboardFilters) => specGet<ContentPipeline>(routes.content, filters),
   approvals: (filters: DashboardFilters) => specGet<ApprovalsSummary>(routes.approvals, filters),
   tasks: (filters: DashboardFilters) => specGet<TaskHealth>(routes.tasks, filters),
-  teamWorkload: (filters: DashboardFilters) => specGet<PageEnvelope<TeamWorkloadRow>>(routes.teamWorkload, filters),
+  teamWorkload: async (filters: DashboardFilters) =>
+    toPage(await specGet<PageEnvelope<TeamWorkloadRow>>(routes.teamWorkload, filters)),
   leads: (filters: DashboardFilters) => specGet<LeadsSummary>(routes.leads, filters),
-  overdueLeads: (filters: DashboardFilters) => specGet<PageEnvelope<OverdueLeadRow>>(routes.overdueLeads, filters),
+  overdueLeads: async (filters: DashboardFilters) =>
+    toPage(await specGet<PageEnvelope<OverdueLeadRow>>(routes.overdueLeads, filters)),
   campaigns: (filters: DashboardFilters) => specGet<CampaignsSummary>(routes.campaigns, filters),
   contentPlans: (filters: DashboardFilters) => specGet<ContentPlansGrid>(routes.contentPlans, filters),
-  clients: (filters: DashboardFilters) => specGet<PageEnvelope<ClientHealthRow>>(routes.clients, filters),
+  clients: async (filters: DashboardFilters) =>
+    toPage(await specGet<PageEnvelope<ClientHealthRow>>(routes.clients, filters)),
   automations: (filters: DashboardFilters) => specGet<AutomationsSummary>(routes.automations, filters),
-  activity: (filters: DashboardFilters) => specGet<PageEnvelope<ActivityItem>>(routes.activity, filters),
+  activity: async (filters: DashboardFilters) =>
+    toPage(await specGet<PageEnvelope<ActivityItem>>(routes.activity, filters)),
   /** Super Admin only — an AGENCY_ADMIN gets 403, so never fetch it for them. */
   systemHealth: () => specGet<SystemHealth>(apiRoutes.admin.system.health),
 };

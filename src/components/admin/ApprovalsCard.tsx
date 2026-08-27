@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/ui/State';
 import { useAsync } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { adminDashboardService } from '@/services/adminDashboard';
-import { formatHours } from '@/utils/format';
+import { formatHours, humanize } from '@/utils/format';
 import type { ApprovalsSummary, DashboardFilters, SlaState } from '@/types/domain';
 
 /**
@@ -44,11 +44,16 @@ export function ApprovalsCard({ filters }: { filters: DashboardFilters }) {
             <p className="widget-note">
               Longest wait: <strong>{data.oldestWaiting.title}</strong> · {data.oldestWaiting.clientName} ·{' '}
               {formatHours(data.oldestWaiting.waitingHours)}{' '}
-              <Badge tone={slaTone(data.oldestWaiting.slaState)}>{data.oldestWaiting.slaState}</Badge>
+              <Badge tone={slaTone(data.oldestWaiting.slaState)}>{humanize(data.oldestWaiting.slaState)}</Badge>
             </p>
           ) : null}
 
-          {data.clients.length === 0 ? (
+          {/*
+            BE-07's example omits `slaState` on these rows even though BE-08
+            specifies it; `humanize` renders a missing one as an em dash rather
+            than the literal "undefined".
+          */}
+          {(data.clients ?? []).length === 0 ? (
             <EmptyState title="Nothing waiting" description="No client has work sitting in their approval queue." />
           ) : (
             <div className="table-scroll">
@@ -64,7 +69,7 @@ export function ApprovalsCard({ filters }: { filters: DashboardFilters }) {
                 </thead>
                 <tbody>
                   {/* Longest wait first — the row that needs chasing is the top one. */}
-                  {[...data.clients]
+                  {[...(data.clients ?? [])]
                     .sort((left, right) => right.oldestWaitingHours - left.oldestWaitingHours)
                     .map((row) => (
                       <tr key={row.clientId}>
@@ -72,7 +77,7 @@ export function ApprovalsCard({ filters }: { filters: DashboardFilters }) {
                         <td>{row.waiting}</td>
                         <td>{formatHours(row.oldestWaitingHours)}</td>
                         <td>{row.changesRequested}</td>
-                        <td><Badge tone={slaTone(row.slaState)}>{row.slaState}</Badge></td>
+                        <td><Badge tone={slaTone(row.slaState)}>{humanize(row.slaState)}</Badge></td>
                       </tr>
                     ))}
                 </tbody>

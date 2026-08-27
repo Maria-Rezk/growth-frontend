@@ -93,8 +93,12 @@ export function TeamWorkloadCard({ filters, enabled = true }: { filters: Dashboa
                   {rows.map((row) => (
                     <tr key={row.employeeId}>
                       <td><strong>{row.name}</strong></td>
+                      {/*
+                        BE-10's example omits `inReview` that its own prose
+                        lists — an em dash beats an empty cell reading as zero.
+                      */}
                       {COLUMNS.map((column) => (
-                        <td key={column.key}>{row[column.key]}</td>
+                        <td key={column.key}>{row[column.key] ?? '—'}</td>
                       ))}
                     </tr>
                   ))}

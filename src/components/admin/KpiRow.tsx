@@ -64,7 +64,7 @@ function Kpi({
   onSelect,
 }: {
   label: string;
-  value: number;
+  value: number | undefined;
   tone: Tone;
   to?: string;
   onSelect?: () => void;
@@ -73,7 +73,8 @@ function Kpi({
   const body: ReactNode = (
     <>
       <span>{label}</span>
-      <strong>{value}</strong>
+      {/* An em dash, never a blank — a missing number must not read as zero. */}
+      <strong>{value ?? '—'}</strong>
     </>
   );
 
