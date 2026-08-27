@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { WidgetCard } from '@/components/admin/WidgetCard';
 import { EmptyState } from '@/components/ui/State';
 import { Pagination } from '@/components/ui/Pagination';
@@ -43,7 +43,16 @@ function transition(metadata?: Record<string, unknown>): string | null {
   return typeof from === 'string' ? `${humanize(from)} → ${humanize(to)}` : humanize(to);
 }
 
-export function ActivityFeed({ filters, limit = 10 }: { filters: DashboardFilters; limit?: number }) {
+export function ActivityFeed({
+  filters,
+  limit = 10,
+  action,
+}: {
+  filters: DashboardFilters;
+  limit?: number;
+  /** Header slot — the dashboard uses it to link to the full audit view. */
+  action?: ReactNode;
+}) {
   const [page, setPage] = useState(1);
   const pageFilters: DashboardFilters = { ...filters, page, limit };
 
@@ -53,7 +62,13 @@ export function ActivityFeed({ filters, limit = 10 }: { filters: DashboardFilter
   });
 
   return (
-    <WidgetCard title="Recent agency activity" subtitle="Newest first, across every client." state={state} rows={6}>
+    <WidgetCard
+      title="Recent agency activity"
+      subtitle="Newest first, across every client."
+      action={action}
+      state={state}
+      rows={6}
+    >
       {(data: PageEnvelope<ActivityItem>) => (
         <>
           {data.items.length === 0 ? (

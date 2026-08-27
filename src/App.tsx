@@ -24,6 +24,7 @@ import { ResponsibilitiesPage } from '@/pages/ResponsibilitiesPage';
 import { EmployeesPage } from '@/pages/EmployeesPage';
 import { ClientsPage } from '@/pages/ClientsPage';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
+import { AdminActivityPage } from '@/pages/admin/AdminActivityPage';
 
 export function App() {
   return (
@@ -61,6 +62,7 @@ export function App() {
               API enforces the real rule and answers 403. */}
           <Route element={<AdminRoute />}>
             <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/activity" element={<AdminActivityPage />} />
             <Route path="/admin/employees" element={<EmployeesPage />} />
             <Route path="/admin/clients" element={<ClientsPage />} />
           </Route>

@@ -13,6 +13,7 @@ export const appRoutes = {
   dashboard: '/dashboard',
   members: '/members',
   adminDashboard: '/admin/dashboard',
+  adminActivity: '/admin/activity',
   adminEmployees: '/admin/employees',
   adminClients: '/admin/clients',
 } as const;

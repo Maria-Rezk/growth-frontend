@@ -5,6 +5,18 @@ export interface ApiErrorShape {
   message: string;
   statusCode?: number;
   fieldErrors?: Record<string, string>;
+  /**
+   * True when the response body was JSON — i.e. the answer came from the API
+   * itself rather than from something sitting in front of it (an offline
+   * tunnel, a reverse proxy, a CDN error page), which serve HTML.
+   *
+   * This matters for one specific decision: the admin dashboard reads a 404 as
+   * "this endpoint is not built yet". An offline ngrok tunnel answers 404 with
+   * an HTML page for *every* path, including endpoints that exist — so without
+   * this flag a dead tunnel renders the whole dashboard as "Not available yet"
+   * and hides the fact that the backend is simply unreachable.
+   */
+  isApiResponse?: boolean;
 }
 
 export const PlatformRole = {

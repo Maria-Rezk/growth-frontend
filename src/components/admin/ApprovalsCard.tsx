@@ -67,14 +67,14 @@ export function ApprovalsCard({ filters }: { filters: DashboardFilters }) {
                   {[...data.clients]
                     .sort((left, right) => right.oldestWaitingHours - left.oldestWaitingHours)
                     .map((row) => (
-                    <tr key={row.clientId}>
-                      <td><strong>{row.clientName}</strong></td>
-                      <td>{row.waiting}</td>
-                      <td>{formatHours(row.oldestWaitingHours)}</td>
-                      <td>{row.changesRequested}</td>
-                      <td><Badge tone={slaTone(row.slaState)}>{row.slaState}</Badge></td>
-                    </tr>
-                  ))}
+                      <tr key={row.clientId}>
+                        <td><strong>{row.clientName}</strong></td>
+                        <td>{row.waiting}</td>
+                        <td>{formatHours(row.oldestWaitingHours)}</td>
+                        <td>{row.changesRequested}</td>
+                        <td><Badge tone={slaTone(row.slaState)}>{row.slaState}</Badge></td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

@@ -2,6 +2,9 @@ export const apiRoutes = {
   auth: {
     login: '/auth/login',
     me: '/auth/me',
+    // Exchanges the httpOnly refresh cookie for a new access token, re-issuing
+    // the role along with it — which is what makes Flow 7 actually resolve.
+    refresh: '/auth/refresh',
     acceptInvitation: '/auth/accept-invitation',
   },
   users: {

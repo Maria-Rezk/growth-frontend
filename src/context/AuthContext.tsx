@@ -1,7 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { authService } from '@/services/auth';
 import { env } from '@/config/env';
-import { errorMessage, setForbiddenHandler, setUnauthorizedHandler, tokenStorage } from '@/lib/http';
+import {
+  errorMessage,
+  refreshSession,
+  setForbiddenHandler,
+  setSessionRefreshedHandler,
+  setUnauthorizedHandler,
+  tokenStorage,
+} from '@/lib/http';
 import { demoUser as DEMO_USER } from '@/services/demoStore';
 import type { AuthResponse, LoginRequest, User } from '@/types/domain';
 
@@ -68,10 +75,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     A demoted admin keeps a token still claiming the old role until it is
     re-issued, so the UI can offer an action the API now refuses. Any 403 is
-    treated as "re-read who I am", once: `syncingRole` collapses the burst of
-    403s a dashboard full of independent widgets produces into a single
-    /auth/me call. Guards then re-render from the true role on their own — no
+    treated as "re-establish who I am", once: `syncingRole` collapses the burst
+    of 403s a dashboard full of independent widgets produces into a single
+    round-trip. Guards then re-render from the true role on their own — no
     screen has to handle this, and no dead-end error is shown.
+
+    Refresh first, not /auth/me. Refresh re-issues the token, which is what
+    actually clears the mismatch; /auth/me would correct what the UI *shows*
+    while leaving the stale token in place, so the API would go on answering
+    403 for the same actions. /auth/me is kept only as the fallback for when
+    refresh is unavailable — better a corrected UI than none.
   */
   const syncingRole = useRef(false);
 
@@ -79,6 +92,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (syncingRole.current || !tokenStorage.get()) return;
     syncingRole.current = true;
     try {
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        setToken(refreshed);
+        return;
+      }
       setUser(await authService.me());
     } catch {
       // A 401 on the re-read already signed the user out through the
@@ -92,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (env.demoMode) {
       setUnauthorizedHandler(null);
       setForbiddenHandler(null);
+      setSessionRefreshedHandler(null);
       setLoading(false);
       setToken('demo-token');
       setUser(DEMO_USER);
@@ -102,10 +121,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setForbiddenHandler(() => {
       void syncRoleAfterForbidden();
     });
+    /*
+      A silent refresh (the one the 401 interceptor performs mid-request) still
+      has to reach React state, or the app would keep rendering the pre-refresh
+      user and token while the network layer has moved on.
+    */
+    setSessionRefreshedHandler((refreshedUser) => {
+      setToken(tokenStorage.get());
+      setUser(refreshedUser);
+    });
     void reloadUser();
     return () => {
       setUnauthorizedHandler(null);
       setForbiddenHandler(null);
+      setSessionRefreshedHandler(null);
     };
   }, [logout, reloadUser, syncRoleAfterForbidden]);
 

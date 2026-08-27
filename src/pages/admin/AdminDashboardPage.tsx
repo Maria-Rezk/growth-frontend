@@ -96,7 +96,10 @@ export function AdminDashboardPage() {
 
       <div className="dashboard-grid dashboard-grid--senior" ref={attentionRef}>
         <AttentionFeed filters={sharedFilters} />
-        <ActivityFeed filters={sharedFilters} />
+        <ActivityFeed
+          filters={sharedFilters}
+          action={<ButtonLink to={appRoutes.adminActivity} variant="secondary" size="sm">View all</ButtonLink>}
+        />
       </div>
 
       <div className="grid-2">

@@ -80,9 +80,13 @@ export const companiesService = {
    * Permanently deletes a client and everything under it. Super Admin only.
    *
    * `confirmName` must equal the client's exact name; the API answers 409 and
-   * deletes nothing otherwise. A 404 means someone else already deleted it —
-   * that resolves to `null` so the caller can treat it as success and just
-   * refresh, rather than showing an error for work that is already done.
+   * deletes nothing otherwise. A 404 *from the API* means someone else already
+   * deleted it — that resolves to `null` so the caller can treat it as success
+   * and just refresh, rather than showing an error for work already done.
+   *
+   * A 404 that did not come from the API (an offline tunnel or proxy answering
+   * with an HTML page) still throws: reporting a delete that never reached the
+   * server as "already deleted" would be a lie about destroyed data.
    */
   async remove(companyId: string, confirmName: string): Promise<DeleteClientResult | null> {
     if (env.demoMode) throw new Error('Deleting a client is disabled in demo mode.');
@@ -92,7 +96,8 @@ export const companiesService = {
       });
       return unwrap<DeleteClientResult>(response.data);
     } catch (error) {
-      if ((error as ApiErrorShape | undefined)?.statusCode === 404) return null;
+      const apiError = error as ApiErrorShape | undefined;
+      if (apiError?.statusCode === 404 && apiError.isApiResponse) return null;
       throw error;
     }
   },

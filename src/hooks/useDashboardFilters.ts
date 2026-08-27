@@ -60,3 +60,32 @@ export function useDashboardFilters() {
 
   return { filters, setFilters, resetFilters };
 }
+
+/**
+ * A single filter value held in the URL query string.
+ *
+ * The audit view needs two parameters the shared bar does not carry (`userId`
+ * and `entityType`). Rather than widen `SharedFilters` — which every widget
+ * would then include in its query key, refetching twelve endpoints when a
+ * filter only one screen uses changes — those live here.
+ */
+export function useUrlParam(name: string): [string | undefined, (value: string | undefined) => void] {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const set = useCallback(
+    (value: string | undefined) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (value) next.set(name, value);
+          else next.delete(name);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [name, setSearchParams],
+  );
+
+  return [searchParams.get(name) || undefined, set];
+}

@@ -43,11 +43,17 @@ function readData<T>(payload: unknown): T {
  * GET a SPEC endpoint — one the contract defines but the backend has not
  * shipped yet.
  *
- * A 404 resolves to `null` instead of rejecting, so a widget can render
- * "Not available yet" rather than an error. That single decision is what lets
- * the whole dashboard ship before the backend lands. Every other status still
- * rejects normally: a 403 must reach the interceptor (it re-reads the role),
- * and a 500 is a real failure the user should see.
+ * A 404 *from the API* resolves to `null` instead of rejecting, so a widget
+ * can render "Not available yet" rather than an error. That single decision is
+ * what lets the whole dashboard ship before the backend lands. Every other
+ * status still rejects normally: a 403 must reach the interceptor (it re-reads
+ * the role), and a 500 is a real failure the user should see.
+ *
+ * `isApiResponse` is the important half of that condition. An offline ngrok
+ * tunnel — or any proxy in front of the API — answers 404 with an HTML page
+ * for *every* path, including endpoints that exist. Without the check, an
+ * unreachable backend renders as twelve calm "Not available yet" cards and
+ * hides the actual problem.
  */
 async function specGet<T>(path: string, filters: DashboardFilters = {}): Promise<T | null> {
   // Demo mode has no admin fixtures. Reporting "not shipped" is truthful —
@@ -58,7 +64,8 @@ async function specGet<T>(path: string, filters: DashboardFilters = {}): Promise
     const response = await http.get(withFilters(path, filters));
     return readData<T>(response.data);
   } catch (error) {
-    if ((error as ApiErrorShape | undefined)?.statusCode === 404) return null;
+    const apiError = error as ApiErrorShape | undefined;
+    if (apiError?.statusCode === 404 && apiError.isApiResponse) return null;
     throw error;
   }
 }

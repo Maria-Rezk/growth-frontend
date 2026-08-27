@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from 'axios';
 import { env } from '@/config/env';
-import type { ApiErrorShape } from '@/types/domain';
+import { apiRoutes } from '@/config/apiRoutes';
+import type { ApiErrorShape, User } from '@/types/domain';
 
 const ACCESS_TOKEN_KEY = 'growth.accessToken';
 
@@ -35,25 +36,103 @@ let forbiddenHandler: ((requestPath: string) => void) | null = null;
  * A role change does not reach an already–signed-in user until their token is
  * re-issued, so the UI can offer an action the API now refuses. Centralising
  * the reaction here means no screen has to special-case it: AuthContext
- * re-reads the session, and the guards re-render from the true role.
- *
- * The integration guide writes this against `POST /auth/refresh`. This app has
- * no refresh-cookie flow — the access token lives in localStorage — so the
- * equivalent re-read is `GET /auth/me`, which returns the server's current
- * `platformRole`.
+ * refreshes the session, and the guards re-render from the true role.
  */
 export function setForbiddenHandler(handler: ((requestPath: string) => void) | null): void {
   forbiddenHandler = handler;
 }
 
+let sessionRefreshedHandler: ((user: User) => void) | null = null;
+
+/** Notified whenever a refresh returns a user, so AuthContext can re-render. */
+export function setSessionRefreshedHandler(handler: ((user: User) => void) | null): void {
+  sessionRefreshedHandler = handler;
+}
+
+/*
+  `withCredentials` is required, not optional. The refresh token is an httpOnly
+  cookie, so without it the browser never sends the cookie and every refresh
+  fails — the session would end the moment the short-lived access token expires.
+
+  The cost is that the API must name this exact origin in its CORS allow-list
+  and send `Access-Control-Allow-Credentials: true`. A wildcard
+  `Access-Control-Allow-Origin: *` is rejected by the browser once credentials
+  are in play, so a backend using one has to be tightened alongside this.
+*/
 export const http = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: env.apiTimeoutMs,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
   },
 });
+
+/*
+  A separate client for the refresh call itself.
+
+  It carries no interceptors, which is the point: a 401 from the refresh
+  endpoint must not re-enter the refresh logic and recurse. It also sends no
+  Authorization header — the expired access token is exactly what is being
+  replaced; the httpOnly cookie is the credential here.
+*/
+const refreshClient = axios.create({
+  baseURL: env.apiBaseUrl,
+  timeout: env.apiTimeoutMs,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  },
+});
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * Exchanges the httpOnly refresh cookie for a new access token.
+ *
+ * Deduplicated on purpose. The dashboard fires a dozen widget requests at
+ * once; when the access token expires they all 401 together, and without this
+ * every one of them would start its own refresh — a burst of identical calls,
+ * and with rotating refresh tokens all but the first would fail and sign the
+ * user out. Concurrent callers share the single in-flight promise instead.
+ *
+ * Resolves to `null` rather than throwing when refresh is not possible, so
+ * callers can treat "could not refresh" as an ordinary branch.
+ */
+export function refreshSession(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = requestRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function requestRefresh(): Promise<string | null> {
+  try {
+    const response = await refreshClient.post(apiRoutes.auth.refresh);
+    const payload = unwrap<{ accessToken?: string; user?: User }>(response.data);
+    if (!payload?.accessToken) return null;
+
+    tokenStorage.set(payload.accessToken);
+    if (payload.user) sessionRefreshedHandler?.(payload.user);
+    return payload.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/*
+  Endpoints where a 401 is the answer, not a symptom. Retrying a rejected login
+  after a refresh would be nonsense, and refreshing on a failed refresh recurses.
+*/
+const NO_REFRESH_PATHS = [apiRoutes.auth.login, apiRoutes.auth.refresh, apiRoutes.auth.acceptInvitation];
+
+function skipsRefresh(url?: string): boolean {
+  return Boolean(url && NO_REFRESH_PATHS.some((path) => url.includes(path)));
+}
 
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const headers = AxiosHeaders.from(config.headers);
@@ -66,16 +145,37 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+/** Marks a request that has already been retried, so it can only happen once. */
+type RetriableConfig = InternalAxiosRequestConfig & { _refreshRetried?: boolean };
+
 http.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
+  async (error: AxiosError) => {
+    const status = error.response?.status;
+    const config = error.config as RetriableConfig | undefined;
+
+    if (status === 401) {
+      /*
+        On 401: refresh once and retry. Only a *second* 401 signs the user out.
+
+        The previous behaviour — clear the token and log out immediately — put
+        the user back on the login screen every time a short-lived access token
+        expired, losing whatever they were doing.
+      */
+      if (config && !config._refreshRetried && !skipsRefresh(config.url)) {
+        config._refreshRetried = true;
+        const token = await refreshSession();
+        if (token) return http(config);
+      }
+
       tokenStorage.clear();
       unauthorizedHandler?.();
     }
-    if (error.response?.status === 403) {
+
+    if (status === 403) {
       forbiddenHandler?.(error.config?.url ?? '');
     }
+
     return Promise.reject(normalizeApiError(error));
   },
 );
@@ -107,14 +207,26 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
     });
   }
 
+  /*
+    Did this response come from the API, or from something in front of it?
+    A NestJS error is a JSON object; an offline tunnel, a proxy or a CDN
+    answers with an HTML page. Callers that interpret a status code as a
+    contract state — the admin dashboard treats 404 as "not shipped yet" —
+    must not do that for a status invented by the infrastructure.
+  */
+  const isApiResponse = Boolean(error.response) && typeof data === 'object' && data !== null;
+
   const networkMessage = !error.response
     ? 'Network error. Check that the backend is running, the API base URL is correct, and CORS allows this frontend origin.'
-    : message;
+    : isApiResponse
+      ? message
+      : `The API base URL did not return a valid API response (HTTP ${error.response?.status}). Check that VITE_API_BASE_URL points at a running backend.`;
 
   return {
     message: networkMessage,
     statusCode: data?.statusCode ?? error.response?.status,
     fieldErrors: Object.keys(fieldErrors).length ? fieldErrors : undefined,
+    isApiResponse,
   };
 }
 
