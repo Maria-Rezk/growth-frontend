@@ -3,18 +3,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
-import { RequireAdmin } from '@/components/layout/RequireAdmin';
+import { RequireAdmin, useIsSuperAdmin } from '@/components/layout/RequireAdmin';
 import { PageHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
+import { useAuth } from '@/context/AuthContext';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { applyServerFieldErrors } from '@/lib/forms';
+import { ADMIN_DASHBOARD_KEY, queryKeys } from '@/lib/queryClient';
 import { companiesService } from '@/services/companies';
 import { usersService } from '@/services/users';
-import { queryKeys } from '@/lib/queryClient';
 import { CompanyMembershipRole, PlatformRole, type Employee } from '@/types/domain';
 import { humanize } from '@/utils/format';
 
@@ -28,14 +29,17 @@ export function EmployeesPage() {
 
 function EmployeesInner() {
   const employees = useAsync(() => usersService.list(), [], { queryKey: queryKeys.employees });
+  const superAdmin = useIsSuperAdmin();
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [assignTarget, setAssignTarget] = useState<Employee | null>(null);
+  const [roleTarget, setRoleTarget] = useState<Employee | null>(null);
 
   const columns = useMemo<Column<Employee>[]>(() => [
     {
       key: 'employee',
       header: 'Employee',
+      sortValue: (employee) => employee.fullName ?? employee.email,
       render: (employee) => (
         <div>
           <strong>{employee.fullName ?? employee.email}</strong>
@@ -43,13 +47,34 @@ function EmployeesInner() {
         </div>
       ),
     },
-    { key: 'platformRole', header: 'Platform role', render: (employee) => <Badge>{humanize(employee.platformRole)}</Badge> },
-    { key: 'status', header: 'Status', render: (employee) => <Badge tone={employee.status === 'ACTIVE' ? 'success' : 'warning'}>{humanize(employee.status ?? 'ACTIVE')}</Badge> },
+    {
+      key: 'platformRole',
+      header: 'Platform role',
+      sortValue: (employee) => employee.platformRole ?? '',
+      render: (employee) => (
+        <Badge tone={employee.platformRole === PlatformRole.USER ? 'neutral' : 'accent'}>
+          {humanize(employee.platformRole)}
+        </Badge>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (employee) => (
+        <Badge tone={employee.status === 'ACTIVE' ? 'success' : 'warning'}>{humanize(employee.status ?? 'ACTIVE')}</Badge>
+      ),
+    },
     {
       key: 'clients',
       header: 'Clients',
       render: (employee) => employee.clients.length
-        ? <div className="badge-row">{employee.clients.map((client) => <Badge key={client.membershipId} tone="neutral">{client.companyName} · {humanize(client.role)}</Badge>)}</div>
+        ? (
+          <div className="badge-row">
+            {employee.clients.map((client) => (
+              <Badge key={client.membershipId} tone="neutral">{client.companyName} · {humanize(client.role)}</Badge>
+            ))}
+          </div>
+        )
         : <span className="muted">None yet</span>,
     },
     {
@@ -60,16 +85,24 @@ function EmployeesInner() {
         <div className="button-row">
           <Button variant="secondary" size="sm" onClick={() => setEditTarget(employee)}>Edit</Button>
           <Button variant="secondary" size="sm" onClick={() => setAssignTarget(employee)}>Assign to client</Button>
+          {/*
+            Assigning platform roles is Super Admin only. It is kept out of the
+            edit form entirely — it is a different kind of decision, and the API
+            has moved it to its own route.
+          */}
+          {superAdmin ? (
+            <Button variant="ghost" size="sm" onClick={() => setRoleTarget(employee)}>Role…</Button>
+          ) : null}
         </div>
       ),
     },
-  ], []);
+  ], [superAdmin]);
 
   return (
     <>
       <PageHeader
         title="Employees"
-        subtitle="Create employee accounts and manage platform roles and access."
+        subtitle="Create employee accounts, reset access and assign them to clients."
         action={<Button size="sm" onClick={() => setCreateOpen(true)}>Add employee</Button>}
       />
 
@@ -81,11 +114,13 @@ function EmployeesInner() {
         error={employees.error}
         onRetry={employees.refetch}
         emptyTitle="No employees yet"
+        pageSize={20}
       />
 
       <CreateEmployeeModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <EditEmployeeModal employee={editTarget} onClose={() => setEditTarget(null)} />
       <AssignClientModal employee={assignTarget} onClose={() => setAssignTarget(null)} />
+      <PlatformRoleModal employee={roleTarget} onClose={() => setRoleTarget(null)} />
     </>
   );
 }
@@ -100,6 +135,7 @@ const createEmployeeSchema = z.object({
 type CreateEmployeeForm = z.infer<typeof createEmployeeSchema>;
 
 function CreateEmployeeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const superAdmin = useIsSuperAdmin();
   const form = useForm<CreateEmployeeForm>({
     resolver: zodResolver(createEmployeeSchema),
     defaultValues: { fullName: '', email: '', password: '', platformRole: PlatformRole.USER },
@@ -107,12 +143,18 @@ function CreateEmployeeModal({ open, onClose }: { open: boolean; onClose: () => 
   });
 
   const create = useMutation(usersService.create, {
-    invalidateKeys: [queryKeys.employees],
+    invalidateKeys: [queryKeys.employees, ADMIN_DASHBOARD_KEY],
     onError: (error) => applyServerFieldErrors(form, error),
   });
 
   const submit = form.handleSubmit(async (values) => {
-    const created = await create.mutate(values);
+    /*
+      An Admin can create people but not grant admin rights — that capability
+      is Super Admin only. Rather than send a role an Admin is not allowed to
+      choose, the field is omitted for them and the server applies its USER
+      default.
+    */
+    const created = await create.mutate(superAdmin ? values : { ...values, platformRole: undefined });
     if (created) {
       toast.success('Employee created.');
       close();
@@ -149,20 +191,30 @@ function CreateEmployeeModal({ open, onClose }: { open: boolean; onClose: () => 
         <Field label="Temporary password" htmlFor="employee-password" hint="At least 12 characters. Share it securely." error={form.formState.errors.password?.message}>
           <Input id="employee-password" type="password" autoComplete="new-password" aria-invalid={Boolean(form.formState.errors.password)} {...form.register('password')} />
         </Field>
-        <Field label="Platform role" htmlFor="employee-role" error={form.formState.errors.platformRole?.message}>
-          <Select id="employee-role" {...form.register('platformRole')}>
-            {Object.values(PlatformRole).map((role) => <option key={role} value={role}>{humanize(role)}</option>)}
-          </Select>
-        </Field>
+        {superAdmin ? (
+          <Field label="Platform role" htmlFor="employee-role" error={form.formState.errors.platformRole?.message}>
+            <Select id="employee-role" {...form.register('platformRole')}>
+              {Object.values(PlatformRole).map((role) => <option key={role} value={role}>{humanize(role)}</option>)}
+            </Select>
+          </Field>
+        ) : (
+          <p className="muted">New accounts are created as employees. Only a Super Admin can grant admin access.</p>
+        )}
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>
   );
 }
 
+/**
+ * Name, status and password reset.
+ *
+ * `platformRole` is deliberately absent — it moved to its own Super-Admin-only
+ * route, and because the API rejects unknown body fields, leaving it in this
+ * form would turn every employee edit into a 400.
+ */
 const editEmployeeSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name is required.'),
-  platformRole: z.enum(['USER', 'AGENCY_ADMIN', 'SUPER_ADMIN']),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']),
   password: z.union([z.string().length(0), z.string().min(12, 'Password must be at least 12 characters.')]).optional(),
 });
@@ -173,13 +225,17 @@ function EditEmployeeModal({ employee, onClose }: { employee: Employee | null; o
   const form = useForm<EditEmployeeForm>({
     resolver: zodResolver(editEmployeeSchema),
     values: employee
-      ? { fullName: employee.fullName ?? '', platformRole: employee.platformRole ?? PlatformRole.USER, status: (employee.status as EditEmployeeForm['status']) ?? 'ACTIVE', password: '' }
+      ? {
+        fullName: employee.fullName ?? '',
+        status: (employee.status as EditEmployeeForm['status']) ?? 'ACTIVE',
+        password: '',
+      }
       : undefined,
     mode: 'onBlur',
   });
 
   const update = useMutation(usersService.update, {
-    invalidateKeys: [queryKeys.employees],
+    invalidateKeys: [queryKeys.employees, ADMIN_DASHBOARD_KEY],
     onError: (error) => applyServerFieldErrors(form, error),
   });
 
@@ -187,7 +243,6 @@ function EditEmployeeModal({ employee, onClose }: { employee: Employee | null; o
     if (!employee) return;
     const updated = await update.mutate(employee.id, {
       fullName: values.fullName.trim(),
-      platformRole: values.platformRole,
       status: values.status,
       password: values.password ? values.password : undefined,
     });
@@ -221,11 +276,6 @@ function EditEmployeeModal({ employee, onClose }: { employee: Employee | null; o
         <Field label="Full name" htmlFor="edit-employee-name" error={form.formState.errors.fullName?.message}>
           <Input id="edit-employee-name" autoComplete="name" aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />
         </Field>
-        <Field label="Platform role" htmlFor="edit-employee-role" error={form.formState.errors.platformRole?.message}>
-          <Select id="edit-employee-role" {...form.register('platformRole')}>
-            {Object.values(PlatformRole).map((role) => <option key={role} value={role}>{humanize(role)}</option>)}
-          </Select>
-        </Field>
         <Field
           label="Status"
           htmlFor="edit-employee-status"
@@ -244,8 +294,108 @@ function EditEmployeeModal({ employee, onClose }: { employee: Employee | null; o
         >
           <Input id="edit-employee-password" type="password" autoComplete="new-password" {...form.register('password')} />
         </Field>
+        <p className="muted">
+          Platform role is changed separately, from the Role control — it is a Super Admin decision.
+        </p>
         {update.error ? <p className="error-box" role="alert">{update.error}</p> : null}
       </form>
+    </Modal>
+  );
+}
+
+/** What each role can do, stated plainly before someone is promoted into it. */
+const ROLE_CONSEQUENCES: Record<string, string> = {
+  [PlatformRole.USER]: 'Sees only the clients they are assigned to. No admin area.',
+  [PlatformRole.AGENCY_ADMIN]:
+    'Sees the operations dashboard and every client. Can add clients, rename them, archive them and assign people.',
+  [PlatformRole.SUPER_ADMIN]:
+    'Everything an Admin can do, plus assigning platform roles and permanently deleting a client — and everything under it — from the database.',
+};
+
+/**
+ * Assign a platform role. Super Admin only, and never on your own row.
+ *
+ * The server guards two cases with their own copy: demoting yourself, and
+ * demoting the last Super Admin. Both surface here as the server's message
+ * rather than a generic failure toast.
+ */
+function PlatformRoleModal({ employee, onClose }: { employee: Employee | null; onClose: () => void }) {
+  const { user } = useAuth();
+  const [role, setRole] = useState<PlatformRole>(PlatformRole.USER);
+  const [touched, setTouched] = useState(false);
+
+  const currentRole = employee?.platformRole ?? PlatformRole.USER;
+  const selected = touched ? role : currentRole;
+  const isSelf = Boolean(employee && user && employee.id === user.id);
+
+  const update = useMutation(usersService.updatePlatformRole, {
+    invalidateKeys: [queryKeys.employees, ADMIN_DASHBOARD_KEY],
+  });
+
+  const close = () => {
+    setTouched(false);
+    update.reset();
+    onClose();
+  };
+
+  const submit = async () => {
+    if (!employee || isSelf || selected === currentRole) return;
+    const updated = await update.mutate(employee.id, selected);
+    if (updated) {
+      toast.success(`${employee.fullName ?? employee.email} is now ${humanize(selected)}.`);
+      close();
+    }
+  };
+
+  return (
+    <Modal
+      open={Boolean(employee)}
+      onClose={close}
+      title={`Platform role — ${employee?.fullName ?? employee?.email ?? ''}`}
+      footer={(
+        <>
+          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button
+            type="button"
+            loading={update.loading}
+            disabled={isSelf || selected === currentRole}
+            onClick={() => void submit()}
+          >
+            Change role
+          </Button>
+        </>
+      )}
+    >
+      <div className="form-grid">
+        {isSelf ? (
+          <p className="error-box" role="alert">You cannot change your own role.</p>
+        ) : null}
+
+        <Field label="Platform role" htmlFor="platform-role">
+          <Select
+            id="platform-role"
+            value={selected}
+            disabled={isSelf}
+            onChange={(event) => {
+              setTouched(true);
+              setRole(event.target.value as PlatformRole);
+            }}
+          >
+            {Object.values(PlatformRole).map((value) => (
+              <option key={value} value={value}>{humanize(value)}</option>
+            ))}
+          </Select>
+        </Field>
+
+        <p className="muted">{ROLE_CONSEQUENCES[selected]}</p>
+
+        <p className="muted">
+          The new role reaches them only when their token is re-issued, so their screen may show the old
+          capabilities for a short while.
+        </p>
+
+        {update.error ? <p className="error-box" role="alert">{update.error}</p> : null}
+      </div>
     </Modal>
   );
 }
@@ -259,6 +409,9 @@ type AssignClientForm = z.infer<typeof assignClientSchema>;
 
 function AssignClientModal({ employee, onClose }: { employee: Employee | null; onClose: () => void }) {
   const companies = useAsync(() => companiesService.list(), [], { queryKey: queryKeys.companies, enabled: Boolean(employee) });
+
+  // One membership per person per client is a database constraint — filter
+  // rather than letting the user discover it as an error.
   const availableCompanies = useMemo(() => {
     const assignedIds = new Set(employee?.clients.map((client) => client.companyId));
     return (companies.data ?? []).filter((company) => !assignedIds.has(company.id));
@@ -271,7 +424,7 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
   });
 
   const assign = useMutation(companiesService.addMember, {
-    invalidateKeys: [queryKeys.employees],
+    invalidateKeys: [queryKeys.employees, ADMIN_DASHBOARD_KEY],
     onError: (error) => applyServerFieldErrors(form, error),
   });
 

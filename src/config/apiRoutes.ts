@@ -9,12 +9,45 @@ export const apiRoutes = {
     create: '/users',
     detail: (userId: string) => `/users/${userId}`,
     update: (userId: string) => `/users/${userId}`,
+    // Super Admin only. Separate from `update` on purpose — the general user
+    // PATCH rejects `platformRole` outright (forbidNonWhitelisted → 400).
+    platformRole: (userId: string) => `/users/${userId}/platform-role`,
   },
   companies: {
     list: '/companies',
     create: '/companies',
+    // PATCH (rename / archive) and DELETE (Super Admin, permanent) share this.
+    detail: (companyId: string) => `/companies/${companyId}`,
     members: (companyId: string) => `/companies/${companyId}/members`,
     member: (companyId: string, membershipId: string) => `/companies/${companyId}/members/${membershipId}`,
+  },
+  /*
+    Admin & Super Admin operations dashboard.
+
+    Every `dashboard.*` route is a GET, accepts the shared filter set, is open
+    to AGENCY_ADMIN and SUPER_ADMIN, and is fetched independently so one slow
+    query degrades a single card instead of the page. `system.health` is the
+    one Super-Admin-only read.
+  */
+  admin: {
+    dashboard: {
+      overview: '/admin/dashboard/overview',
+      attention: '/admin/dashboard/attention',
+      content: '/admin/dashboard/content',
+      approvals: '/admin/dashboard/approvals',
+      tasks: '/admin/dashboard/tasks',
+      teamWorkload: '/admin/dashboard/team-workload',
+      leads: '/admin/dashboard/leads',
+      overdueLeads: '/admin/dashboard/leads/overdue',
+      campaigns: '/admin/dashboard/campaigns',
+      contentPlans: '/admin/dashboard/content-plans',
+      clients: '/admin/dashboard/clients',
+      automations: '/admin/dashboard/automations',
+      activity: '/admin/dashboard/activity',
+    },
+    system: {
+      health: '/admin/system/health',
+    },
   },
   brandProfile: (companyId: string) => `/companies/${companyId}/brand-profile`,
   contentPlans: {

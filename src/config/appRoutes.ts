@@ -12,6 +12,7 @@ export const appRoutes = {
   myWork: '/my-work',
   dashboard: '/dashboard',
   members: '/members',
+  adminDashboard: '/admin/dashboard',
   adminEmployees: '/admin/employees',
   adminClients: '/admin/clients',
 } as const;

@@ -20,6 +20,7 @@ import {
   ReportIcon,
   SparkIcon,
   TaskIcon,
+  TrendUpIcon,
 } from '@/components/ui/icons';
 
 type NavIcon = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
@@ -74,9 +75,14 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/*
+  Shown to both admin roles. The operations dashboard is deliberately NOT
+  behind a Super Admin check — an AGENCY_ADMIN reaches every widget on it.
+*/
 const PLATFORM_ADMIN_GROUP: NavGroup = {
   key: 'nav.group.platformAdmin',
   items: [
+    { to: '/admin/dashboard', key: 'nav.operations', icon: TrendUpIcon },
     { to: '/admin/employees', key: 'nav.employees', icon: MembersIcon },
     { to: '/admin/clients', key: 'nav.clients', icon: GlobeIcon },
   ],

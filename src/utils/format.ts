@@ -48,3 +48,33 @@ export function fromInputDateTime(value: string): string | undefined {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
+
+/**
+ * Formats a ratio from the API as a percentage: `0.21` → `21%`.
+ *
+ * Distinct from `formatPercent`, which takes a value that is already a
+ * percentage. The admin dashboard's `conversionRate` is a ratio, and it is
+ * filtered differently from the counts beside it — format it, never recompute
+ * it from `won / (won + lost)`.
+ */
+export function formatRatioPercent(value?: number | null): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return '—';
+  return `${Math.round(value * 1000) / 10}%`;
+}
+
+/** Minutes of age as a compact duration: `1280` → `21h`, `4300` → `2d 23h`. */
+export function formatAgeMinutes(minutes?: number | null): string {
+  if (minutes === undefined || minutes === null || Number.isNaN(minutes)) return '—';
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remainder = hours % 24;
+  return remainder ? `${days}d ${remainder}h` : `${days}d`;
+}
+
+/** Hours as a compact duration: `49` → `2d 1h`, `18.4` → `18h`. */
+export function formatHours(hours?: number | null): string {
+  if (hours === undefined || hours === null || Number.isNaN(hours)) return '—';
+  return formatAgeMinutes(hours * 60);
+}

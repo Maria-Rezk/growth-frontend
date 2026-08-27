@@ -14,8 +14,28 @@ export const PlatformRole = {
 } as const;
 export type PlatformRole = (typeof PlatformRole)[keyof typeof PlatformRole];
 
+/**
+ * The two roles that reach the admin area. Both `AGENCY_ADMIN` and
+ * `SUPER_ADMIN` see the whole agency — an admin is NOT narrowed to the clients
+ * they are a member of.
+ *
+ * These two helpers are the only place a platform role string is compared.
+ * Scattering `role === 'SUPER_ADMIN'` through components is how a capability
+ * ends up half-gated when the matrix changes.
+ */
 export function isPlatformAdmin(role?: PlatformRole): boolean {
   return role === PlatformRole.AGENCY_ADMIN || role === PlatformRole.SUPER_ADMIN;
+}
+
+/**
+ * Capabilities reserved to Super Admin: assigning platform roles, deleting a
+ * client from the database, and the system health strip.
+ *
+ * Hiding a control is cosmetic — the API enforces the rule and answers 403.
+ * Never treat a hidden button as security.
+ */
+export function isSuperAdmin(role?: PlatformRole): boolean {
+  return role === PlatformRole.SUPER_ADMIN;
 }
 
 export interface User {
@@ -689,9 +709,295 @@ export interface CreateEmployeePayload {
   platformRole?: PlatformRole;
 }
 
+/**
+ * Body for `PATCH /users/:userId`.
+ *
+ * `platformRole` is deliberately absent. It moved to its own Super-Admin-only
+ * route (`PATCH /users/:userId/platform-role`), and because the API validates
+ * with `forbidNonWhitelisted`, sending it here is a 400 — not a silently
+ * ignored field. Role changes go through `usersService.updatePlatformRole`.
+ */
 export interface UpdateEmployeePayload {
   fullName?: string;
-  platformRole?: PlatformRole;
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   password?: string;
+}
+// ===========================================================================
+// Admin & Super Admin operations dashboard
+// Companion to "Frontend Integration Guide — Admin & Super Admin Dashboard"
+// (25 August 2026, revision 2 of the backend task list).
+//
+// Endpoints marked SPEC in that guide are not built yet and answer 404. The
+// service layer turns that 404 into `null` rather than an error — see
+// `services/adminDashboard.ts` — so a widget can render "Not available yet"
+// instead of a failure. Every type below is therefore reached as `T | null`.
+// ===========================================================================
+
+export type Severity = 'INFO' | 'WARNING' | 'CRITICAL';
+export type SlaState = 'NORMAL' | 'WARNING' | 'CRITICAL';
+
+/** Shared query parameters accepted by every `/admin/dashboard/*` endpoint. */
+export interface DashboardFilters {
+  from?: string;
+  to?: string;
+  clientId?: UUID;
+  employeeId?: UUID;
+  status?: string;
+  priority?: string;
+  page?: number;
+  limit?: number;
+  /** `/dashboard/content-plans` only. */
+  month?: number;
+  /** `/dashboard/content-plans` only. */
+  year?: number;
+  /** `/dashboard/activity` only. */
+  userId?: UUID;
+  /** `/dashboard/activity` only. */
+  entityType?: string;
+}
+
+/**
+ * Pagination envelope returned by every admin list endpoint.
+ *
+ * Deliberately *not* `Paginated<T>` above: that one is the client-workspace
+ * shape (`{ total, limit, offset }`). Same idea, different keys — reusing one
+ * for the other silently reads `undefined` for every page control.
+ */
+export interface PageEnvelope<T> {
+  items: T[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+/** `{ id, name }` — the shape the dashboard uses for every entity reference. */
+export interface Ref {
+  id: UUID;
+  name: string;
+}
+
+export interface AdminOverview {
+  activeClients: number;
+  activeEmployees: number;
+  dueToday: number;
+  overdue: number;
+  blockedTasks: number;
+  waitingClientApproval: number;
+  leadFollowUpsToday: number;
+  overdueLeadFollowUps: number;
+  publishedToday: number;
+}
+
+/**
+ * `type` is an OPEN set — the backend adds new ones as it grows. Never
+ * `switch` on it without a default; see `attentionMeta.tsx`, which falls back
+ * to a generic row rather than dropping an item it does not recognise.
+ */
+export interface AttentionItem {
+  type: string;
+  severity: Severity;
+  client: Ref;
+  entityId: UUID;
+  title: string;
+  owner: Ref | null;
+  dueAt: ISODate | null;
+  waitingSince: ISODate | null;
+  ageMinutes: number;
+}
+
+export interface ContentPipeline {
+  byStatus: Record<string, number>;
+  publishedToday: number;
+  scheduledToday: number;
+  awaitingClientAction: number;
+  changesRequested: number;
+  /** SCHEDULED with `scheduledAt <= now` — needs a human to press publish. */
+  publishingDue: number;
+  averageApprovalWaitHours: number;
+}
+
+export interface ApprovalsClientRow {
+  clientId: UUID;
+  clientName: string;
+  waiting: number;
+  oldestWaitingHours: number;
+  changesRequested: number;
+  slaState: SlaState;
+}
+
+export interface ApprovalsSummary {
+  waiting: number;
+  overThreshold: number;
+  averageWaitHours: number;
+  approvedToday: number;
+  rejectedToday: number;
+  oldestWaiting: {
+    postId: UUID;
+    title: string;
+    clientId: UUID;
+    clientName: string;
+    waitingHours: number;
+    slaState: SlaState;
+  } | null;
+  clients: ApprovalsClientRow[];
+}
+
+export interface TaskHealth {
+  openTotal: number;
+  byStatus: Record<string, number>;
+  dueToday: number;
+  overdue: number;
+  urgent: number;
+  highPriority: number;
+  unassigned: number;
+  completedToday: number;
+}
+
+export interface TeamWorkloadRow {
+  employeeId: UUID;
+  name: string;
+  clients: number;
+  openTasks: number;
+  dueToday: number;
+  overdue: number;
+  blocked: number;
+  inReview: number;
+  urgent: number;
+}
+
+export interface LeadsSummary {
+  byStatus: Record<string, number>;
+  newToday: number;
+  followUpsToday: number;
+  overdueFollowUps: number;
+  wonThisMonth: number;
+  lostThisMonth: number;
+  /** A ratio (0.21), not a percentage. Format it; never recompute it. */
+  conversionRate: number;
+}
+
+export interface OverdueLeadRow {
+  leadId: UUID;
+  leadName: string;
+  client: Ref;
+  assignedTo: Ref | null;
+  status: LeadStatus;
+  followUpDate: ISODate;
+  overdueHours: number;
+  overdueDays: number;
+}
+
+export interface ActiveCampaignRow {
+  campaignId: UUID;
+  name: string;
+  client: Ref;
+  objective: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  tasks: { total: number; completed: number };
+  posts: { total: number; published: number };
+  leads: { total: number; won: number };
+}
+
+export interface CampaignsSummary {
+  counts: {
+    active: number;
+    draft: number;
+    paused: number;
+    completed: number;
+    endingSoon: number;
+    withOverdueTasks: number;
+  };
+  active: ActiveCampaignRow[];
+}
+
+/**
+ * `MISSING` is derived server-side, not a stored status: an active client with
+ * no plan for the selected month. It is the cell worth chasing, so the UI
+ * treats it as a first-class status rather than an absence.
+ */
+export interface ContentPlanClientRow {
+  clientId: UUID;
+  clientName: string;
+  planId: UUID | null;
+  status: string;
+  accountManager: Ref | null;
+}
+
+export interface ContentPlansGrid {
+  month: number;
+  year: number;
+  byStatus: Record<string, number>;
+  clients: ContentPlanClientRow[];
+}
+
+export interface ClientHealthRow {
+  clientId: UUID;
+  clientName: string;
+  status: CompanyStatus;
+  tasks: { open: number; overdue: number; blocked: number };
+  content: { waitingApproval: number; changesRequested: number; scheduled: number; published: number };
+  leads: { open: number; overdueFollowUps: number };
+  campaigns: { active: number };
+  contentPlan: { month: number; year: number; status: string };
+  /**
+   * Raw signals for a health score that does not exist yet. Render them; do
+   * not invent a score or a colour rule from them — the Product Owner owns
+   * that and it will arrive as a server value.
+   */
+  healthInputs: Record<string, number | string>;
+}
+
+export interface AutomationFailure {
+  runId: UUID;
+  ruleId: UUID;
+  ruleName: string;
+  client: Ref;
+  trigger: string;
+  action: string;
+  failedAt: ISODate;
+  error: string;
+}
+
+export interface AutomationsSummary {
+  runsToday: number;
+  successfulRuns: number;
+  failedRuns: number;
+  activeRules: number;
+  inactiveRules: number;
+  lastFailedRuns: AutomationFailure[];
+}
+
+export interface ActivityItem {
+  id: UUID;
+  action: string;
+  actor: Ref | null;
+  /**
+   * A snapshot, not a live reference — a deleted client still shows its name
+   * here. Render the name, never a link into a workspace that may be gone.
+   */
+  client: Ref | null;
+  entityType: string;
+  entityId: UUID;
+  metadata?: Record<string, unknown>;
+  createdAt: ISODate;
+}
+
+/**
+ * Open set of service names to open set of states. `UP` is not the only good
+ * value — `NOT_IN_USE` and `MOCK` are expected today, so anything other than
+ * `UP` must not be rendered as a failure.
+ */
+export type SystemHealth = Record<string, string>;
+
+export interface DeleteClientResult {
+  deleted: boolean;
+  clientId: UUID;
+  clientName: string;
+  removed: {
+    tasks: number;
+    posts: number;
+    leads: number;
+    campaigns: number;
+    memberships: number;
+    files: number;
+  };
 }

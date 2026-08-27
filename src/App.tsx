@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
+import { AdminRoute } from '@/components/layout/RequireAdmin';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { AcceptInvitationPage } from '@/pages/AcceptInvitationPage';
@@ -22,6 +23,7 @@ import { CampaignsPage } from '@/pages/CampaignsPage';
 import { ResponsibilitiesPage } from '@/pages/ResponsibilitiesPage';
 import { EmployeesPage } from '@/pages/EmployeesPage';
 import { ClientsPage } from '@/pages/ClientsPage';
+import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 
 export function App() {
   return (
@@ -53,8 +55,15 @@ export function App() {
           <Route path="/members" element={<MembersPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/responsibilities" element={<ResponsibilitiesPage />} />
-          <Route path="/admin/employees" element={<EmployeesPage />} />
-          <Route path="/admin/clients" element={<ClientsPage />} />
+          {/* Platform admin. Guarded as a route rather than in-page so a
+              USER who types the URL is sent away and the admin pages never
+              mount — nothing fetches on their behalf. Cosmetic, as ever: the
+              API enforces the real rule and answers 403. */}
+          <Route element={<AdminRoute />}>
+            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/employees" element={<EmployeesPage />} />
+            <Route path="/admin/clients" element={<ClientsPage />} />
+          </Route>
         </Route>
       </Route>
       

@@ -15,6 +15,13 @@ type AsyncOptions = {
   /** Prefer a stable semantic key from queryClient.ts (e.g. queryKeys.posts(companyId, filters)). */
   queryKey?: readonly unknown[];
   enabled?: boolean;
+  /**
+   * Poll every N ms. React Query pauses the interval while the window is not
+   * focused (`refetchIntervalInBackground` stays false), which is exactly the
+   * "refresh every 60 s while the tab is visible" the admin dashboard wants —
+   * a background tab must not keep hammering twelve endpoints.
+   */
+  refetchInterval?: number;
 };
 
 function stableDependencyKey(value: unknown): unknown {
@@ -41,6 +48,7 @@ export function useAsync<T>(
     queryKey,
     queryFn: factory,
     enabled: options?.enabled ?? true,
+    refetchInterval: options?.refetchInterval,
   });
 
   const refetch = useCallback(async () => {

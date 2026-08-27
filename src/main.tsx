@@ -13,6 +13,7 @@ import { validateRuntimeEnv } from '@/config/env';
 import '@/styles/global.css';
 import '@/styles/rtl.css';
 import '@/styles/skeleton.css';
+import '@/styles/admin.css';
 
 validateRuntimeEnv();
 

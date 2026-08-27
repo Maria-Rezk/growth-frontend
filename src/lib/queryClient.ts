@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import type { ApiErrorShape } from '@/types/domain';
+import type { ApiErrorShape, DashboardFilters } from '@/types/domain';
 
 function shouldRetry(failureCount: number, error: unknown) {
   const statusCode = (error as ApiErrorShape | undefined)?.statusCode;
@@ -23,6 +23,15 @@ export const queryClient = new QueryClient({
 
 /** Prefix that invalidates every cross-client "my work" query at once. */
 export const MY_WORK_KEY = ['my-work'] as const;
+
+/**
+ * Prefix covering every admin dashboard widget.
+ *
+ * The widgets are independent requests but they read one dataset, so an admin
+ * action (add/rename/archive/delete a client, change a role) invalidates the
+ * whole prefix rather than trying to name the handful of cards it touched.
+ */
+export const ADMIN_DASHBOARD_KEY = ['admin', 'dashboard'] as const;
 
 export const queryKeys = {
   companies: ['companies'] as const,
@@ -52,6 +61,13 @@ export const queryKeys = {
   invitations: (companyId: string) => ['companies', companyId, 'invitations'] as const,
   campaigns: (companyId: string, filters?: unknown) => ['companies', companyId, 'campaigns', filters ?? {}] as const,
   campaign: (companyId: string, campaignId: string) => ['companies', companyId, 'campaigns', campaignId] as const,
+  /**
+   * One key per admin widget. `filters` is part of the key, so changing the
+   * shared filter bar refetches instead of showing another range's numbers.
+   */
+  adminWidget: (widget: string, filters?: DashboardFilters) =>
+    ['admin', 'dashboard', widget, filters ?? {}] as const,
+  adminSystemHealth: ['admin', 'system', 'health'] as const,
   notifications: ['notifications'] as const,
   unreadNotifications: ['notifications', 'unread-count'] as const,
   responsibilityMatrix: (companyId: string) => ['companies', companyId, 'responsibilities', 'matrix'] as const,

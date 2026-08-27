@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { authService } from '@/services/auth';
 import { env } from '@/config/env';
-import { errorMessage, setUnauthorizedHandler, tokenStorage } from '@/lib/http';
+import { errorMessage, setForbiddenHandler, setUnauthorizedHandler, tokenStorage } from '@/lib/http';
 import { demoUser as DEMO_USER } from '@/services/demoStore';
 import type { AuthResponse, LoginRequest, User } from '@/types/domain';
 
@@ -63,9 +63,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [logout]);
 
+  /*
+    Flow 7 — a role that changed mid-session.
+
+    A demoted admin keeps a token still claiming the old role until it is
+    re-issued, so the UI can offer an action the API now refuses. Any 403 is
+    treated as "re-read who I am", once: `syncingRole` collapses the burst of
+    403s a dashboard full of independent widgets produces into a single
+    /auth/me call. Guards then re-render from the true role on their own — no
+    screen has to handle this, and no dead-end error is shown.
+  */
+  const syncingRole = useRef(false);
+
+  const syncRoleAfterForbidden = useCallback(async () => {
+    if (syncingRole.current || !tokenStorage.get()) return;
+    syncingRole.current = true;
+    try {
+      setUser(await authService.me());
+    } catch {
+      // A 401 on the re-read already signed the user out through the
+      // unauthorized handler; anything else leaves the session as it was.
+    } finally {
+      syncingRole.current = false;
+    }
+  }, []);
+
   useEffect(() => {
     if (env.demoMode) {
       setUnauthorizedHandler(null);
+      setForbiddenHandler(null);
       setLoading(false);
       setToken('demo-token');
       setUser(DEMO_USER);
@@ -73,9 +99,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUnauthorizedHandler(logout);
+    setForbiddenHandler(() => {
+      void syncRoleAfterForbidden();
+    });
     void reloadUser();
-    return () => setUnauthorizedHandler(null);
-  }, [logout, reloadUser]);
+    return () => {
+      setUnauthorizedHandler(null);
+      setForbiddenHandler(null);
+    };
+  }, [logout, reloadUser, syncRoleAfterForbidden]);
 
   const login = useCallback(
     async (payload: LoginRequest) => {

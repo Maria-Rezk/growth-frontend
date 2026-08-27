@@ -1,0 +1,485 @@
+/*
+   Admin & Super Admin operations dashboard.
+
+   Kept in its own file because it is one screen's worth of layout, not shared
+   chrome. Every rule below reads from the semantic tokens in global.css — no
+   raw colours, so the dashboard themes with the rest of the app.
+*/
+
+/* Screen-reader-only text. Used by the skeletons to announce "Loading…"
+   without showing it — global.css relied on this class without defining it. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------ Filter bar */
+.admin-filter-bar {
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.admin-filter-bar__fields {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--s-3);
+  align-items: end;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------- KPI tiles */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: var(--s-3);
+}
+
+.kpi-tile {
+  gap: 2px;
+  text-align: start;
+}
+
+.kpi-tile strong {
+  font-size: 24px;
+}
+
+/* Only tiles that actually go somewhere get affordance. */
+.kpi-tile--action {
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.kpi-tile--action:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.kpi-tile--action:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* ------------------------------------------------------------- Widgets */
+.widget-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.widget-card__body {
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  display: grid;
+  gap: var(--s-4);
+  align-content: start;
+  min-width: 0;
+}
+
+.widget-skeleton {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+}
+
+.widget-headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.widget-headline strong {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.widget-headline span {
+  color: var(--muted);
+}
+
+.widget-note {
+  color: var(--ink-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------- Stat bars/strip */
+.stat-bars {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.stat-bar {
+  display: grid;
+  grid-template-columns: minmax(110px, 150px) minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: 13px;
+}
+
+.stat-bar__label {
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-bar__track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--n-100);
+  overflow: hidden;
+}
+
+.stat-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  min-width: 2px;
+}
+
+.stat-bar--attention .stat-bar__fill {
+  background: var(--warning);
+}
+
+.stat-bar__value {
+  text-align: end;
+  font-weight: 600;
+}
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--s-3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--s-4);
+}
+
+.stat dt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.stat dd {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stat--warning dd {
+  color: var(--warning);
+}
+
+.stat--success dd {
+  color: var(--success);
+}
+
+.stat--info dd {
+  color: var(--info);
+}
+
+/* ------------------------------------------------------- Attention feed */
+.attention-list {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.attention-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: start;
+  width: 100%;
+  padding: var(--s-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: none;
+  text-align: start;
+  color: inherit;
+  font: inherit;
+}
+
+.attention-row--action {
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+
+.attention-row--action:hover {
+  background: var(--surface-subtle);
+  border-color: var(--line);
+}
+
+.attention-row--action:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.attention-row__icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+}
+
+.attention-row__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.attention-row__body strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-row__reason {
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+
+.attention-row__meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.attention-row__side {
+  display: grid;
+  justify-items: end;
+  gap: var(--s-1);
+}
+
+.attention-row__age {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------- Activity feed */
+.activity-list {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.activity-row {
+  display: grid;
+  gap: 2px;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.activity-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.activity-row__action {
+  color: var(--ink-secondary);
+}
+
+.activity-row__client {
+  color: var(--muted);
+}
+
+.activity-row time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------- System health */
+.health-strip {
+  padding: var(--s-3) var(--s-4);
+}
+
+.health-strip__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--surface-subtle);
+}
+
+.health-chip__name {
+  font-weight: 600;
+}
+
+.health-chip__state {
+  color: var(--muted);
+}
+
+.health-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--n-300);
+}
+
+.health-chip--ok .health-chip__dot {
+  background: var(--success);
+}
+
+.health-chip--warn .health-chip__dot {
+  background: var(--warning);
+}
+
+.health-chip--down .health-chip__dot {
+  background: var(--danger);
+}
+
+/* ------------------------------------------------------------ Campaigns */
+.campaign-list {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.campaign-row {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.campaign-row__head {
+  display: grid;
+  gap: 2px;
+}
+
+.campaign-row__head span {
+  font-size: 12px;
+}
+
+.campaign-row__progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.campaign-progress {
+  display: grid;
+  gap: 2px;
+}
+
+.campaign-progress__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ----------------------------------------------------------- Automations */
+.failure-list {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.failure-row {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  border-radius: var(--r-md);
+}
+
+.failure-row__error {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--danger);
+  word-break: break-word;
+}
+
+.failure-row time {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* --------------------------------------------------- Client detail panel */
+.detail-stack {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.panel-section {
+  display: grid;
+  gap: var(--s-3);
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.panel-section h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+
+/* Visually separated from Archive, so the two are never confused. */
+.panel-section--danger {
+  padding: var(--s-4);
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  border-radius: var(--r-md);
+}
+
+.panel-section--danger h3 {
+  color: var(--danger);
+}
+
+.delete-consequences {
+  display: grid;
+  gap: var(--s-1);
+  padding-inline-start: var(--s-5);
+  list-style: disc;
+  color: var(--ink-secondary);
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+
+@media (max-width: 980px) {
+
+  .campaign-row__progress,
+  .stat-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stat-bar__track {
+    display: none;
+  }
+
+  .stat-bar {
+    display: flex;
+    justify-content: space-between;
+  }
+}

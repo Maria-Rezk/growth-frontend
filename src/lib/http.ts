@@ -27,6 +27,25 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler;
 }
 
+let forbiddenHandler: ((requestPath: string) => void) | null = null;
+
+/**
+ * Called on every 403, with the request path that produced it.
+ *
+ * A role change does not reach an already–signed-in user until their token is
+ * re-issued, so the UI can offer an action the API now refuses. Centralising
+ * the reaction here means no screen has to special-case it: AuthContext
+ * re-reads the session, and the guards re-render from the true role.
+ *
+ * The integration guide writes this against `POST /auth/refresh`. This app has
+ * no refresh-cookie flow — the access token lives in localStorage — so the
+ * equivalent re-read is `GET /auth/me`, which returns the server's current
+ * `platformRole`.
+ */
+export function setForbiddenHandler(handler: ((requestPath: string) => void) | null): void {
+  forbiddenHandler = handler;
+}
+
 export const http = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: env.apiTimeoutMs,
@@ -53,6 +72,9 @@ http.interceptors.response.use(
     if (error.response?.status === 401) {
       tokenStorage.clear();
       unauthorizedHandler?.();
+    }
+    if (error.response?.status === 403) {
+      forbiddenHandler?.(error.config?.url ?? '');
     }
     return Promise.reject(normalizeApiError(error));
   },
