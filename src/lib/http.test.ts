@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeApiError } from '@/lib/http';
+import { isRouteMissing, normalizeApiError } from '@/lib/http';
 
 /**
  * Builds a minimal object that `axios.isAxiosError` accepts, so these tests
@@ -52,5 +52,46 @@ describe('normalizeApiError', () => {
 
     expect(error.isApiResponse).toBe(true);
     expect(error.fieldErrors).toEqual({ name: 'name must be longer than 2 characters' });
+  });
+});
+
+/*
+  The payloads below are the real responses from api.solu1ions.tech, captured
+  while the admin SPEC endpoints were still unshipped. They are the reason this
+  distinction exists: `DELETE /api/companies/:id` is a route miss today, and
+  reading it as "already deleted" would report a destructive action that never
+  happened as a success.
+*/
+describe('isRouteMissing', () => {
+  it('recognises an unmatched route', () => {
+    const error = normalizeApiError(
+      axiosError(404, {
+        message: 'Cannot DELETE /api/companies/00000000-0000-0000-0000-000000000000',
+        error: 'Not Found',
+        statusCode: 404,
+      }),
+    );
+
+    expect(isRouteMissing(error)).toBe(true);
+  });
+
+  it('does not treat a missing record as a missing route', () => {
+    const error = normalizeApiError(
+      axiosError(404, { message: 'Company not found', error: 'Not Found', statusCode: 404 }),
+    );
+
+    expect(isRouteMissing(error)).toBe(false);
+  });
+
+  it('does not treat an HTML 404 page as a missing route', () => {
+    const error = normalizeApiError(axiosError(404, '<!DOCTYPE html>Cannot DELETE anything</html>'));
+
+    expect(isRouteMissing(error)).toBe(false);
+  });
+
+  it('ignores non-404 statuses', () => {
+    const error = normalizeApiError(axiosError(401, { message: 'Unauthorized', statusCode: 401 }));
+
+    expect(isRouteMissing(error)).toBe(false);
   });
 });

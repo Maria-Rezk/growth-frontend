@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
-import { http, unwrap } from '@/lib/http';
+import { http, isRouteMissing, notShippedError, unwrap } from '@/lib/http';
 import { demoCompany, demoDelay, demoEmployees, demoMemberships, makeId } from '@/services/demoStore';
 import type {
   ApiErrorShape,
@@ -80,13 +80,20 @@ export const companiesService = {
    * Permanently deletes a client and everything under it. Super Admin only.
    *
    * `confirmName` must equal the client's exact name; the API answers 409 and
-   * deletes nothing otherwise. A 404 *from the API* means someone else already
-   * deleted it — that resolves to `null` so the caller can treat it as success
-   * and just refresh, rather than showing an error for work already done.
+   * deletes nothing otherwise.
    *
-   * A 404 that did not come from the API (an offline tunnel or proxy answering
-   * with an HTML page) still throws: reporting a delete that never reached the
-   * server as "already deleted" would be a lie about destroyed data.
+   * Two kinds of 404 have to be told apart here, and getting it wrong is worse
+   * than any other mistake on this screen:
+   *
+   *  - a *record* 404 means someone else already deleted the client. The end
+   *    state is what the user wanted, so it resolves to `null` and the caller
+   *    reports success and refreshes.
+   *  - a *route* 404 means this endpoint has not shipped. Nothing was deleted,
+   *    and reporting success would tell a Super Admin their client and all its
+   *    data are gone while it sits untouched on the server.
+   *
+   * A 404 that did not come from the API at all (an offline tunnel answering
+   * with an HTML page) throws for the same reason.
    */
   async remove(companyId: string, confirmName: string): Promise<DeleteClientResult | null> {
     if (env.demoMode) throw new Error('Deleting a client is disabled in demo mode.');
@@ -96,6 +103,12 @@ export const companiesService = {
       });
       return unwrap<DeleteClientResult>(response.data);
     } catch (error) {
+      if (isRouteMissing(error)) {
+        throw notShippedError(
+          error,
+          'Permanent delete has not shipped on this backend yet, so nothing was deleted. Archive the client instead — that is available now, and reversible.',
+        );
+      }
       const apiError = error as ApiErrorShape | undefined;
       if (apiError?.statusCode === 404 && apiError.isApiResponse) return null;
       throw error;

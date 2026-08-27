@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
-import { http, unwrap } from '@/lib/http';
+import { http, isRouteMissing, notShippedError, unwrap } from '@/lib/http';
 import { demoDelay, demoEmployees, makeId } from '@/services/demoStore';
 import type { CreateEmployeePayload, Employee, PlatformRole, UpdateEmployeePayload } from '@/types/domain';
 
@@ -70,7 +70,16 @@ export const usersService = {
       employee.platformRole = platformRole;
       return demoDelay(employee);
     }
-    const response = await http.patch(apiRoutes.users.platformRole(userId), { platformRole });
-    return unwrap<Employee>(response.data);
+    try {
+      const response = await http.patch(apiRoutes.users.platformRole(userId), { platformRole });
+      return unwrap<Employee>(response.data);
+    } catch (error) {
+      // SPEC endpoint. Until it ships, say so plainly rather than surfacing
+      // the router's "Cannot PATCH /api/users/…/platform-role".
+      if (isRouteMissing(error)) {
+        throw notShippedError(error, 'Changing a platform role has not shipped on this backend yet. The role is unchanged.');
+      }
+      throw error;
+    }
   },
 };

@@ -234,6 +234,36 @@ export function errorMessage(error: unknown): string {
   return (error as ApiErrorShape | undefined)?.message ?? 'Something went wrong.';
 }
 
+/*
+  Nest answers an unmatched route with `Cannot <VERB> <path>`; a controller
+  answering 404 for a record that does not exist sends a domain message
+  instead. Both are 404s with a JSON body, and telling them apart matters:
+  "this endpoint has not shipped" and "this record is already gone" call for
+  opposite reactions on a destructive action.
+*/
+const ROUTE_MISS_MESSAGE = /^Cannot (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s/i;
+
+/** True when a 404 means "no such route", not "no such record". */
+export function isRouteMissing(error: unknown): boolean {
+  const apiError = error as ApiErrorShape | undefined;
+  return (
+    apiError?.statusCode === 404 &&
+    Boolean(apiError.isApiResponse) &&
+    ROUTE_MISS_MESSAGE.test(apiError.message ?? '')
+  );
+}
+
+/**
+ * Rewrites a route-miss 404 into something a user can act on.
+ *
+ * Without this, an unshipped SPEC endpoint surfaces as the raw
+ * "Cannot PATCH /api/users/…/platform-role" — accurate, and meaningless to
+ * anyone who is not reading the router.
+ */
+export function notShippedError(error: unknown, message: string): ApiErrorShape {
+  return { ...(error as ApiErrorShape), message };
+}
+
 export function unwrap<T>(value: ApiEnvelope<T>): T {
   if (!value || typeof value !== 'object') return value as T;
 
