@@ -50,7 +50,13 @@ function MembersInner({ companyId }: { companyId: string }) {
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const columns = useMemo<Column<Membership>[]>(() => [
-    { key: 'member', header: 'Member', render: (member) => <div><strong>{member.user?.fullName ?? member.user?.email ?? member.userId}</strong><p className="muted">{member.user?.email ?? member.userId}</p></div> },
+    {
+      key: 'member',
+      header: 'Member',
+      // Sorts on the name actually rendered, so A→Z matches what is read.
+      sortValue: (member) => member.user?.fullName ?? member.user?.email ?? member.userId,
+      render: (member) => <div><strong>{member.user?.fullName ?? member.user?.email ?? member.userId}</strong><p className="muted">{member.user?.email ?? member.userId}</p></div>,
+    },
     {
       key: 'role',
       header: 'Role',
@@ -87,6 +93,7 @@ function MembersInner({ companyId }: { companyId: string }) {
         error={members.error}
         onRetry={members.refetch}
         emptyTitle="No members found"
+        defaultSortKey="member"
       />
 
       <section className="section-block">

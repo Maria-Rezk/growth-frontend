@@ -6,10 +6,13 @@ import { useAsync } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { adminDashboardService } from '@/services/adminDashboard';
 import type { DashboardFilters, PageEnvelope, TeamWorkloadRow } from '@/types/domain';
+import { compareNames } from '@/utils/sort';
 
 const PAGE_SIZE = 20;
 
-const COLUMNS: Array<{ key: keyof TeamWorkloadRow; header: string }> = [
+type SortKey = keyof TeamWorkloadRow;
+
+const COLUMNS: Array<{ key: SortKey; header: string }> = [
   { key: 'clients', header: 'Clients' },
   { key: 'openTasks', header: 'Open' },
   { key: 'dueToday', header: 'Due today' },
@@ -32,8 +35,10 @@ const COLUMNS: Array<{ key: keyof TeamWorkloadRow; header: string }> = [
  */
 export function TeamWorkloadCard({ filters, enabled = true }: { filters: DashboardFilters; enabled?: boolean }) {
   const [page, setPage] = useState(1);
-  const [sortKey, setSortKey] = useState<keyof TeamWorkloadRow>('overdue');
-  const [descending, setDescending] = useState(true);
+  // A→Z on the employee name, matching every other list of people in the app.
+  // Overdue-first is one click away on its own header.
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [descending, setDescending] = useState(false);
 
   const pageFilters: DashboardFilters = { ...filters, page, limit: PAGE_SIZE };
   const state = useAsync(() => adminDashboardService.teamWorkload(pageFilters), [pageFilters], {
@@ -46,17 +51,23 @@ export function TeamWorkloadCard({ filters, enabled = true }: { filters: Dashboa
     return [...items].sort((left, right) => {
       const a = left[sortKey];
       const b = right[sortKey];
-      const result = typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b));
+      const result = typeof a === 'number' && typeof b === 'number'
+        ? a - b
+        // Same collator as the rest of the app: case- and accent-insensitive,
+        // so "massa" is not filed after every capitalised name.
+        : compareNames(String(a ?? ''), String(b ?? ''));
       return descending ? -result : result;
     });
   }, [descending, sortKey, state.data]);
 
-  const toggleSort = (key: keyof TeamWorkloadRow) => {
-    if (key === sortKey) setDescending((current) => !current);
-    else {
-      setSortKey(key);
-      setDescending(true);
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setDescending((current) => !current);
+      return;
     }
+    setSortKey(key);
+    // Names read best A→Z; counts read best worst-first.
+    setDescending(key !== 'name');
   };
 
   return (
@@ -70,8 +81,10 @@ export function TeamWorkloadCard({ filters, enabled = true }: { filters: Dashboa
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Employee</th>
-                    {COLUMNS.map((column) => (
+                    {/* Employee is a sortable column like the rest — it is the
+                        one the table opens on, so it cannot be the only header
+                        with no control and no sort indicator. */}
+                    {[{ key: 'name' as SortKey, header: 'Employee' }, ...COLUMNS].map((column) => (
                       <th
                         key={column.key}
                         aria-sort={sortKey === column.key ? (descending ? 'descending' : 'ascending') : undefined}
