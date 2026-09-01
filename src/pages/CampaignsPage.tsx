@@ -137,6 +137,7 @@ function CampaignsInner({ companyId }: { companyId: string }) {
         error={campaigns.error}
         onRetry={campaigns.refetch}
         emptyTitle="No campaigns yet"
+        defaultSortKey="name"
       />
 
       <CampaignModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} />

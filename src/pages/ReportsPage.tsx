@@ -41,11 +41,37 @@ function ReportsInner({ companyId }: { companyId: string }) {
     invalidateKeys: [['companies', companyId, 'reports']],
   });
 
+  /*
+    No column here is alphabetical — a report is identified by the month it
+    covers, not a name — so this table opens newest period first rather than
+    A→Z. `3/2026` is displayed but sorted as `2026-03`: sorting the rendered
+    string would order months 1, 10, 11, 12, 2.
+  */
   const columns = useMemo<Column<Report>[]>(() => [
-    { key: 'period', header: 'Period', render: (report) => `${report.month}/${report.year}` },
-    { key: 'created', header: 'Created', render: (report) => formatDateTime(report.createdAt) },
-    { key: 'posts', header: 'Posts', render: (report) => report.metrics?.posts.total ?? '—' },
-    { key: 'leads', header: 'Leads', render: (report) => report.metrics?.leads.total ?? '—' },
+    {
+      key: 'period',
+      header: 'Period',
+      sortValue: (report) => `${report.year}-${String(report.month).padStart(2, '0')}`,
+      render: (report) => `${report.month}/${report.year}`,
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      sortValue: (report) => report.createdAt ?? '',
+      render: (report) => formatDateTime(report.createdAt),
+    },
+    {
+      key: 'posts',
+      header: 'Posts',
+      sortValue: (report) => report.metrics?.posts.total ?? 0,
+      render: (report) => report.metrics?.posts.total ?? '—',
+    },
+    {
+      key: 'leads',
+      header: 'Leads',
+      sortValue: (report) => report.metrics?.leads.total ?? 0,
+      render: (report) => report.metrics?.leads.total ?? '—',
+    },
   ], []);
 
   const submit = async (event: FormEvent) => {
@@ -136,7 +162,7 @@ function ReportsInner({ companyId }: { companyId: string }) {
         </div>
       </Card>
 
-      <DataTable columns={columns} rows={reports.data ?? []} rowKey={(report) => report.id} loading={reports.loading} error={reports.error} onRetry={reports.refetch} emptyTitle="No generated reports" />
+      <DataTable columns={columns} rows={reports.data ?? []} rowKey={(report) => report.id} loading={reports.loading} error={reports.error} onRetry={reports.refetch} emptyTitle="No generated reports" defaultSortKey="period" defaultSortDirection="desc" />
     </>
   );
 }

@@ -154,7 +154,7 @@ function PostsInner({ companyId }: { companyId: string }) {
           onRetry={posts.refetch}
         />
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(post) => post.id} loading={posts.loading} error={posts.error} onRetry={posts.refetch} emptyTitle="No posts found" emptyDescription="Create a draft or apply an AI content plan." />
+        <DataTable columns={columns} rows={rows} rowKey={(post) => post.id} loading={posts.loading} error={posts.error} onRetry={posts.refetch} emptyTitle="No posts found" emptyDescription="Create a draft or apply an AI content plan." defaultSortKey="title" />
       )}
 
       <PostFormModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} />

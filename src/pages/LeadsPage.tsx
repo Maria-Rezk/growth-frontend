@@ -201,6 +201,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
             error={leads.error}
             onRetry={leads.refetch}
             emptyTitle="No leads yet"
+            defaultSortKey="name"
           />
           {totalPages > 1 ? <Pagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
           {total > 0 ? <p className="muted">Showing {rows.length} of {total} leads.</p> : null}

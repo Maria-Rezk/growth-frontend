@@ -97,6 +97,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
         error={plans.error}
         onRetry={plans.refetch}
         emptyTitle="No content plans yet"
+        defaultSortKey="title"
         emptyDescription="Create a plan manually or generate one in the AI studio."
       />
 

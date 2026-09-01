@@ -174,7 +174,7 @@ function TasksInner({ companyId }: { companyId: string }) {
           scope={scope}
         />
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(task) => task.id} loading={tasks.loading} error={tasks.error} onRetry={tasks.refetch} emptyTitle={scope === 'mine' ? 'No tasks assigned to you' : 'No tasks found'} />
+        <DataTable columns={columns} rows={rows} rowKey={(task) => task.id} loading={tasks.loading} error={tasks.error} onRetry={tasks.refetch} emptyTitle={scope === 'mine' ? 'No tasks assigned to you' : 'No tasks found'} defaultSortKey="title" />
       )}
       <TaskModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} members={members.data ?? []} />
     </>
