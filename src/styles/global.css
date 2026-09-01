@@ -2487,6 +2487,17 @@ a.list-row:hover strong {
   outline-offset: 2px;
 }
 
+/* A notice that carries an action: message on one side, the way out on the
+   other, wrapping to two lines rather than crushing the button on narrow
+   screens. */
+.notice-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
 /* ------------------------------------------------------------- My work */
 /* Cross-client employee screen: the client is a tag on the row, and work is
    grouped by when it is due rather than by who it belongs to. */

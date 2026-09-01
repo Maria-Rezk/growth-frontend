@@ -1,3 +1,4 @@
+import { errorMessage, isRouteMissing } from '@/lib/http';
 import { tasksService } from '@/services/tasks';
 import type { Company, ListParams, Task } from '@/types/domain';
 
@@ -16,6 +17,14 @@ export interface MyWorkResult {
   tasks: MyWorkTask[];
   /** Clients whose tasks could not be loaded, so the screen can say so. */
   unavailableClients: string[];
+  /**
+   * Why they failed — the first rejection, in words.
+   *
+   * Without it the screen can report *which* clients failed but not what went
+   * wrong, and a fan-out that fails for every client is indistinguishable from
+   * a user who genuinely has nothing to do.
+   */
+  failure?: string;
 }
 
 /**
@@ -40,11 +49,13 @@ export const myWorkService = {
 
     const tasks: MyWorkTask[] = [];
     const unavailableClients: string[] = [];
+    let firstRejection: unknown;
 
     settled.forEach((result, index) => {
       const company = companies[index];
       if (result.status === 'rejected') {
         unavailableClients.push(company.name);
+        if (firstRejection === undefined) firstRejection = result.reason;
         return;
       }
       result.value.forEach((task) => {
@@ -52,6 +63,20 @@ export const myWorkService = {
       });
     });
 
-    return { tasks, unavailableClients };
+    return { tasks, unavailableClients, failure: describeFailure(firstRejection) };
   },
 };
+
+function describeFailure(rejection: unknown): string | undefined {
+  if (rejection === undefined) return undefined;
+  /*
+    Every client failing the same way is almost always one cause, not N. A
+    route miss is the one worth naming: `/companies/:id/tasks/my` is a SPEC
+    endpoint, and until it ships the raw "Cannot GET /api/companies/…/tasks/my"
+    is accurate and meaningless to anyone not reading the router.
+  */
+  if (isRouteMissing(rejection)) {
+    return 'The per-client task list has not shipped on this backend yet.';
+  }
+  return errorMessage(rejection);
+}

@@ -127,19 +127,41 @@ function MyWorkInner() {
   if (work.loading) return <LoadingState label="Loading your work…" />;
   if (work.error) return <ErrorState message={work.error} onRetry={work.refetch} />;
 
+  /*
+    The fan-out reports per-client failures rather than throwing, which is right
+    when one client is down — but when *every* client fails there is no partial
+    result to show, and rendering the page anyway states three zeroes and "no
+    task is assigned to you" over what is really a dead request. Someone reads
+    that as a clear day and goes home. Treat it as the page-level error it is.
+  */
+  const failedClients = work.data?.unavailableClients ?? [];
+  const nothingLoaded = failedClients.length > 0 && failedClients.length === companies.length;
+
+  if (nothingLoaded) {
+    return (
+      <>
+        <PageHeader title="My work" subtitle={MY_WORK_SUBTITLE} />
+        <ErrorState
+          message={work.data?.failure ?? 'Your work could not be loaded for any of your clients.'}
+          onRetry={work.refetch}
+        />
+      </>
+    );
+  }
+
   const headline = summarise(groups);
 
   return (
     <>
-      <PageHeader
-        title="My work"
-        subtitle="Every open task assigned to you, across every client you work on. The client is a label, not a gate."
-      />
+      <PageHeader title="My work" subtitle={MY_WORK_SUBTITLE} />
 
-      {work.data?.unavailableClients.length ? (
-        <p className="error-box" role="alert">
-          Could not load work for: {work.data.unavailableClients.join(', ')}. Everything else is up to date.
-        </p>
+      {/* Named, not listed: twenty-seven client names in a red box is a wall,
+          and the point of the notice is that the rest of the page is sound. */}
+      {failedClients.length ? (
+        <div className="error-box notice-row" role="alert">
+          <span>Could not load work for {listNames(failedClients)}. Everything else is up to date.</span>
+          <Button variant="secondary" size="sm" onClick={work.refetch}>Try again</Button>
+        </div>
       ) : null}
 
       <div className="stat-grid stat-grid--3">
@@ -195,6 +217,17 @@ function MyWorkInner() {
       {setStatus.error ? <p className="error-box" role="alert">{setStatus.error}</p> : null}
     </>
   );
+}
+
+const MY_WORK_SUBTITLE =
+  'Every open task assigned to you, across every client you work on. The client is a label, not a gate.';
+
+/** "Vendi, IEcd and 3 others" — enough to recognise, short enough to read. */
+function listNames(names: string[]): string {
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
+  return `${names[0]}, ${names[1]} and ${names.length - 2} others`;
 }
 
 /** "3 overdue · 4 due today · 2 this week" — the day in one line. */
