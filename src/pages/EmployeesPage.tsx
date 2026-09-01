@@ -18,6 +18,7 @@ import { companiesService } from '@/services/companies';
 import { usersService } from '@/services/users';
 import { CompanyMembershipRole, PlatformRole, type Employee } from '@/types/domain';
 import { humanize } from '@/utils/format';
+import { sortByName } from '@/utils/sort';
 
 export function EmployeesPage() {
   return (
@@ -70,7 +71,7 @@ function EmployeesInner() {
       render: (employee) => employee.clients.length
         ? (
           <div className="badge-row">
-            {employee.clients.map((client) => (
+            {sortByName(employee.clients, (client) => client.companyName).map((client) => (
               <Badge key={client.membershipId} tone="neutral">{client.companyName} · {humanize(client.role)}</Badge>
             ))}
           </div>

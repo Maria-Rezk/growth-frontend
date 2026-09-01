@@ -11,6 +11,7 @@ import type {
   Membership,
   MembershipStatus,
 } from '@/types/domain';
+import { sortByName } from '@/utils/sort';
 
 /**
  * Fields `POST /companies` accepts. `name` is the only required one; the rest
@@ -46,10 +47,11 @@ export interface UpdateCompanyPayload {
 }
 
 export const companiesService = {
+  /** Clients A→Z by name — the API returns them in insertion order. */
   async list(): Promise<Company[]> {
     if (env.demoMode) return demoDelay([demoCompany]);
     const response = await http.get(apiRoutes.companies.list);
-    return unwrap<Company[]>(response.data);
+    return sortByName(unwrap<Company[]>(response.data), (company) => company.name);
   },
   async create(payload: CreateCompanyPayload): Promise<Company> {
     if (env.demoMode) return demoDelay({ id: makeId('company'), name: payload.name, createdAt: new Date().toISOString() });

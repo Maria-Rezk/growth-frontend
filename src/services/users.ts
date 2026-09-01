@@ -3,12 +3,19 @@ import { apiRoutes } from '@/config/apiRoutes';
 import { http, isRouteMissing, notShippedError, unwrap } from '@/lib/http';
 import { demoDelay, demoEmployees, makeId } from '@/services/demoStore';
 import type { CreateEmployeePayload, Employee, PlatformRole, UpdateEmployeePayload } from '@/types/domain';
+import { sortByName } from '@/utils/sort';
 
 export const usersService = {
+  /**
+   * Employees A→Z by the name the UI shows them under — full name when there is
+   * one, email otherwise, so a person without a name still lands in order
+   * rather than at the end of the list.
+   */
   async list(): Promise<Employee[]> {
-    if (env.demoMode) return demoDelay(demoEmployees);
+    const order = (employee: Employee) => employee.fullName ?? employee.email;
+    if (env.demoMode) return demoDelay(sortByName(demoEmployees, order));
     const response = await http.get(apiRoutes.users.list);
-    return unwrap<Employee[]>(response.data);
+    return sortByName(unwrap<Employee[]>(response.data), order);
   },
   async create(payload: CreateEmployeePayload): Promise<Employee> {
     if (env.demoMode) {

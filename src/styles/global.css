@@ -2493,21 +2493,34 @@ a.list-row:hover strong {
 .client-filter {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--s-2);
   margin-bottom: var(--s-4);
+}
+
+/* "All clients" clears the view; the chips after it narrow it. The hairline
+   marks that difference — without it the row reads as one flat list of peers. */
+.client-filter__divider {
+  align-self: stretch;
+  width: 1px;
+  margin-inline: var(--s-1);
+  background: var(--line);
 }
 
 .client-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 6px 12px;
+  padding-block: 5px;
+  padding-inline: 12px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
   color: var(--ink-secondary);
   font-size: 13px;
+  line-height: 20px;
   cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
 }
 
 .client-chip:hover {
@@ -2522,14 +2535,155 @@ a.list-row:hover strong {
   font-weight: 500;
 }
 
-.client-chip em {
+.client-chip--active:hover {
+  border-color: var(--accent-text);
+  color: var(--accent-text);
+}
+
+.client-chip__label {
+  white-space: nowrap;
+}
+
+/*
+  The count is a badge, not a second word. A filled pill with a minimum width
+  and tabular figures keeps the row from shifting as numbers change, and stops
+  "Vendi 4" from reading as part of the client's name.
+*/
+.count-pill {
+  min-width: 20px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  background: var(--n-100);
+  color: var(--muted);
+  font-size: 11px;
   font-style: normal;
-  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+}
+
+.client-chip--active .count-pill {
+  background: var(--magenta-border);
+  color: var(--accent-text);
+}
+
+/* -------------------------------------------------------- Client picker */
+/* The way out to the rest of the client list, not another client: a dashed
+   edge and muted ink keep it from competing with the chips it follows. */
+.client-picker {
+  position: relative;
+  display: inline-flex;
+}
+
+.client-chip--ghost {
+  border-style: dashed;
+  background: transparent;
   color: var(--muted);
 }
 
-.client-chip--active em {
-  color: var(--accent-text);
+.client-chip--ghost:hover,
+.client-chip--ghost[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.client-chip--ghost[aria-expanded="true"] {
+  border-style: solid;
+  background: var(--surface);
+}
+
+.client-picker__chevron {
+  transition: transform .12s ease;
+}
+
+.client-picker__chevron--open {
+  transform: rotate(180deg);
+}
+
+.client-picker__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-start: 0;
+  z-index: 40;
+  width: min(288px, calc(100vw - 32px));
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.client-picker__search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.client-picker__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/*
+  The panel opens with this field already focused, so the app's default ring
+  would fire on every open and read as an error box across the top of the
+  popover. An accent underline — the treatment the tabs already use — marks
+  focus without the boxy outline.
+*/
+.client-picker__search:focus-within {
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--accent-text);
+}
+
+.client-picker__search input:focus-visible {
+  outline: none;
+}
+
+.client-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: var(--s-1);
+  max-height: 264px;
+  overflow-y: auto;
+}
+
+.client-picker__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: 7px var(--s-2);
+  border-radius: var(--r-md);
+  color: var(--ink-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Pointer and keyboard share one highlight: two "you are here" treatments in
+   the same list is one too many. */
+.client-picker__option--active {
+  background: var(--surface-subtle);
+  color: var(--ink);
+}
+
+.client-picker__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.client-picker__empty {
+  padding: var(--s-3);
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .due-group {

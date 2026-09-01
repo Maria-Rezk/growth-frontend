@@ -125,6 +125,14 @@ export function DotIcon(props: IconProps) {
   return <IconShell {...props}><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" /></IconShell>;
 }
 
+export function ChevronDownIcon(props: IconProps) {
+  return <IconShell {...props}><path d="m6 9 6 6 6-6" /></IconShell>;
+}
+
+export function SearchIcon(props: IconProps) {
+  return <IconShell {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></IconShell>;
+}
+
 export function CloseIcon(props: IconProps) {
   return <IconShell {...props}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></IconShell>;
 }

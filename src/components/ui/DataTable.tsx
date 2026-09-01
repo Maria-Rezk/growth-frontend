@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 import { Button } from '@/components/ui/Button';
+import { compareNames } from '@/utils/sort';
 import { TableSkeleton } from './Skeleton';
 
 export interface Column<T> {
@@ -49,7 +50,14 @@ export function DataTable<T>({
       if (leftValue === rightValue) return 0;
       if (leftValue === null || leftValue === undefined) return 1;
       if (rightValue === null || rightValue === undefined) return -1;
-      const result = leftValue > rightValue ? 1 : -1;
+      /*
+        Text columns go through the collator so a header click gives real A→Z
+        order — `>` on strings is ASCII, which files every lowercase name after
+        every uppercase one.
+      */
+      const result = typeof leftValue === 'string' && typeof rightValue === 'string'
+        ? compareNames(leftValue, rightValue)
+        : leftValue > rightValue ? 1 : -1;
       return sortDirection === 'asc' ? result : -result;
     });
   }, [columns, rows, sortDirection, sortKey]);

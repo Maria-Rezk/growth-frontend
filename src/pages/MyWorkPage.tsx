@@ -7,6 +7,7 @@ import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 import { StatusBadge } from '@/components/domain/StatusBadges';
+import { ClientFilter, type ClientFilterValue } from '@/components/domain/ClientFilter';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useCompany } from '@/context/CompanyContext';
 import { myWorkService, type MyWorkTask } from '@/services/myWork';
@@ -23,9 +24,6 @@ import {
   type DueBucket,
 } from '@/utils/dueBuckets';
 import { TaskStatus } from '@/types/domain';
-
-/** `'all'` is a filter value, not a client id — see the note on the switcher. */
-type ClientFilter = 'all' | string;
 
 /**
  * My work — every open task assigned to the signed-in user, across every
@@ -61,7 +59,7 @@ function MyWorkInner() {
   const { companies, setActiveCompanyId } = useCompany();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [client, setClient] = useState<ClientFilter>('all');
+  const [client, setClient] = useState<ClientFilterValue>('all');
 
   const companyIds = useMemo(() => companies.map((company) => company.id), [companies]);
 
@@ -97,6 +95,15 @@ function MyWorkInner() {
     openTasks.forEach((task) => counts.set(task.clientId, (counts.get(task.clientId) ?? 0) + 1));
     return counts;
   }, [openTasks]);
+
+  const clientOptions = useMemo(
+    () => companies.map((company) => ({
+      id: company.id,
+      name: company.name,
+      count: countsByClient.get(company.id) ?? 0,
+    })),
+    [companies, countsByClient],
+  );
 
   const visible = useMemo(
     () => (client === 'all' ? openTasks : openTasks.filter((task) => task.clientId === client)),
@@ -142,24 +149,17 @@ function MyWorkInner() {
       </div>
 
       {/* The client switcher on this screen filters; it does not lock the page
-          to one client the way the topbar switcher does elsewhere. */}
-      <div className="client-filter" role="group" aria-label="Filter by client">
-        <ClientChip
-          label="All clients"
-          count={openTasks.length}
-          active={client === 'all'}
-          onClick={() => setClient('all')}
+          to one client the way the topbar switcher does elsewhere. Nothing open
+          means nothing to filter, so the row is dropped entirely rather than
+          offering a wall of buttons that all lead to the same empty state. */}
+      {openTasks.length > 0 && companies.length > 1 ? (
+        <ClientFilter
+          options={clientOptions}
+          value={client}
+          total={openTasks.length}
+          onChange={setClient}
         />
-        {companies.map((company) => (
-          <ClientChip
-            key={company.id}
-            label={company.name}
-            count={countsByClient.get(company.id) ?? 0}
-            active={client === company.id}
-            onClick={() => setClient(company.id)}
-          />
-        ))}
-      </div>
+      ) : null}
 
       {work.refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}
 
@@ -168,7 +168,7 @@ function MyWorkInner() {
           <EmptyState
             title="Nothing open here"
             description={
-              client === 'all'
+              openTasks.length === 0
                 ? 'No task is assigned to you right now across any client.'
                 : 'No open task is assigned to you for this client.'
             }
@@ -224,30 +224,6 @@ function WorkTile({
       <strong>{value}</strong>
       <p>{helper}</p>
     </Card>
-  );
-}
-
-function ClientChip({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={clsx('client-chip', active && 'client-chip--active')}
-      aria-pressed={active}
-      onClick={onClick}
-    >
-      <span>{label}</span>
-      <em>{count}</em>
-    </button>
   );
 }
 

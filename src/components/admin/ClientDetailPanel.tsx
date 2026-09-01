@@ -16,6 +16,7 @@ import { ADMIN_DASHBOARD_KEY, queryKeys } from '@/lib/queryClient';
 import { companiesService } from '@/services/companies';
 import { usersService } from '@/services/users';
 import { humanize } from '@/utils/format';
+import { sortByName } from '@/utils/sort';
 import { CompanyMembershipRole, type Company, type CompanyStatus } from '@/types/domain';
 
 const renameSchema = z.object({
@@ -161,7 +162,18 @@ function MembersSection({ client }: { client: Company }) {
     return map;
   }, [employees.data]);
 
-  const activeMembers = (members.data ?? []).filter((member) => member.status === 'ACTIVE');
+  /*
+    Sorted here rather than in the service: the displayed name can come from the
+    employees map when the API leaves `user` off the membership, so A→Z has to
+    be applied to the label actually shown.
+  */
+  const activeMembers = useMemo(
+    () => sortByName(
+      (members.data ?? []).filter((member) => member.status === 'ACTIVE'),
+      (member) => member.user?.fullName ?? employeeName.get(member.userId) ?? member.userId,
+    ),
+    [employeeName, members.data],
+  );
 
   const assignable = useMemo(() => {
     const taken = new Set(activeMembers.map((member) => member.userId));
