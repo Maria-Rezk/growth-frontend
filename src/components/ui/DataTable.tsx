@@ -24,6 +24,8 @@ export function DataTable<T>({
   emptyDescription,
   onRetry,
   pageSize = 10,
+  defaultSortKey,
+  defaultSortDirection = 'asc',
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -34,10 +36,22 @@ export function DataTable<T>({
   emptyDescription?: string;
   onRetry?: () => void;
   pageSize?: number;
+  /**
+   * Column to sort on before anyone touches a header. Must name a column that
+   * has a `sortValue`, or it is ignored.
+   *
+   * Rows arriving in a sensible order is not the same as the table being
+   * sorted: without this the header shows no active sort, so the order looks
+   * incidental, and sorting by another column is a one-way trip.
+   */
+  defaultSortKey?: string;
+  defaultSortDirection?: SortDirection;
 }) {
   const sortableColumns = useMemo(() => new Set(columns.filter((column) => column.sortValue).map((column) => column.key)), [columns]);
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  // Initial state only — a later change to the prop is not meant to yank the
+  // table out from under a sort the user chose.
+  const [sortKey, setSortKey] = useState<string | null>(defaultSortKey ?? null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
   const [page, setPage] = useState(1);
 
   const sortedRows = useMemo(() => {

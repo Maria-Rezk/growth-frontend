@@ -108,6 +108,7 @@ function ClientsInner() {
         emptyTitle="No clients yet"
         emptyDescription="Add the first client to start assigning employees to it."
         pageSize={20}
+        defaultSortKey="name"
       />
 
       <CreateClientModal open={createOpen} onClose={() => setCreateOpen(false)} />

@@ -116,6 +116,7 @@ function EmployeesInner() {
         onRetry={employees.refetch}
         emptyTitle="No employees yet"
         pageSize={20}
+        defaultSortKey="employee"
       />
 
       <CreateEmployeeModal open={createOpen} onClose={() => setCreateOpen(false)} />

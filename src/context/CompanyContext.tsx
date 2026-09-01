@@ -3,6 +3,7 @@ import { companiesService } from '@/services/companies';
 import { env } from '@/config/env';
 import { demoCompany, demoMemberships } from '@/services/demoStore';
 import type { Company, CompanyMembershipRole, Membership } from '@/types/domain';
+import { sortByName } from '@/utils/sort';
 
 interface CompanyContextValue {
   companies: Company[];
@@ -43,7 +44,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const list = await companiesService.list();
+      /*
+        Sorted here as well as in the service. This array is what the client
+        switcher and every cross-client screen read, so the order is a property
+        of the context rather than something inherited from whichever call
+        happened to fill it — one place to look when a list comes out wrong.
+      */
+      const list = sortByName(await companiesService.list(), (company) => company.name);
       setCompanies(list);
       const nextActiveId = activeCompanyId && list.some((company) => company.id === activeCompanyId)
         ? activeCompanyId
