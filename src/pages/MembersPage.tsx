@@ -21,6 +21,7 @@ import { queryKeys } from '@/lib/queryClient';
 import {
   CompanyMembershipRole,
   INVITABLE_ROLES,
+  type InvitableRole,
   type Invitation,
   type InvitationCreateResult,
   type Membership,
@@ -164,7 +165,7 @@ function PendingInvitations({
               <div>
                 <strong>{invitation.fullName ?? invitation.email}</strong>
                 <p className="muted">
-                  {invitation.email} · {humanize(invitation.role)} · {formatDateTime(invitation.createdAt)}
+                  {invitation.email} · {rolesLabel(invitation)} · {formatDateTime(invitation.createdAt)}
                 </p>
               </div>
               <Badge tone={invitation.status === 'PENDING' ? 'warning' : 'neutral'}>
@@ -182,7 +183,7 @@ const inviteSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name is required.'),
   email: z.string().trim().email('Enter a valid email address.'),
   // Mirrors the backend's invite DTO, not the full membership enum.
-  role: z.enum(INVITABLE_ROLES),
+  roles: z.array(z.enum(INVITABLE_ROLES)).min(1, 'Pick at least one role.'),
 });
 
 type InviteForm = z.infer<typeof inviteSchema>;
@@ -192,13 +193,13 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
 
   const form = useForm<InviteForm>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { fullName: '', email: '', role: CompanyMembershipRole.CLIENT_REVIEWER },
+    defaultValues: { fullName: '', email: '', roles: [CompanyMembershipRole.CLIENT_REVIEWER] },
     mode: 'onBlur',
   });
 
   const create = useMutation(invitationsService.create, {
     invalidateKeys: [queryKeys.invitations(companyId)],
-    // The dropdown is already constrained to INVITABLE_ROLES, so this mainly
+    // The checklist is already constrained to INVITABLE_ROLES, so this mainly
     // catches duplicate-email and expired-membership rejections.
     onError: (error) => applyServerFieldErrors(form, error),
   });
@@ -206,7 +207,7 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
   const submit = form.handleSubmit(async (values) => {
     const created = await create.mutate(companyId, {
       email: values.email,
-      role: values.role,
+      roles: values.roles,
       fullName: values.fullName,
     });
     if (created) {
@@ -280,16 +281,16 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
             />
           </Field>
           <Field
-            label="Role"
-            htmlFor="invite-role"
-            hint="Existing members can be moved to any role from the table above."
-            error={form.formState.errors.role?.message}
+            label="Roles"
+            htmlFor="invite-roles"
+            hint="Invitations cover a narrower set than the table above, where an existing member can be moved to any role."
+            error={form.formState.errors.roles?.message}
           >
-            <Select id="invite-role" aria-invalid={Boolean(form.formState.errors.role)} {...form.register('role')}>
-              {INVITABLE_ROLES.map((item) => (
-                <option key={item} value={item}>{humanize(item)}</option>
-              ))}
-            </Select>
+            <RoleChecklist
+              available={INVITABLE_ROLES}
+              value={form.watch('roles')}
+              onChange={(roles) => form.setValue('roles', roles as InvitableRole[], { shouldValidate: true })}
+            />
           </Field>
           {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
         </form>

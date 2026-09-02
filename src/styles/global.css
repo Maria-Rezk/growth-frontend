@@ -2493,8 +2493,24 @@ a.list-row:hover strong {
    saving replaces it. */
 .role-checklist {
   display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.role-checklist__groups {
+  display: flex;
   flex-wrap: wrap;
   gap: var(--s-3) var(--s-4);
+}
+
+.role-checklist__hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.role-checklist__hint strong {
+  color: var(--ink-secondary);
+  font-weight: 600;
 }
 
 .role-checklist__group {

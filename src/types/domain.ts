@@ -524,6 +524,8 @@ export interface Invitation {
   companyId: UUID;
   email: string;
   fullName?: string;
+  /** Present only where the backend supports inviting with several roles. */
+  roles?: CompanyMembershipRole[];
   role: CompanyMembershipRole;
   status: InvitationStatus;
   invitedById?: UUID;
