@@ -153,6 +153,7 @@ type AssignForm = z.infer<typeof assignSchema>;
  * something the UI could have prevented.
  */
 function MembersSection({ client }: { client: Company }) {
+  const { activeCompanyId, refreshMemberships } = useCompany();
   const members = useAsync(() => companiesService.members(client.id), [client.id], {
     queryKey: queryKeys.companyMembers(client.id),
   });
@@ -188,6 +189,15 @@ function MembersSection({ client }: { client: Company }) {
 
   const invalidate = [queryKeys.companyMembers(client.id), queryKeys.employees, ADMIN_DASHBOARD_KEY];
 
+  /*
+    Roles decided by the API on every request still have to reach the gates in
+    this app, which read CompanyContext rather than the members query. Only
+    matters when the client being edited is the one the user is working in.
+  */
+  const syncOwnRoles = () => {
+    if (client.id === activeCompanyId) void refreshMemberships();
+  };
+
   const form = useForm<AssignForm>({
     resolver: zodResolver(assignSchema),
     defaultValues: { userId: '', roles: [CompanyMembershipRole.DESIGNER] },
@@ -196,10 +206,17 @@ function MembersSection({ client }: { client: Company }) {
 
   const add = useMutation(companiesService.addMember, {
     invalidateKeys: invalidate,
+    onSuccess: syncOwnRoles,
     onError: (error) => applyServerFieldErrors(form, error),
   });
-  const changeRole = useMutation(companiesService.updateMember, { invalidateKeys: invalidate });
-  const remove = useMutation(companiesService.removeMember, { invalidateKeys: invalidate });
+  const changeRole = useMutation(companiesService.updateMember, {
+    invalidateKeys: invalidate,
+    onSuccess: syncOwnRoles,
+  });
+  const remove = useMutation(companiesService.removeMember, {
+    invalidateKeys: invalidate,
+    onSuccess: syncOwnRoles,
+  });
 
   const submit = form.handleSubmit(async (values) => {
     const created = await add.mutate(client.id, { userId: values.userId, roles: values.roles });

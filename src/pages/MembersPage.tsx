@@ -35,7 +35,7 @@ export function MembersPage() {
 }
 
 function MembersInner({ companyId }: { companyId: string }) {
-  const { hasRole } = useCompany();
+  const { hasRole, refreshMemberships } = useCompany();
   const canManage = hasRole(CompanyMembershipRole.ACCOUNT_MANAGER);
   const members = useAsync(
     () => companiesService.members(companyId),
@@ -47,7 +47,10 @@ function MembersInner({ companyId }: { companyId: string }) {
     [companyId],
     { queryKey: queryKeys.invitations(companyId) },
   );
+  // Changing roles here can change the signed-in user's own permissions, and
+  // the gates read CompanyContext rather than the members query.
   const updateMember = useMutation(companiesService.updateMember, {
+    onSuccess: () => { void refreshMemberships(); },
     invalidateKeys: [queryKeys.companyMembers(companyId)],
   });
   const [inviteOpen, setInviteOpen] = useState(false);

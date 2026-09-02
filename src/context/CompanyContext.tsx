@@ -15,6 +15,7 @@ interface CompanyContextValue {
   error: string | null;
   setActiveCompanyId: (companyId: string) => void;
   refreshCompanies: () => Promise<void>;
+  refreshMemberships: () => Promise<void>;
   currentMembership: Membership | null;
   hasRole: (...roles: CompanyMembershipRole[]) => boolean;
 }
@@ -80,6 +81,31 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     void refreshCompanies();
   }, [refreshCompanies]);
 
+  /**
+   * Re-reads the signed-in user's memberships on the active client.
+   *
+   * The API decides permissions per request and has no token to refresh, so a
+   * role granted now applies on the next click. This state is the one copy
+   * that would not notice: `hasRole` and `<RoleGate>` read it, and it is plain
+   * React state rather than a query, so invalidating the members query after a
+   * role change leaves the gates showing the roles the person had a minute ago.
+   */
+  const refreshMemberships = useCallback(async () => {
+    if (env.demoMode) {
+      setMemberships(demoMemberships);
+      return;
+    }
+    if (!activeCompanyId) {
+      setMemberships([]);
+      return;
+    }
+    try {
+      setMemberships(await companiesService.members(activeCompanyId));
+    } catch {
+      setMemberships([]);
+    }
+  }, [activeCompanyId]);
+
   const setActiveCompanyId = useCallback((companyId: string) => {
     setActiveCompanyIdState(companyId);
 
@@ -123,10 +149,11 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       error,
       setActiveCompanyId,
       refreshCompanies,
+      refreshMemberships,
       currentMembership,
       hasRole,
     }),
-    [activeCompany, activeCompanyId, companies, currentMembership, error, hasRole, loading, memberships, refreshCompanies, setActiveCompanyId],
+    [activeCompany, activeCompanyId, companies, currentMembership, error, hasRole, loading, memberships, refreshCompanies, refreshMemberships, setActiveCompanyId],
   );
 
   return <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>;
