@@ -41,6 +41,7 @@ export const authService = {
         id: makeId('membership'),
         companyId: demoCompany.id,
         userId: user.id,
+        roles: ['CLIENT_REVIEWER'],
         role: 'CLIENT_REVIEWER',
         status: 'ACTIVE',
         user,

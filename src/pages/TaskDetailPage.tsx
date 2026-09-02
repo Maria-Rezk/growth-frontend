@@ -16,6 +16,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { TaskStatus, type TaskAttachment, type TaskComment } from '@/types/domain';
+import { rolesLabel } from '@/utils/roles';
 
 export function TaskDetailPage() {
   const { taskId = '' } = useParams();
@@ -179,7 +180,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                     <option value="">Unassigned</option>
                     {(members.data ?? []).map((member) => (
                       <option key={member.id} value={member.userId}>
-                        {member.user?.fullName ?? member.user?.email ?? member.userId} · {humanize(member.role)}
+                        {member.user?.fullName ?? member.user?.email ?? member.userId} · {rolesLabel(member)}
                       </option>
                     ))}
                   </Select>

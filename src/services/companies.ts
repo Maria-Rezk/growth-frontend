@@ -121,15 +121,26 @@ export const companiesService = {
     const response = await http.get(apiRoutes.companies.members(companyId));
     return unwrap<Membership[]>(response.data);
   },
+  /**
+   * Change what somebody does on a client.
+   *
+   * `roles` REPLACES the whole set — it is not "add a role". To give someone an
+   * extra hat, send the roles they already hold plus the new one. An empty
+   * array is a 400: a member with no role has no permissions, so removing the
+   * last one means `removeMember`, not `updateMember`.
+   *
+   * Never send `role` alongside `roles`; the API takes one or the other.
+   */
   async updateMember(
     companyId: string,
     membershipId: string,
-    payload: { role?: CompanyMembershipRole; status?: MembershipStatus },
+    payload: { roles?: CompanyMembershipRole[]; status?: MembershipStatus },
   ): Promise<Membership> {
     if (env.demoMode) {
       const member = demoMemberships.find((item) => item.id === membershipId && item.companyId === companyId);
       if (!member) throw new Error('Member not found.');
       Object.assign(member, payload);
+      if (payload.roles) member.role = payload.roles[0];
       return demoDelay(member);
     }
     const response = await http.patch(apiRoutes.companies.member(companyId, membershipId), payload);
@@ -139,19 +150,32 @@ export const companiesService = {
     if (env.demoMode) return demoDelay(undefined);
     await http.delete(apiRoutes.companies.member(companyId, membershipId));
   },
-  async addMember(companyId: string, payload: { userId: string; role: CompanyMembershipRole }): Promise<Membership> {
+  /**
+   * Put an employee on a client, with one or more roles in a single request.
+   *
+   * Adding somebody already active on the client is a 409, so the pickers
+   * filter existing members out rather than letting the user find out that way.
+   */
+  async addMember(companyId: string, payload: { userId: string; roles: CompanyMembershipRole[] }): Promise<Membership> {
     if (env.demoMode) {
       const membership: Membership = {
         id: makeId('membership'),
         companyId,
         userId: payload.userId,
-        role: payload.role,
+        roles: payload.roles,
+        role: payload.roles[0],
         status: 'ACTIVE',
       };
       demoMemberships.push(membership);
       const employee = demoEmployees.find((item) => item.id === payload.userId);
       if (employee) {
-        employee.clients.push({ membershipId: membership.id, companyId, companyName: demoCompany.name, role: payload.role });
+        employee.clients.push({
+          membershipId: membership.id,
+          companyId,
+          companyName: demoCompany.name,
+          roles: payload.roles,
+          role: payload.roles[0],
+        });
       }
       return demoDelay(membership);
     }

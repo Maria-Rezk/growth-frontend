@@ -25,6 +25,8 @@ import {
   type InvitationCreateResult,
   type Membership,
 } from '@/types/domain';
+import { RoleChecklist, RolePills } from '@/components/domain/RoleChecklist';
+import { membershipRoles, rolesLabel } from '@/utils/roles';
 import { formatDateTime, humanize } from '@/utils/format';
 
 export function MembersPage() {
@@ -59,19 +61,26 @@ function MembersInner({ companyId }: { companyId: string }) {
     },
     {
       key: 'role',
-      header: 'Role',
-      // Full enum on purpose. This hits PATCH /members/:id, which can move an
-      // existing member to any role — unlike the invite endpoint, which is
+      header: 'Roles',
+      sortValue: (member) => rolesLabel(member),
+      // Full enum on purpose. This hits PATCH /members/:id, which can set any
+      // roles on an existing member — unlike the invite endpoint, which is
       // restricted to INVITABLE_ROLES.
       render: (member) => canManage ? (
-        <Select
-          aria-label={`Change role for ${member.user?.fullName ?? member.user?.email ?? 'member'}`}
-          value={member.role}
-          onChange={(event) => updateMember.mutate(companyId, member.id, { role: event.target.value as CompanyMembershipRole })}
-        >
-          {Object.values(CompanyMembershipRole).map((role) => <option key={role} value={role}>{humanize(role)}</option>)}
-        </Select>
-      ) : <Badge>{humanize(member.role)}</Badge>,
+        <RoleChecklist
+          value={membershipRoles(member)}
+          /*
+            The list sent is the list they end up with, and an empty one is a
+            400. Removing the last role means removing the person, which is the
+            Suspend control beside this — so the final tick cannot be cleared
+            here.
+          */
+          onChange={(roles) => {
+            if (roles.length === 0) return;
+            updateMember.mutate(companyId, member.id, { roles });
+          }}
+        />
+      ) : <RolePills roles={membershipRoles(member)} />,
     },
     { key: 'status', header: 'Status', render: (member) => <Badge tone={member.status === 'ACTIVE' ? 'success' : 'warning'}>{humanize(member.status)}</Badge> },
     { key: 'actions', header: '', className: 'cell-right', render: (member) => canManage ? <Button variant="secondary" size="sm" onClick={() => updateMember.mutate(companyId, member.id, { status: member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}>{member.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</Button> : null },

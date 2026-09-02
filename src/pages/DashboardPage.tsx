@@ -14,7 +14,8 @@ import { tasksService } from '@/services/tasks';
 import { leadsService } from '@/services/leads';
 import { contentService } from '@/services/content';
 import { useCompany } from '@/context/CompanyContext';
-import { getActiveRole, roleLabel } from '@/utils/permissions';
+import { getActiveRoles } from '@/utils/permissions';
+import { humanizeRole } from '@/utils/roles';
 import { groupByStatus, needsLeadAction, needsPostAction, needsTaskAction, TASK_BOARD } from '@/utils/workflow';
 import { formatDate, formatPercent, humanize } from '@/utils/format';
 import { LeadStatus, PostStatus, TaskStatus, type ContentPost, type Task } from '@/types/domain';
@@ -42,7 +43,7 @@ export function DashboardPage() {
 
 function DashboardInner({ companyId }: { companyId: string }) {
   const { memberships, activeCompany } = useCompany();
-  const role = getActiveRole(memberships, companyId);
+  const roles = getActiveRoles(memberships, companyId);
 
   /*
     Explicit query keys matter here. Without them useAsync falls back to a
@@ -112,7 +113,8 @@ function DashboardInner({ companyId }: { companyId: string }) {
           </p>
         </div>
         <div className="page-header__action">
-          {role ? <Badge tone="neutral">{roleLabel(role)}</Badge> : null}
+          {/* One badge per role — two hats should read as two hats. */}
+          {roles.map((role) => <Badge key={role} tone="neutral">{humanizeRole(role)}</Badge>)}
           <RoleGate permission="leads:manage">
             <ButtonLink to="/leads" variant="secondary" size="sm">Add lead</ButtonLink>
           </RoleGate>

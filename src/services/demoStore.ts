@@ -56,6 +56,7 @@ export const demoMemberships: Membership[] = [
     id: 'demo-membership-1',
     companyId: demoCompany.id,
     userId: demoUser.id,
+    roles: ['ACCOUNT_MANAGER'],
     role: 'ACCOUNT_MANAGER',
     status: 'ACTIVE',
     user: demoUser,
@@ -65,6 +66,7 @@ export const demoMemberships: Membership[] = [
     id: 'demo-membership-2',
     companyId: demoCompany.id,
     userId: 'demo-designer',
+    roles: ['DESIGNER', 'COPYWRITER'],
     role: 'DESIGNER',
     status: 'ACTIVE',
     user: { id: 'demo-designer', email: 'designer@solu1ions.com', fullName: 'Demo Designer' },
@@ -74,6 +76,7 @@ export const demoMemberships: Membership[] = [
     id: 'demo-membership-3',
     companyId: demoCompany.id,
     userId: 'demo-client',
+    roles: ['CLIENT_REVIEWER'],
     role: 'CLIENT_REVIEWER',
     status: 'ACTIVE',
     user: { id: 'demo-client', email: 'client@example.com', fullName: 'Client Reviewer' },
@@ -252,7 +255,7 @@ export let demoCampaigns: Campaign[] = [
 export let demoEmployees: Employee[] = [
   {
     ...demoUser,
-    clients: [{ membershipId: demoMemberships[0].id, companyId: demoCompany.id, companyName: demoCompany.name, role: 'ACCOUNT_MANAGER' }],
+    clients: [{ membershipId: demoMemberships[0].id, companyId: demoCompany.id, companyName: demoCompany.name, roles: ['ACCOUNT_MANAGER'], role: 'ACCOUNT_MANAGER' }],
   },
   {
     id: 'demo-designer',
@@ -261,7 +264,7 @@ export let demoEmployees: Employee[] = [
     platformRole: 'USER',
     status: 'ACTIVE',
     createdAt: iso(-20),
-    clients: [{ membershipId: demoMemberships[1].id, companyId: demoCompany.id, companyName: demoCompany.name, role: 'DESIGNER' }],
+    clients: [{ membershipId: demoMemberships[1].id, companyId: demoCompany.id, companyName: demoCompany.name, roles: ['DESIGNER', 'COPYWRITER'], role: 'DESIGNER' }],
   },
 ];
 

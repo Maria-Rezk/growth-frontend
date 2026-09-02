@@ -2487,6 +2487,96 @@ a.list-row:hover strong {
   outline-offset: 2px;
 }
 
+/* ----------------------------------------------------- Roles on a client */
+/* Seven fixed roles, several of which one person can hold at once. Checkboxes
+   rather than a multi-select: the whole set stays visible, which matters when
+   saving replaces it. */
+.role-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-4);
+}
+
+.role-checklist__group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.role-checklist__group legend {
+  padding: 0 0 var(--s-1);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.role-checklist__option {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 13px;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.role-checklist__option:hover { color: var(--ink); }
+
+.role-checklist__group:disabled .role-checklist__option {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.role-checklist__option input {
+  accent-color: var(--accent);
+  cursor: inherit;
+}
+
+/* Two hats should read as two hats, not as one longer job title. */
+.role-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+
+.role-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* The pills are the control: clicking them opens the checklist, so a table of
+   members reads as names and roles until you actually want to change one. */
+.role-pills-button {
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  padding: 2px 4px;
+  margin-inline-start: -4px;
+  background: none;
+  text-align: start;
+  cursor: pointer;
+}
+
+.role-pills-button:hover {
+  border-color: var(--line);
+}
+
+.role-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+
 /* A notice that carries an action: message on one side, the way out on the
    other, wrapping to two lines rather than crushing the button on narrow
    screens. */

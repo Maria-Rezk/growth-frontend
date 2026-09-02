@@ -15,6 +15,7 @@ import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize } from '@/utils/format';
 import { LeadStatus, type LeadNote } from '@/types/domain';
+import { rolesLabel } from '@/utils/roles';
 
 export function LeadDetailPage() {
   const { leadId = '' } = useParams();
@@ -186,7 +187,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                     <option value="">Unassigned</option>
                     {(members.data ?? []).map((member) => (
                       <option key={member.id} value={member.userId}>
-                        {member.user?.fullName ?? member.user?.email ?? member.userId} · {humanize(member.role)}
+                        {member.user?.fullName ?? member.user?.email ?? member.userId} · {rolesLabel(member)}
                       </option>
                     ))}
                   </Select>

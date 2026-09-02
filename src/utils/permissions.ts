@@ -1,4 +1,5 @@
 import { CompanyMembershipRole, type Membership } from '@/types/domain';
+import { membershipRoles } from '@/utils/roles';
 
 export type Permission =
   | 'posts:create'
@@ -43,14 +44,21 @@ const ROLE_PERMISSIONS: Record<CompanyMembershipRole, Permission[]> = {
   [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'tasks:manage', 'reports:view'],
 };
 
-export function hasPermission(role: CompanyMembershipRole | undefined, permission: Permission): boolean {
-  if (!role) return false;
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+/**
+ * Any role wins: the check passes if at least one held role allows it, matching
+ * how the API decides. Somebody who is Designer and Account Manager can do
+ * everything either role can.
+ */
+export function hasPermission(roles: CompanyMembershipRole[] | undefined, permission: Permission): boolean {
+  if (!roles?.length) return false;
+  return roles.some((role) => ROLE_PERMISSIONS[role]?.includes(permission) ?? false);
 }
 
-export function getActiveRole(memberships: Membership[] | undefined, companyId: string | null): CompanyMembershipRole | undefined {
-  if (!companyId) return undefined;
-  return memberships?.find((membership) => membership.companyId === companyId && membership.status === 'ACTIVE')?.role;
+/** Every role the signed-in user holds on `companyId`, via their membership. */
+export function getActiveRoles(memberships: Membership[] | undefined, companyId: string | null): CompanyMembershipRole[] {
+  if (!companyId) return [];
+  const membership = memberships?.find((item) => item.companyId === companyId && item.status === 'ACTIVE');
+  return membershipRoles(membership);
 }
 
 export function roleLabel(role?: CompanyMembershipRole): string {

@@ -82,7 +82,7 @@ export const CompanyMembershipRole = {
 export type CompanyMembershipRole =
   (typeof CompanyMembershipRole)[keyof typeof CompanyMembershipRole];
 
-export type MembershipStatus = 'ACTIVE' | 'SUSPENDED';
+export type MembershipStatus = 'ACTIVE' | 'INVITED' | 'SUSPENDED';
 
 export type CompanyStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
@@ -104,7 +104,17 @@ export interface Membership {
   id: UUID;
   companyId: UUID;
   userId: UUID;
-  role: CompanyMembershipRole;
+  /**
+   * Every role this person holds on this client. One membership row still
+   * covers one person per client — the roles moved inside it — so nobody
+   * appears twice in a member list.
+   *
+   * Read this, never `role`. Read it through `membershipRoles()`, which copes
+   * with a response that predates the field.
+   */
+  roles: CompanyMembershipRole[];
+  /** @deprecated Always `roles[0]`. The API will drop it once nothing reads it. */
+  role?: CompanyMembershipRole;
   status: MembershipStatus;
   invitedById?: UUID;
   createdAt?: ISODate;
@@ -685,7 +695,10 @@ export interface ResponsibilityMatrix {
     userId: UUID;
     fullName: string;
     email: string;
-    role: string | null; // CompanyMembershipRole — clients are excluded server-side
+    /** Every role they hold on this client. Client-side roles are excluded server-side. */
+    roles?: CompanyMembershipRole[];
+    /** @deprecated Always `roles[0]`. Null when the matrix predates a membership. */
+    role?: CompanyMembershipRole | null;
   }>;
   cells: ResponsibilityMatrixCell[];
 }
@@ -707,7 +720,10 @@ export interface EmployeeClientMembership {
   membershipId: UUID;
   companyId: UUID;
   companyName: string;
-  role: CompanyMembershipRole;
+  /** Every role this employee holds on this client. */
+  roles: CompanyMembershipRole[];
+  /** @deprecated Always `roles[0]`. */
+  role?: CompanyMembershipRole;
 }
 
 export interface Employee extends User {

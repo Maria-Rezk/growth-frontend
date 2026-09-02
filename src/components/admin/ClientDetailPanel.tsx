@@ -17,7 +17,9 @@ import { companiesService } from '@/services/companies';
 import { usersService } from '@/services/users';
 import { humanize } from '@/utils/format';
 import { sortByName } from '@/utils/sort';
-import { CompanyMembershipRole, type Company, type CompanyStatus } from '@/types/domain';
+import { membershipRoles } from '@/utils/roles';
+import { RoleChecklist, RolePills } from '@/components/domain/RoleChecklist';
+import { CompanyMembershipRole, type Company, type CompanyStatus, type Membership } from '@/types/domain';
 
 const renameSchema = z.object({
   name: z.string().trim().min(2, 'Client name is required.').max(160, 'Client name is too long.'),
@@ -136,7 +138,8 @@ function PanelBody({ client, onRequestDelete }: { client: Company; onRequestDele
 
 const assignSchema = z.object({
   userId: z.string().min(1, 'Choose an employee.'),
-  role: z.nativeEnum(CompanyMembershipRole),
+  // The API rejects an empty list: a member with no role has no permissions.
+  roles: z.array(z.nativeEnum(CompanyMembershipRole)).min(1, 'Pick at least one role.'),
 });
 
 type AssignForm = z.infer<typeof assignSchema>;
@@ -155,6 +158,9 @@ function MembersSection({ client }: { client: Company }) {
   });
   const employees = useAsync(() => usersService.list(), [], { queryKey: queryKeys.employees });
   const [pendingId, setPendingId] = useState<string | null>(null);
+  // Roles read as pills until someone opens the checklist — seven checkboxes
+  // on every row is unreadable when you only came to look.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const employeeName = useMemo(() => {
     const map = new Map<string, string>();
@@ -184,7 +190,7 @@ function MembersSection({ client }: { client: Company }) {
 
   const form = useForm<AssignForm>({
     resolver: zodResolver(assignSchema),
-    defaultValues: { userId: '', role: CompanyMembershipRole.DESIGNER },
+    defaultValues: { userId: '', roles: [CompanyMembershipRole.DESIGNER] },
     mode: 'onBlur',
   });
 
@@ -196,12 +202,31 @@ function MembersSection({ client }: { client: Company }) {
   const remove = useMutation(companiesService.removeMember, { invalidateKeys: invalidate });
 
   const submit = form.handleSubmit(async (values) => {
-    const created = await add.mutate(client.id, { userId: values.userId, role: values.role });
+    const created = await add.mutate(client.id, { userId: values.userId, roles: values.roles });
     if (created) {
       toast.success('Employee assigned.');
-      form.reset({ userId: '', role: values.role });
+      // Roles stay ticked: assigning several people to the same job in a row
+      // is the common case.
+      form.reset({ userId: '', roles: values.roles });
     }
   });
+
+  /*
+    `roles` replaces the whole set, so un-ticking the last one cannot be a
+    PATCH — the API rejects an empty array, and "holds no roles" is a different
+    thing from "no longer works on this client". It routes to DELETE instead.
+  */
+  const saveRoles = (member: Membership, roles: CompanyMembershipRole[]) => {
+    setPendingId(member.id);
+    if (roles.length === 0) {
+      setEditingId(null);
+      void remove.mutate(client.id, member.id).then(() => toast.success('Removed from client.'));
+      return;
+    }
+    void changeRole
+      .mutate(client.id, member.id, { roles })
+      .then((updated) => { if (updated) toast.success('Roles updated.'); });
+  };
 
   return (
     <section className="panel-section">
@@ -219,7 +244,7 @@ function MembersSection({ client }: { client: Company }) {
               <thead>
                 <tr>
                   <th>Employee</th>
-                  <th>Role on this client</th>
+                  <th>Roles on this client</th>
                   <th className="cell-right" />
                 </tr>
               </thead>
@@ -228,21 +253,25 @@ function MembersSection({ client }: { client: Company }) {
                   <tr key={member.id}>
                     <td><strong>{member.user?.fullName ?? employeeName.get(member.userId) ?? member.userId}</strong></td>
                     <td>
-                      <Select
-                        aria-label={`Role for ${member.user?.fullName ?? employeeName.get(member.userId) ?? 'member'}`}
-                        value={member.role}
-                        disabled={changeRole.loading && pendingId === member.id}
-                        onChange={(event) => {
-                          setPendingId(member.id);
-                          void changeRole
-                            .mutate(client.id, member.id, { role: event.target.value as CompanyMembershipRole })
-                            .then((updated) => { if (updated) toast.success('Role updated.'); });
-                        }}
-                      >
-                        {Object.values(CompanyMembershipRole).map((role) => (
-                          <option key={role} value={role}>{humanize(role)}</option>
-                        ))}
-                      </Select>
+                      {editingId === member.id ? (
+                        <div className="role-editor">
+                          <RoleChecklist
+                            value={membershipRoles(member)}
+                            disabled={changeRole.loading && pendingId === member.id}
+                            onChange={(roles) => saveRoles(member, roles)}
+                          />
+                          <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>Done</Button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="role-pills-button"
+                          aria-label={`Change roles for ${member.user?.fullName ?? employeeName.get(member.userId) ?? 'member'}`}
+                          onClick={() => setEditingId(member.id)}
+                        >
+                          <RolePills roles={membershipRoles(member)} />
+                        </button>
+                      )}
                     </td>
                     <td className="cell-right">
                       {/*
@@ -279,14 +308,21 @@ function MembersSection({ client }: { client: Company }) {
             ))}
           </Select>
         </Field>
-        <Field label="Role" htmlFor="assign-role" error={form.formState.errors.role?.message}>
-          <Select id="assign-role" {...form.register('role')}>
-            {Object.values(CompanyMembershipRole).map((role) => (
-              <option key={role} value={role}>{humanize(role)}</option>
-            ))}
-          </Select>
+        <Field label="Roles" htmlFor="assign-roles" error={form.formState.errors.roles?.message}>
+          <RoleChecklist
+            value={form.watch('roles')}
+            onChange={(roles) => form.setValue('roles', roles, { shouldValidate: true })}
+          />
         </Field>
-        <Button type="submit" size="sm" loading={add.loading} disabled={assignable.length === 0}>Assign</Button>
+        <Button
+          type="submit"
+          size="sm"
+          loading={add.loading}
+          // Blocked here rather than letting the 400 teach the rule.
+          disabled={assignable.length === 0 || form.watch('roles').length === 0}
+        >
+          Assign
+        </Button>
       </form>
 
       {assignable.length === 0 && !employees.loading ? (

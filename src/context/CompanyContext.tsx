@@ -4,6 +4,7 @@ import { env } from '@/config/env';
 import { demoCompany, demoMemberships } from '@/services/demoStore';
 import type { Company, CompanyMembershipRole, Membership } from '@/types/domain';
 import { sortByName } from '@/utils/sort';
+import { membershipRoles } from '@/utils/roles';
 
 interface CompanyContextValue {
   companies: Company[];
@@ -104,7 +105,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const hasRole = useCallback(
     (...roles: CompanyMembershipRole[]) => {
       if (!roles.length) return true;
-      return Boolean(currentMembership && roles.includes(currentMembership.role));
+      // Any of their roles on this client satisfies the check, the same way
+      // the API decides it.
+      const held = membershipRoles(currentMembership);
+      return held.some((role) => roles.includes(role));
     },
     [currentMembership],
   );

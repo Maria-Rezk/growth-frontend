@@ -19,7 +19,7 @@ import {
   type ResponsibilityMatrixCell,
   type ResponsibilityType,
 } from '@/types/domain';
-import { humanize } from '@/utils/format';
+import { rolesLabel } from '@/utils/roles';
 
 const TYPE_OPTIONS = Object.entries(RESPONSIBILITY_TYPE_LABELS) as Array<[ResponsibilityType, string]>;
 
@@ -142,7 +142,7 @@ function MatrixGrid({
               {matrix.members.map((member) => (
                 <th scope="col" key={member.userId}>
                   <span className="raci__member">{member.fullName}</span>
-                  <span className="raci__role muted">{member.role ? humanize(member.role) : '—'}</span>
+                  <span className="raci__role muted">{rolesLabel(member)}</span>
                 </th>
               ))}
             </tr>

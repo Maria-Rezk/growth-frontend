@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useCompany } from '@/context/CompanyContext';
-import { getActiveRole, hasPermission, type Permission } from '@/utils/permissions';
+import { getActiveRoles, hasPermission, type Permission } from '@/utils/permissions';
 
 export function RoleGate({
   permission,
@@ -12,6 +12,6 @@ export function RoleGate({
   fallback?: ReactNode;
 }) {
   const { activeCompanyId, memberships } = useCompany();
-  const role = getActiveRole(memberships, activeCompanyId);
-  return hasPermission(role, permission) ? <>{children}</> : <>{fallback}</>;
+  const roles = getActiveRoles(memberships, activeCompanyId);
+  return hasPermission(roles, permission) ? <>{children}</> : <>{fallback}</>;
 }

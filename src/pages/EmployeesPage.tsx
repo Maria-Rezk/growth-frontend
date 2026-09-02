@@ -17,6 +17,8 @@ import { ADMIN_DASHBOARD_KEY, queryKeys } from '@/lib/queryClient';
 import { companiesService } from '@/services/companies';
 import { usersService } from '@/services/users';
 import { CompanyMembershipRole, PlatformRole, type Employee } from '@/types/domain';
+import { RoleChecklist } from '@/components/domain/RoleChecklist';
+import { membershipRoles, rolesLabel } from '@/utils/roles';
 import { humanize } from '@/utils/format';
 import { sortByName } from '@/utils/sort';
 
@@ -72,7 +74,7 @@ function EmployeesInner() {
         ? (
           <div className="badge-row">
             {sortByName(employee.clients, (client) => client.companyName).map((client) => (
-              <Badge key={client.membershipId} tone="neutral">{client.companyName} · {humanize(client.role)}</Badge>
+              <Badge key={client.membershipId} tone="neutral">{client.companyName} · {rolesLabel(client)}</Badge>
             ))}
           </div>
         )
@@ -404,7 +406,8 @@ function PlatformRoleModal({ employee, onClose }: { employee: Employee | null; o
 
 const assignClientSchema = z.object({
   companyId: z.string().min(1, 'Choose a client.'),
-  role: z.nativeEnum(CompanyMembershipRole),
+  // Empty is a 400 from the API — a member with no role has no permissions.
+  roles: z.array(z.nativeEnum(CompanyMembershipRole)).min(1, 'Pick at least one role.'),
 });
 
 type AssignClientForm = z.infer<typeof assignClientSchema>;
@@ -421,7 +424,7 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
 
   const form = useForm<AssignClientForm>({
     resolver: zodResolver(assignClientSchema),
-    defaultValues: { companyId: '', role: CompanyMembershipRole.DESIGNER },
+    defaultValues: { companyId: '', roles: [CompanyMembershipRole.DESIGNER] },
     mode: 'onBlur',
   });
 
@@ -432,7 +435,7 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
 
   const submit = form.handleSubmit(async (values) => {
     if (!employee) return;
-    const created = await assign.mutate(values.companyId, { userId: employee.id, role: values.role });
+    const created = await assign.mutate(values.companyId, { userId: employee.id, roles: values.roles });
     if (created) {
       toast.success('Employee assigned to client.');
       close();
@@ -453,7 +456,13 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
       footer={(
         <>
           <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
-          <Button form="assign-client-form" type="submit" loading={form.formState.isSubmitting || assign.loading} disabled={!availableCompanies.length}>
+          <Button
+            form="assign-client-form"
+            type="submit"
+            loading={form.formState.isSubmitting || assign.loading}
+            // Blocked here rather than letting the 400 teach the rule.
+            disabled={!availableCompanies.length || form.watch('roles').length === 0}
+          >
             Assign
           </Button>
         </>
@@ -468,10 +477,11 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
                 {availableCompanies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
               </Select>
             </Field>
-            <Field label="Role on this client" htmlFor="assign-role" error={form.formState.errors.role?.message}>
-              <Select id="assign-role" {...form.register('role')}>
-                {Object.values(CompanyMembershipRole).map((role) => <option key={role} value={role}>{humanize(role)}</option>)}
-              </Select>
+            <Field label="Roles on this client" htmlFor="assign-roles" error={form.formState.errors.roles?.message}>
+              <RoleChecklist
+                value={form.watch('roles')}
+                onChange={(roles) => form.setValue('roles', roles, { shouldValidate: true })}
+              />
             </Field>
           </>
         ) : (

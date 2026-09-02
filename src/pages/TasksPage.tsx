@@ -25,7 +25,8 @@ import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
-import { TaskPriority, TaskStatus, TaskType, type Task } from '@/types/domain';
+import { TaskPriority, TaskStatus, TaskType, type Membership, type Task } from '@/types/domain';
+import { rolesLabel } from '@/utils/roles';
 
 type ViewMode = 'board' | 'table';
 type Scope = 'all' | 'mine';
@@ -251,7 +252,7 @@ function TaskBoardCard({ task, assigneeName }: { task: Task; assigneeName: strin
   );
 }
 
-function TaskModal({ open, companyId, onClose, members }: { open: boolean; companyId: string; onClose: () => void; members: Array<{ id: string; userId: string; role: string; user?: { fullName?: string; email?: string } }> }) {
+function TaskModal({ open, companyId, onClose, members }: { open: boolean; companyId: string; onClose: () => void; members: Membership[] }) {
   const form = useForm<TaskForm>({
     resolver: zodResolver(taskSchema),
     defaultValues: { title: '', description: '', type: TaskType.GENERAL, priority: TaskPriority.MEDIUM, assignedToId: '', dueDate: '' },
@@ -362,7 +363,7 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
               <option value="">Unassigned</option>
               {members.map((member) => (
                 <option key={member.id} value={member.userId}>
-                  {member.user?.fullName ?? member.user?.email ?? member.userId} · {humanize(member.role)}
+                  {member.user?.fullName ?? member.user?.email ?? member.userId} · {rolesLabel(member)}
                 </option>
               ))}
             </Select>
