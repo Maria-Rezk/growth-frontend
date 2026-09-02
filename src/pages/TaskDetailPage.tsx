@@ -16,7 +16,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { TaskStatus, type TaskAttachment, type TaskComment } from '@/types/domain';
-import { rolesLabel } from '@/utils/roles';
+import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 
 export function TaskDetailPage() {
   const { taskId = '' } = useParams();
@@ -173,16 +173,11 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <Field label="Assigned to" htmlFor="task-assignee">
                   <Select
                     id="task-assignee"
-                    value={current.assignedToId ?? ''}
+                    value={assigneeValueFor(members.data ?? [], current.assignedToId)}
                     disabled={update.loading || members.loading}
-                    onChange={(event) => changeAssignee(event.target.value)}
+                    onChange={(event) => changeAssignee(assigneeUserId(event.target.value))}
                   >
-                    <option value="">Unassigned</option>
-                    {(members.data ?? []).map((member) => (
-                      <option key={member.id} value={member.userId}>
-                        {member.user?.fullName ?? member.user?.email ?? member.userId} · {rolesLabel(member)}
-                      </option>
-                    ))}
+                    <AssigneeOptions members={members.data ?? []} />
                   </Select>
                 </Field>
                 {members.error ? <p className="error-text">Could not load members.</p> : null}

@@ -26,7 +26,7 @@ import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
 import { TaskPriority, TaskStatus, TaskType, type Membership, type Task } from '@/types/domain';
-import { rolesLabel } from '@/utils/roles';
+import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 
 type ViewMode = 'board' | 'table';
 type Scope = 'all' | 'mine';
@@ -359,13 +359,17 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
 
         <div className="grid-2">
           <Field label="Assign to" htmlFor="task-assignee" hint="Optional. Leave unassigned if not decided.">
-            <Select id="task-assignee" {...form.register('assignedToId')}>
-              <option value="">Unassigned</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.userId}>
-                  {member.user?.fullName ?? member.user?.email ?? member.userId} · {rolesLabel(member)}
-                </option>
-              ))}
+            {/*
+              The field holds a plain user id; the option values carry a role
+              too so one person can be listed under each of theirs. Assignment
+              itself is per person — the role only helps find them.
+            */}
+            <Select
+              id="task-assignee"
+              value={assigneeValueFor(members, form.watch('assignedToId'))}
+              onChange={(event) => form.setValue('assignedToId', assigneeUserId(event.target.value))}
+            >
+              <AssigneeOptions members={members} />
             </Select>
           </Field>
           <Field label="Due date" htmlFor="due" error={form.formState.errors.dueDate?.message}>

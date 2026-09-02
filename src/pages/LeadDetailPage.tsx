@@ -15,7 +15,7 @@ import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize } from '@/utils/format';
 import { LeadStatus, type LeadNote } from '@/types/domain';
-import { rolesLabel } from '@/utils/roles';
+import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 
 export function LeadDetailPage() {
   const { leadId = '' } = useParams();
@@ -180,16 +180,11 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                 <Field label="Assigned to" htmlFor="lead-assignee">
                   <Select
                     id="lead-assignee"
-                    value={lead.data.assignedToId ?? ''}
+                    value={assigneeValueFor(members.data ?? [], lead.data.assignedToId)}
                     disabled={update.loading || members.loading}
-                    onChange={(event) => changeAssignee(event.target.value)}
+                    onChange={(event) => changeAssignee(assigneeUserId(event.target.value))}
                   >
-                    <option value="">Unassigned</option>
-                    {(members.data ?? []).map((member) => (
-                      <option key={member.id} value={member.userId}>
-                        {member.user?.fullName ?? member.user?.email ?? member.userId} · {rolesLabel(member)}
-                      </option>
-                    ))}
+                    <AssigneeOptions members={members.data ?? []} />
                   </Select>
                 </Field>
                 {members.error ? <p className="error-text">Could not load members.</p> : null}
