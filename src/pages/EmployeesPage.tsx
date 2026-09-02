@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -412,15 +412,35 @@ const assignClientSchema = z.object({
 
 type AssignClientForm = z.infer<typeof assignClientSchema>;
 
+/**
+ * Put an employee on a client, or change what they do on one they already work
+ * on.
+ *
+ * Both live here because from this screen they are one intent — "Jessica should
+ * also design for Shahba Bank" — even though they are different calls. Adding
+ * somebody already active on a client is a 409, so an existing client is a
+ * PATCH of their membership rather than a second one.
+ */
 function AssignClientModal({ employee, onClose }: { employee: Employee | null; onClose: () => void }) {
   const companies = useAsync(() => companiesService.list(), [], { queryKey: queryKeys.companies, enabled: Boolean(employee) });
 
-  // One membership per person per client is a database constraint — filter
-  // rather than letting the user discover it as an error.
-  const availableCompanies = useMemo(() => {
-    const assignedIds = new Set(employee?.clients.map((client) => client.companyId));
-    return (companies.data ?? []).filter((company) => !assignedIds.has(company.id));
-  }, [companies.data, employee]);
+  /*
+    Every client is offered, split by whether they already work there. Hiding
+    the ones they are on was right when a person could hold one role per client;
+    now it hides the only route to a second role.
+  */
+  const existingByCompany = useMemo(
+    () => new Map((employee?.clients ?? []).map((client) => [client.companyId, client])),
+    [employee],
+  );
+
+  const { fresh, joined } = useMemo(() => {
+    const all = companies.data ?? [];
+    return {
+      fresh: all.filter((company) => !existingByCompany.has(company.id)),
+      joined: all.filter((company) => existingByCompany.has(company.id)),
+    };
+  }, [companies.data, existingByCompany]);
 
   const form = useForm<AssignClientForm>({
     resolver: zodResolver(assignClientSchema),
@@ -428,16 +448,44 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
     mode: 'onBlur',
   });
 
+  const companyId = form.watch('companyId');
+  const existing = existingByCompany.get(companyId);
+
+  /*
+    Saving replaces the whole set, so picking a client they already work on has
+    to start from what they hold there — otherwise "add Designer" would quietly
+    drop Copywriter.
+  */
+  useEffect(() => {
+    if (!companyId) return;
+    form.setValue(
+      'roles',
+      existing ? membershipRoles(existing) : [CompanyMembershipRole.DESIGNER],
+      { shouldValidate: true },
+    );
+  }, [companyId, existing, form]);
+
+  const invalidateKeys = [queryKeys.employees, ADMIN_DASHBOARD_KEY];
+
   const assign = useMutation(companiesService.addMember, {
-    invalidateKeys: [queryKeys.employees, ADMIN_DASHBOARD_KEY],
+    invalidateKeys,
+    onError: (error) => applyServerFieldErrors(form, error),
+  });
+
+  const update = useMutation(companiesService.updateMember, {
+    invalidateKeys,
     onError: (error) => applyServerFieldErrors(form, error),
   });
 
   const submit = form.handleSubmit(async (values) => {
     if (!employee) return;
-    const created = await assign.mutate(values.companyId, { userId: employee.id, roles: values.roles });
-    if (created) {
-      toast.success('Employee assigned to client.');
+
+    const saved = existing
+      ? await update.mutate(values.companyId, existing.membershipId, { roles: values.roles })
+      : await assign.mutate(values.companyId, { userId: employee.id, roles: values.roles });
+
+    if (saved) {
+      toast.success(existing ? 'Roles updated.' : 'Employee assigned to client.');
       close();
     }
   });
@@ -445,6 +493,7 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
   const close = () => {
     form.reset();
     assign.reset();
+    update.reset();
     onClose();
   };
 
@@ -459,25 +508,47 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
           <Button
             form="assign-client-form"
             type="submit"
-            loading={form.formState.isSubmitting || assign.loading}
+            loading={form.formState.isSubmitting || assign.loading || update.loading}
             // Blocked here rather than letting the 400 teach the rule.
-            disabled={!availableCompanies.length || form.watch('roles').length === 0}
+            disabled={!companies.data?.length || form.watch('roles').length === 0}
           >
-            Assign
+            {existing ? 'Save roles' : 'Assign'}
           </Button>
         </>
       )}
     >
       <form id="assign-client-form" className="form-grid" onSubmit={submit} noValidate>
-        {availableCompanies.length ? (
+        {companies.data?.length ? (
           <>
             <Field label="Client" htmlFor="assign-client" error={form.formState.errors.companyId?.message}>
               <Select id="assign-client" {...form.register('companyId')}>
                 <option value="">Select a client</option>
-                {availableCompanies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+                {/* Grouped so it reads as a valid choice to pick a client they
+                    already work on, and says what picking it will do. */}
+                {fresh.length ? (
+                  <optgroup label="Not on this client yet">
+                    {fresh.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+                  </optgroup>
+                ) : null}
+                {joined.length ? (
+                  <optgroup label="Already works on — change their roles">
+                    {joined.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name} · {rolesLabel(existingByCompany.get(company.id))}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </Select>
             </Field>
-            <Field label="Roles on this client" htmlFor="assign-roles" error={form.formState.errors.roles?.message}>
+            <Field
+              label="Roles on this client"
+              htmlFor="assign-roles"
+              hint={existing
+                ? 'Starts from what they hold today. Saving replaces the set, so leave the roles they keep ticked.'
+                : undefined}
+              error={form.formState.errors.roles?.message}
+            >
               <RoleChecklist
                 value={form.watch('roles')}
                 onChange={(roles) => form.setValue('roles', roles, { shouldValidate: true })}
@@ -485,9 +556,10 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
             </Field>
           </>
         ) : (
-          <p className="muted">Already assigned to every client, or none exist yet.</p>
+          <p className="muted">No clients exist yet.</p>
         )}
         {assign.error ? <p className="error-box" role="alert">{assign.error}</p> : null}
+        {update.error ? <p className="error-box" role="alert">{update.error}</p> : null}
       </form>
     </Modal>
   );
