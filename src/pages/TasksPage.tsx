@@ -20,6 +20,7 @@ import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Badge } from '@/components/ui/Badge';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useDashboardFilters';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { tasksService } from '@/services/tasks';
 import { companiesService } from '@/services/companies';
@@ -58,14 +59,22 @@ export function TasksPage() {
   return <RequireCompany>{(companyId) => <TasksInner companyId={companyId} />}</RequireCompany>;
 }
 
+const TASK_FILTER_DEFAULTS = { scope: 'all', status: '', priority: '', type: '', search: '', view: 'board' } as const;
+
 function TasksInner({ companyId }: { companyId: string }) {
-  const [scope, setScope] = useState<Scope>('all');
-  const [status, setStatus] = useState('');
-  const [priority, setPriority] = useState('');
-  const [type, setType] = useState('');
-  const [search, setSearch] = useState('');
+  // Filters live in the URL: a filtered list is a shareable link, and a
+  // reload or Back does not snap the page back to "all".
+  const [urlFilters, setUrlFilters] = useUrlFilters<Record<keyof typeof TASK_FILTER_DEFAULTS, string>>(TASK_FILTER_DEFAULTS);
+  const scope = (['all', 'mine', 'approvals'].includes(urlFilters.scope) ? urlFilters.scope : 'all') as Scope;
+  const view = (urlFilters.view === 'table' ? 'table' : 'board') as ViewMode;
+  const { status, priority, type, search } = urlFilters;
+  const setScope = (value: Scope) => setUrlFilters({ scope: value });
+  const setView = (value: ViewMode) => setUrlFilters({ view: value });
+  const setStatus = (value: string) => setUrlFilters({ status: value });
+  const setPriority = (value: string) => setUrlFilters({ priority: value });
+  const setType = (value: string) => setUrlFilters({ type: value });
+  const setSearch = (value: string) => setUrlFilters({ search: value });
   const debouncedSearch = useDebouncedValue(search);
-  const [view, setView] = useState<ViewMode>('board');
   const [createOpen, setCreateOpen] = useState(false);
 
   const filters = { status: status || undefined, priority: priority || undefined, type: type || undefined, search: debouncedSearch || undefined };

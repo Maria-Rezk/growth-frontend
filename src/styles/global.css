@@ -3659,3 +3659,8 @@ a.list-row:hover strong {
   font-size: 14px;
   line-height: 1.5;
 }
+
+.kanban-column__more {
+  width: 100%;
+  justify-content: center;
+}

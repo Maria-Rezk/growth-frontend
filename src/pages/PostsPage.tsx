@@ -17,6 +17,7 @@ import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useDashboardFilters';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { contentService } from '@/services/content';
 import { reportsService } from '@/services/reports';
@@ -62,11 +63,17 @@ export function PostsPage() {
   return <RequireCompany>{(companyId) => <PostsInner companyId={companyId} />}</RequireCompany>;
 }
 
+const POST_FILTER_DEFAULTS = { status: '', search: '', view: 'board' } as const;
+
 function PostsInner({ companyId }: { companyId: string }) {
-  const [status, setStatus] = useState('');
-  const [search, setSearch] = useState('');
+  // Filters live in the URL so a filtered board is a link, and a reload keeps it.
+  const [urlFilters, setUrlFilters] = useUrlFilters<Record<keyof typeof POST_FILTER_DEFAULTS, string>>(POST_FILTER_DEFAULTS);
+  const { status, search } = urlFilters;
+  const view = (urlFilters.view === 'table' ? 'table' : 'board') as ViewMode;
+  const setStatus = (value: string) => setUrlFilters({ status: value });
+  const setSearch = (value: string) => setUrlFilters({ search: value });
+  const setView = (value: ViewMode) => setUrlFilters({ view: value });
   const debouncedSearch = useDebouncedValue(search);
-  const [view, setView] = useState<ViewMode>('board');
   const [createOpen, setCreateOpen] = useState(false);
 
   const filters = { status: status || undefined, search: debouncedSearch || undefined };

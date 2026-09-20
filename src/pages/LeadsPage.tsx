@@ -18,6 +18,7 @@ import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useUrlFilters } from '@/hooks/useDashboardFilters';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { leadsService } from '@/services/leads';
 import { companiesService } from '@/services/companies';
@@ -52,14 +53,22 @@ export function LeadsPage() {
   return <RequireCompany>{(companyId) => <LeadsInner companyId={companyId} />}</RequireCompany>;
 }
 
+const LEAD_FILTER_DEFAULTS = { status: '', source: '', search: '', view: 'pipeline', page: '1' } as const;
+
 function LeadsInner({ companyId }: { companyId: string }) {
-  const [status, setStatus] = useState('');
-  const [source, setSource] = useState('');
-  const [search, setSearch] = useState('');
+  // Filters and the page live in the URL so a filtered pipeline is a link,
+  // and Back from a lead lands on the same page of the same list.
+  const [urlFilters, setUrlFilters] = useUrlFilters<Record<keyof typeof LEAD_FILTER_DEFAULTS, string>>(LEAD_FILTER_DEFAULTS);
+  const { status, source, search } = urlFilters;
+  const view = (urlFilters.view === 'table' ? 'table' : 'pipeline') as ViewMode;
+  const page = Math.max(1, Number.parseInt(urlFilters.page, 10) || 1);
+  const setStatus = (value: string) => setUrlFilters({ status: value });
+  const setSource = (value: string) => setUrlFilters({ source: value });
+  const setSearch = (value: string) => setUrlFilters({ search: value });
+  const setView = (value: ViewMode) => setUrlFilters({ view: value });
+  const setPage = (value: number) => setUrlFilters({ page: String(value) });
   const debouncedSearch = useDebouncedValue(search);
-  const [view, setView] = useState<ViewMode>('pipeline');
   const [createOpen, setCreateOpen] = useState(false);
-  const [page, setPage] = useState(1);
 
   const pageSize = view === 'pipeline' ? PIPELINE_PAGE_SIZE : TABLE_PAGE_SIZE;
   const filters = {

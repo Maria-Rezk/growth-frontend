@@ -89,3 +89,55 @@ export function useUrlParam(name: string): [string | undefined, (value: string |
 
   return [searchParams.get(name) || undefined, set];
 }
+
+/**
+ * A page's filter set, held in the URL.
+ *
+ * `defaults` names every key and its empty value. A value equal to its
+ * default is dropped from the query string, so a clean page has a clean
+ * URL, and `Back` still means "leave the page". Used by the Tasks, Posts
+ * and Leads screens so a filtered list is a link that can be shared, and a
+ * reload does not snap back to "all".
+ */
+export function useUrlFilters<T extends Record<string, string>>(defaults: T): [T, (patch: Partial<T>) => void, () => void] {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const values = useMemo(() => {
+    const next = { ...defaults };
+    (Object.keys(defaults) as Array<keyof T>).forEach((key) => {
+      const raw = searchParams.get(String(key));
+      if (raw !== null) next[key] = raw as T[keyof T];
+    });
+    return next;
+  }, [defaults, searchParams]);
+
+  const set = useCallback(
+    (patch: Partial<T>) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          Object.entries(patch).forEach(([key, value]) => {
+            if (value === undefined || value === defaults[key]) next.delete(key);
+            else next.set(key, String(value));
+          });
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [defaults, setSearchParams],
+  );
+
+  const reset = useCallback(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        Object.keys(defaults).forEach((key) => next.delete(key));
+        return next;
+      },
+      { replace: true },
+    );
+  }, [defaults, setSearchParams]);
+
+  return [values, set, reset];
+}
