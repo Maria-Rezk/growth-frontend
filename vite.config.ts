@@ -13,6 +13,22 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          /*
+            Libraries in their own chunk. They change on a dependency bump,
+            not on every deploy, so returning users keep them cached while
+            only the app code they actually need is re-downloaded.
+          */
+          manualChunks: {
+            react: ['react', 'react-dom', 'react-router-dom'],
+            data: ['@tanstack/react-query', 'axios'],
+            forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
+          },
+        },
+      },
+    },
     /*
       Optional dev proxy, enabled by setting VITE_DEV_PROXY_TARGET.
 
