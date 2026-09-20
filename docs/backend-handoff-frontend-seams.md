@@ -1,7 +1,7 @@
 # Backend handoff — Growth OS frontend seams
 
 **For:** Backend · **From:** Frontend / Product · **Date:** 20 September 2026
-**Frontend state:** `develop`, commits `c360570`–`29fd183`
+**Frontend state:** `develop`, commits `c360570`–`be1e7db`
 
 The frontend is built up to five backend seams. Each section below is one ticket: what the UI already does, the contract it expects, and how to verify it. Nothing in the frontend changes when these land — only the data source behind it.
 
@@ -193,3 +193,57 @@ Smallest first; each one is usable the day it lands because the frontend is alre
 - For ticket 3, submit a task and move the clock (or set `submittedForReviewAt` 25 h back): the bell shows the new type with its own label and icon.
 - Every error the review endpoints return must carry `code` in the body; the frontend switches on it, never on `message`. Any new 409 needs a `code`.
 - The contract for the approval flow itself stays the document dated 19 September 2026; nothing here changes it.
+
+---
+
+## 6. Added after the second frontend batch (commits `5f190e6`–`be1e7db`)
+
+Three more seams, each already handled gracefully by the frontend until it lands.
+
+### 6a. `campaignId` on posts and leads
+
+**Why:** the campaign page (`/campaigns/:id`) lists the posts, leads and tasks attached to a campaign by reading `campaignId` on each record. Tasks carry it; posts and leads do not, so today the page shows the overview *counts* and says it cannot name the records.
+
+**Change:** include `campaignId: string | null` on every item of `GET /companies/:id/posts` and `GET /companies/:id/leads` (and on the single-record reads). Set by the existing attach/detach endpoints.
+
+**Frontend seam:** none — `CampaignDetailPage` already reads the field and drops the notice when it is present.
+
+**Acceptance:** *Given* a post attached to campaign C, *when* the posts list is fetched, *then* that post has `campaignId = C`; *when* detached, *then* `null`.
+
+### 6b. Forgot / reset password
+
+```http
+POST /api/auth/forgot-password   { "email": "…" }              → 200 always
+POST /api/auth/reset-password    { "token": "…", "password": "…" } → 200 | 400 (expired/invalid token)
+```
+
+**Rules**
+
+- `forgot-password` answers 200 whether or not the email has an account, and never says which — the page shows the same "if that address has an account…" copy either way.
+- The email links to `https://<app>/forgot-password?token=<token>`. Token single-use, valid one hour.
+- Neither endpoint requires or refreshes a session; the frontend excludes both from the 401-refresh interceptor.
+- Password rule: ≥ 8 characters (frontend enforces the same minimum).
+
+**Frontend seam:** none — `ForgotPasswordPage` calls both; until they exist a route miss renders "not available on this server yet, ask an admin".
+
+### 6c. Lost reason and deal value on leads
+
+**Why:** Lost now asks *why* (Price / Timing / Went elsewhere / No response / Not a fit / Other) and the CRM stores it as a `[Reason]` prefix on the status-change note. Won has nowhere to record value. Reports cannot aggregate either.
+
+**Change:** `PATCH /leads/:id/status` accepts optional `lostReason` (enum as above, only with `status = LOST`) and `dealValue` (number, only with `status = WON`); both returned on the lead. Reports gain `leads.byLostReason` and `leads.wonValue`.
+
+**Frontend seam:** `LeadDetailPage.applyStatus` sends `lostReason` instead of prefixing the note; a value field appears on Won. One small change.
+
+### Delivery order, updated
+
+| Order | Ticket | Size |
+|---|---|---|
+| 0 | Confirm first A–D | — |
+| 1 | `GET /me/approval-queue` | S |
+| 2 | Notification preferences | S |
+| **2b** | **`campaignId` on posts and leads** | **XS** |
+| **2c** | **Forgot / reset password** | **S** |
+| 3 | Ageing notifications + digest | M |
+| 4 | Report share link | M |
+| **4b** | **`lostReason` / `dealValue`** | **S** |
+| 5 | `sequence` + post gate | L |
