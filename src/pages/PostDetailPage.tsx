@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
+import { AttachmentList } from '@/components/domain/AttachmentList';
 import { WorkflowStepper } from '@/components/domain/WorkflowStepper';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useCompany } from '@/context/CompanyContext';
@@ -208,8 +209,14 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
               <RoleGate permission="assets:upload" fallback={<p className="muted">Asset upload is not available for your role.</p>}>
                 <Input type="file" aria-label="Upload asset" onChange={(event) => onFile(event.target.files?.[0])} />
               </RoleGate>
-              {assets.data?.map((asset) => <div key={asset.id} className="list-row"><span>{asset.file?.originalName ?? asset.file?.filename ?? asset.fileId}</span></div>)}
-              {assets.data?.length === 0 ? <p className="muted">No assets attached.</p> : null}
+              <AttachmentList
+                companyId={companyId}
+                loading={assets.loading}
+                error={assets.error}
+                data={assets.data}
+                onRetry={assets.refetch}
+                emptyText="No assets attached."
+              />
             </div>
           </Card>
 

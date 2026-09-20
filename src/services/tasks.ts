@@ -3,6 +3,7 @@ import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
 import {
   demoDelay,
+  demoFiles,
   demoMemberUser,
   demoTaskAttachments,
   demoTaskComments,
@@ -267,7 +268,7 @@ export const tasksService = {
   },
   async attachFile(companyId: string, taskId: string, fileId: string): Promise<TaskAttachment> {
     if (env.demoMode) {
-      const attachment: TaskAttachment = { id: makeId('task-attachment'), taskId, fileId, createdAt: new Date().toISOString() };
+      const attachment: TaskAttachment = { id: makeId('task-attachment'), taskId, fileId, file: demoFiles.find((item) => item.id === fileId), createdAt: new Date().toISOString() };
       demoTaskAttachments.unshift(attachment);
       return demoDelay(attachment);
     }
@@ -275,7 +276,11 @@ export const tasksService = {
     return unwrap<TaskAttachment>(response.data);
   },
   async removeAttachment(companyId: string, taskId: string, attachmentId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
+    if (env.demoMode) {
+      const index = demoTaskAttachments.findIndex((item) => item.taskId === taskId && item.id === attachmentId);
+      if (index >= 0) demoTaskAttachments.splice(index, 1);
+      return demoDelay(undefined);
+    }
     await http.delete(apiRoutes.tasks.attachment(companyId, taskId, attachmentId));
   },
   async activityLogs(companyId: string, taskId: string): Promise<TaskActivityLog[]> {

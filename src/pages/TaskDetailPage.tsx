@@ -10,6 +10,7 @@ import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
 import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskReviewPanel';
+import { AttachmentList } from '@/components/domain/AttachmentList';
 import { Badge } from '@/components/ui/Badge';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { tasksService } from '@/services/tasks';
@@ -18,7 +19,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
-import { TaskStatus, type TaskActivityLog, type TaskAttachment, type TaskComment } from '@/types/domain';
+import { TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 
 export function TaskDetailPage() {
@@ -43,6 +44,8 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   // The service already pairs upload + attach; doing it manually here
   // duplicated that logic and lost the error from whichever half failed.
   const attachMutation = useMutation(tasksService.uploadAndAttach);
+  const detachMutation = useMutation(tasksService.removeAttachment);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const [comment, setComment] = useState('');
 
@@ -98,6 +101,19 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
     if (result) {
       toast.success('Attachment added.');
       await attachments.refetch();
+    }
+  };
+
+  const removeAttachment = async (attachmentId: string) => {
+    setRemovingId(attachmentId);
+    try {
+      const result = await detachMutation.mutate(companyId, taskId, attachmentId);
+      if (result !== null) {
+        toast.success('Attachment removed.');
+        await attachments.refetch();
+      }
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -235,8 +251,9 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
           </Card>
 
           <Card>
-            <CardHeader title="Attachments" />
+            <CardHeader title="Attachments" subtitle="Briefs, drafts, exports — anyone on the task can add or open them." />
             <div className="content-card__body stack-list">
+              {/* Every role holds `assets:upload`; the gate stays so a future narrowing is one line in permissions.ts. */}
               <RoleGate permission="assets:upload" fallback={<p className="muted">Your role cannot upload attachments.</p>}>
                 <Input
                   type="file"
@@ -248,12 +265,16 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 {attachMutation.error ? <p className="error-box" role="alert">{attachMutation.error}</p> : null}
               </RoleGate>
 
-              <AttachmentsList
+              <AttachmentList
+                companyId={companyId}
                 loading={attachments.loading}
                 error={attachments.error}
                 data={attachments.data}
                 onRetry={attachments.refetch}
+                onRemove={(attachment) => removeAttachment(attachment.id)}
+                removing={removingId}
               />
+              {detachMutation.error ? <p className="error-box" role="alert">{detachMutation.error}</p> : null}
             </div>
           </Card>
 
@@ -330,32 +351,6 @@ function CommentsList({
           <strong>{item.author?.fullName ?? 'Team member'}</strong>
           <p className="pre-wrap">{item.body}</p>
           <time>{formatDateTime(item.createdAt)}</time>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function AttachmentsList({
-  loading,
-  error,
-  data,
-  onRetry,
-}: {
-  loading: boolean;
-  error: string | null;
-  data: TaskAttachment[] | null;
-  onRetry: () => void;
-}) {
-  if (loading) return <p className="muted">Loading attachments…</p>;
-  if (error) return <ErrorState message={error} onRetry={onRetry} />;
-  if (!data?.length) return <p className="muted">No attachments.</p>;
-
-  return (
-    <>
-      {data.map((item) => (
-        <div className="list-row" key={item.id}>
-          <span>{item.file?.originalName ?? item.file?.filename ?? item.fileId}</span>
         </div>
       ))}
     </>

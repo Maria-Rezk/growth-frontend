@@ -40,11 +40,17 @@ const ROLE_PERMISSIONS: Record<CompanyMembershipRole, Permission[]> = {
     'tasks:manage',
     'reports:view',
   ],
-  [CompanyMembershipRole.COPYWRITER]: ['posts:create', 'posts:edit', 'tasks:manage', 'reports:view'],
+  /*
+    `assets:upload` is held by every role, client-side ones included: a
+    reviewer sending back a marked-up screenshot, or a sales agent attaching a
+    signed proposal, is exactly what attachments are for. The API still
+    enforces its own rule and answers 403 if it disagrees.
+  */
+  [CompanyMembershipRole.COPYWRITER]: ['posts:create', 'posts:edit', 'assets:upload', 'tasks:manage', 'reports:view'],
   [CompanyMembershipRole.DESIGNER]: ['posts:edit', 'assets:upload', 'tasks:manage', 'reports:view'],
-  [CompanyMembershipRole.CLIENT_OWNER]: ['posts:approve', 'reports:view'],
-  [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve', 'reports:view'],
-  [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'tasks:manage', 'reports:view'],
+  [CompanyMembershipRole.CLIENT_OWNER]: ['posts:approve', 'assets:upload', 'reports:view'],
+  [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve', 'assets:upload', 'reports:view'],
+  [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'assets:upload', 'tasks:manage', 'reports:view'],
 };
 
 /**

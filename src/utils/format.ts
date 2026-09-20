@@ -62,6 +62,20 @@ export function formatRatioPercent(value?: number | null): string {
   return `${Math.round(value * 1000) / 10}%`;
 }
 
+/** `1536` → `1.5 KB`. Empty for an unknown size rather than "0 B". */
+export function formatBytes(bytes?: number | null): string {
+  if (bytes === undefined || bytes === null || !Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
 /** Minutes of age as a compact duration: `1280` → `21h`, `4300` → `2d 23h`. */
 export function formatAgeMinutes(minutes?: number | null): string {
   if (minutes === undefined || minutes === null || Number.isNaN(minutes)) return '—';
