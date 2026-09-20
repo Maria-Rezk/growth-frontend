@@ -198,6 +198,9 @@ function LeadsInner({ companyId }: { companyId: string }) {
           rows={rows}
           onRetry={leads.refetch}
           assigneeName={assigneeName}
+          filtersActive={Boolean(status || source || search)}
+          onClearFilters={() => setUrlFilters({ status: '', source: '', search: '' })}
+          onCreate={() => setCreateOpen(true)}
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}
@@ -211,7 +214,11 @@ function LeadsInner({ companyId }: { companyId: string }) {
             loading={leads.loading}
             error={leads.error}
             onRetry={leads.refetch}
-            emptyTitle="No leads yet"
+            emptyTitle={status || source || search ? 'No leads match these filters' : 'No leads yet'}
+            emptyDescription={status || source || search ? undefined : 'Every enquiry from social, the website or a referral becomes a lead here, with a follow-up date so nothing goes cold.'}
+            emptyAction={status || source || search
+              ? <Button variant="secondary" size="sm" onClick={() => setUrlFilters({ status: '', source: '', search: '' })}>Clear filters</Button>
+              : <RoleGate permission="leads:manage"><Button size="sm" onClick={() => setCreateOpen(true)}>Add the first lead</Button></RoleGate>}
             defaultSortKey="name"
           />
           {totalPages > 1 ? <Pagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
@@ -239,6 +246,9 @@ function PipelineView({
   page,
   totalPages,
   onPageChange,
+  filtersActive,
+  onClearFilters,
+  onCreate,
 }: {
   loading: boolean;
   refreshing: boolean;
@@ -249,6 +259,9 @@ function PipelineView({
   page: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  filtersActive: boolean;
+  onClearFilters: () => void;
+  onCreate: () => void;
 }) {
   if (loading) return <BoardSkeleton columns={LEAD_PIPELINE} />;
   if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
@@ -256,7 +269,13 @@ function PipelineView({
   if (rows.length === 0) {
     return (
       <Card>
-        <EmptyState title="No leads match these filters" description="Clear the search or choose a different stage." />
+        <EmptyState
+          title={filtersActive ? 'No leads match these filters' : 'No leads yet'}
+          description={filtersActive ? 'Clear the search or choose a different stage.' : 'Every enquiry from social, the website or a referral becomes a lead here, with a follow-up date so nothing goes cold.'}
+          action={filtersActive
+            ? <Button variant="secondary" size="sm" onClick={onClearFilters}>Clear filters</Button>
+            : <RoleGate permission="leads:manage"><Button size="sm" onClick={onCreate}>Add the first lead</Button></RoleGate>}
+        />
       </Card>
     );
   }

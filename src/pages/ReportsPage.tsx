@@ -13,6 +13,7 @@ import { reportsService } from '@/services/reports';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize, formatPercent } from '@/utils/format';
 import type { Report } from '@/types/domain';
+import { RoleGate } from '@/components/domain/RoleGate';
 
 export function ReportsPage() {
   return <RequireCompany>{(companyId) => <ReportsInner companyId={companyId} />}</RequireCompany>;
@@ -114,7 +115,7 @@ function ReportsInner({ companyId }: { companyId: string }) {
         reportsInPeriod={reportsInPeriod}
       />
 
-      <Card>
+      <Card id="report-generate">
         <CardHeader title="Generate monthly report" subtitle="Metrics are calculated for the selected period." />
         <form className="form-card form-grid" onSubmit={submit}>
           <div className="grid-2">
@@ -162,7 +163,7 @@ function ReportsInner({ companyId }: { companyId: string }) {
         </div>
       </Card>
 
-      <DataTable columns={columns} rows={reports.data ?? []} rowKey={(report) => report.id} loading={reports.loading} error={reports.error} onRetry={reports.refetch} emptyTitle="No generated reports" defaultSortKey="period" defaultSortDirection="desc" />
+      <DataTable columns={columns} rows={reports.data ?? []} rowKey={(report) => report.id} loading={reports.loading} error={reports.error} onRetry={reports.refetch} emptyTitle="No reports yet" emptyDescription="Pick a month above and generate the first one — it pulls posts, approvals and leads for the period." emptyAction={<RoleGate permission="reports:view"><Button size="sm" onClick={() => document.getElementById('report-generate')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Generate a report</Button></RoleGate>} defaultSortKey="period" defaultSortDirection="desc" />
     </>
   );
 }

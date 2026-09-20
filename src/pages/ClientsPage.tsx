@@ -108,6 +108,7 @@ function ClientsInner() {
         onRetry={clients.refetch}
         emptyTitle="No clients yet"
         emptyDescription="Add the first client to start assigning employees to it."
+        emptyAction={<Button size="sm" onClick={() => setCreateOpen(true)}>Add the first client</Button>}
         pageSize={20}
         defaultSortKey="name"
       />

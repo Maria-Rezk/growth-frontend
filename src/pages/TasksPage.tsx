@@ -76,6 +76,8 @@ function TasksInner({ companyId }: { companyId: string }) {
   const setPriority = (value: string) => setUrlFilters({ priority: value });
   const setType = (value: string) => setUrlFilters({ type: value });
   const setSearch = (value: string) => setUrlFilters({ search: value });
+  const filtersActive = Boolean(status || priority || type || search);
+  const clearFilters = () => setUrlFilters({ status: '', priority: '', type: '', search: '' });
   const debouncedSearch = useDebouncedValue(search);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -209,9 +211,25 @@ function TasksInner({ companyId }: { companyId: string }) {
           onRetry={tasks.refetch}
           assigneeName={assigneeName}
           scope={scope}
+          filtersActive={filtersActive}
+          onClearFilters={clearFilters}
+          onCreate={() => setCreateOpen(true)}
         />
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(task) => task.id} loading={tasks.loading} error={tasks.error} onRetry={tasks.refetch} emptyTitle={scope === 'mine' ? 'No tasks assigned to you' : 'No tasks found'} defaultSortKey="title" />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(task) => task.id}
+          loading={tasks.loading}
+          error={tasks.error}
+          onRetry={tasks.refetch}
+          emptyTitle={filtersActive ? 'No tasks match these filters' : scope === 'mine' ? 'No tasks assigned to you' : 'No tasks yet'}
+          emptyDescription={filtersActive ? undefined : scope === 'mine' ? 'Work assigned to you on this client shows up here.' : 'Tasks are the internal work behind every post, lead and report.'}
+          emptyAction={filtersActive
+            ? <Button variant="secondary" size="sm" onClick={clearFilters}>Clear filters</Button>
+            : <RoleGate permission="tasks:manage"><Button size="sm" onClick={() => setCreateOpen(true)}>Create the first task</Button></RoleGate>}
+          defaultSortKey="title"
+        />
       )}
       <TaskModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} members={members.data ?? []} />
     </>
@@ -231,6 +249,9 @@ function TaskBoardView({
   onRetry,
   assigneeName,
   scope,
+  filtersActive,
+  onClearFilters,
+  onCreate,
 }: {
   loading: boolean;
   refreshing: boolean;
@@ -239,6 +260,9 @@ function TaskBoardView({
   onRetry: () => void;
   assigneeName: AssigneeNameFn;
   scope: Scope;
+  filtersActive: boolean;
+  onClearFilters: () => void;
+  onCreate: () => void;
 }) {
   if (loading) return <BoardSkeleton columns={TASK_BOARD} />;
   if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
@@ -247,8 +271,11 @@ function TaskBoardView({
     return (
       <Card>
         <EmptyState
-          title={scope === 'mine' ? 'No tasks assigned to you' : 'No tasks match these filters'}
-          description="Clear the search or choose different filters."
+          title={filtersActive ? 'No tasks match these filters' : scope === 'mine' ? 'No tasks assigned to you' : 'No tasks yet'}
+          description={filtersActive ? 'Clear the search or choose different filters.' : scope === 'mine' ? 'Work assigned to you on this client shows up here.' : 'Tasks are the internal work behind every post, lead and report. Create one, or pick a responsibility area and let the matrix route it.'}
+          action={filtersActive
+            ? <Button variant="secondary" size="sm" onClick={onClearFilters}>Clear filters</Button>
+            : <RoleGate permission="tasks:manage"><Button size="sm" onClick={onCreate}>Create the first task</Button></RoleGate>}
         />
       </Card>
     );

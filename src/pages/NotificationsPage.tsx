@@ -111,7 +111,10 @@ export function NotificationsPage() {
         {markRead.error ? <p className="error-box" role="alert">{markRead.error}</p> : null}
         {markAll.error ? <p className="error-box" role="alert">{markAll.error}</p> : null}
         {!notifications.loading && !notifications.error && filteredNotifications.length === 0 ? (
-          <EmptyState title="No notifications found" description="Try changing the filters or clearing the search field." />
+          <EmptyState
+            title={(notifications.data ?? []).length === 0 ? 'Nothing yet' : 'No notifications match these filters'}
+            description={(notifications.data ?? []).length === 0 ? 'Assignments, approvals and comments land here — and in the bell at the top of every page.' : 'Try changing the filters or clearing the search field.'}
+          />
         ) : null}
         {filteredNotifications.map((notification) => (
           <NotificationItem

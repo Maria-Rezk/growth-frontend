@@ -75,6 +75,8 @@ function PostsInner({ companyId }: { companyId: string }) {
   const setStatus = (value: string) => setUrlFilters({ status: value });
   const setSearch = (value: string) => setUrlFilters({ search: value });
   const setView = (value: ViewMode) => setUrlFilters({ view: value });
+  const filtersActive = Boolean(status || search);
+  const clearFilters = () => setUrlFilters({ status: '', search: '' });
   const debouncedSearch = useDebouncedValue(search);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -161,9 +163,25 @@ function PostsInner({ companyId }: { companyId: string }) {
           error={posts.error}
           rows={rows}
           onRetry={posts.refetch}
+          filtersActive={filtersActive}
+          onClearFilters={clearFilters}
+          onCreate={() => setCreateOpen(true)}
         />
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(post) => post.id} loading={posts.loading} error={posts.error} onRetry={posts.refetch} emptyTitle="No posts found" emptyDescription="Create a draft or apply an AI content plan." defaultSortKey="title" />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(post) => post.id}
+          loading={posts.loading}
+          error={posts.error}
+          onRetry={posts.refetch}
+          emptyTitle={filtersActive ? 'No posts match these filters' : 'No content yet'}
+          emptyDescription={filtersActive ? undefined : 'Start with a draft, or generate a month of ideas in the AI studio and apply them here.'}
+          emptyAction={filtersActive
+            ? <Button variant="secondary" size="sm" onClick={clearFilters}>Clear filters</Button>
+            : <RoleGate permission="posts:create"><span className="button-row"><Button size="sm" onClick={() => setCreateOpen(true)}>Create the first draft</Button><ButtonLink to="/ai-studio" variant="secondary" size="sm">Open AI studio</ButtonLink></span></RoleGate>}
+          defaultSortKey="title"
+        />
       )}
 
       <PostFormModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} />
@@ -178,12 +196,18 @@ function PostBoardView({
   error,
   rows,
   onRetry,
+  filtersActive,
+  onClearFilters,
+  onCreate,
 }: {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
   rows: ContentPost[];
   onRetry: () => void;
+  filtersActive: boolean;
+  onClearFilters: () => void;
+  onCreate: () => void;
 }) {
   if (loading) return <BoardSkeleton columns={POST_BOARD} />;
   if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
@@ -192,8 +216,11 @@ function PostBoardView({
     return (
       <Card>
         <EmptyState
-          title="No posts match these filters"
-          description="Create a draft or apply an AI content plan."
+          title={filtersActive ? 'No posts match these filters' : 'No content yet'}
+          description={filtersActive ? 'Clear the search or pick another status.' : 'Start with a draft, or generate a month of ideas in the AI studio and apply them here.'}
+          action={filtersActive
+            ? <Button variant="secondary" size="sm" onClick={onClearFilters}>Clear filters</Button>
+            : <RoleGate permission="posts:create"><span className="button-row"><Button size="sm" onClick={onCreate}>Create the first draft</Button><ButtonLink to="/ai-studio" variant="secondary" size="sm">Open AI studio</ButtonLink></span></RoleGate>}
         />
       </Card>
     );

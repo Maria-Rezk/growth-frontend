@@ -138,6 +138,8 @@ function CampaignsInner({ companyId }: { companyId: string }) {
         error={campaigns.error}
         onRetry={campaigns.refetch}
         emptyTitle="No campaigns yet"
+        emptyDescription="A campaign groups posts, leads and tasks around one objective, so you can report on it as a whole."
+        emptyAction={<Button size="sm" onClick={() => setCreateOpen(true)}>Create the first campaign</Button>}
         defaultSortKey="name"
       />
 

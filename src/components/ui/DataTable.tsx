@@ -22,6 +22,7 @@ export function DataTable<T>({
   error,
   emptyTitle = 'No records',
   emptyDescription,
+  emptyAction,
   onRetry,
   pageSize = 10,
   defaultSortKey,
@@ -34,6 +35,8 @@ export function DataTable<T>({
   error?: string | null;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** The next thing to do when the table is empty — a button or a link. An empty page should never be a dead end. */
+  emptyAction?: ReactNode;
   onRetry?: () => void;
   pageSize?: number;
   /**
@@ -93,7 +96,7 @@ export function DataTable<T>({
 
   if (loading) return <TableSkeleton columns={columns.length} />;
   if (error) return <CardShell><ErrorState message={error} onRetry={onRetry} /></CardShell>;
-  if (!rows.length) return <CardShell><EmptyState title={emptyTitle} description={emptyDescription} /></CardShell>;
+  if (!rows.length) return <CardShell><EmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} /></CardShell>;
 
   return (
     <div className="card table-card">

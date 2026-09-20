@@ -107,6 +107,8 @@ function MembersInner({ companyId }: { companyId: string }) {
         error={members.error}
         onRetry={members.refetch}
         emptyTitle="No members found"
+        emptyDescription="Invite the client's owner and reviewers so they can approve content, and assign your team from the admin area."
+        emptyAction={canManage ? <Button size="sm" onClick={() => setInviteOpen(true)}>Invite the first member</Button> : undefined}
         defaultSortKey="member"
       />
 

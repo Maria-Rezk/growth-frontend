@@ -111,6 +111,8 @@ function EmployeesInner() {
         error={employees.error}
         onRetry={employees.refetch}
         emptyTitle="No employees yet"
+        emptyDescription="Employees are your team. Add one, then assign them to the clients they work on."
+        emptyAction={<Button size="sm" onClick={() => setCreateOpen(true)}>Add the first employee</Button>}
         pageSize={20}
         defaultSortKey="employee"
       />

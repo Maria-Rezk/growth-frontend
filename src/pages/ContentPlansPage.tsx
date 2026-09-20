@@ -97,6 +97,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
         loading={plans.loading}
         error={plans.error}
         onRetry={plans.refetch}
+        emptyAction={<RoleGate permission="posts:create"><span className="button-row"><Button size="sm" onClick={() => setCreateOpen(true)}>Create the first plan</Button><ButtonLink to="/ai-studio" variant="secondary" size="sm">Generate with AI</ButtonLink></span></RoleGate>}
         emptyTitle="No content plans yet"
         defaultSortKey="title"
         emptyDescription="Create a plan manually or generate one in the AI studio."
