@@ -57,4 +57,14 @@ export const authService = {
     const response = await http.post(apiRoutes.auth.acceptInvitation, body);
     return response.data as AcceptInvitationResult;
   },
+
+  /** Always resolves for a well-formed email; the server never says whether the account exists. */
+  async requestPasswordReset(email: string): Promise<void> {
+    if (env.demoMode) return demoDelay(undefined);
+    await http.post(apiRoutes.auth.forgotPassword, { email });
+  },
+  async resetPassword(token: string, password: string): Promise<void> {
+    if (env.demoMode) return demoDelay(undefined);
+    await http.post(apiRoutes.auth.resetPassword, { token, password });
+  },
 };

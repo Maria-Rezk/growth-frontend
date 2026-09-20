@@ -128,7 +128,7 @@ async function requestRefresh(): Promise<string | null> {
   Endpoints where a 401 is the answer, not a symptom. Retrying a rejected login
   after a refresh would be nonsense, and refreshing on a failed refresh recurses.
 */
-const NO_REFRESH_PATHS = [apiRoutes.auth.login, apiRoutes.auth.refresh, apiRoutes.auth.acceptInvitation];
+const NO_REFRESH_PATHS = [apiRoutes.auth.login, apiRoutes.auth.refresh, apiRoutes.auth.acceptInvitation, apiRoutes.auth.forgotPassword, apiRoutes.auth.resetPassword];
 
 function skipsRefresh(url?: string): boolean {
   return Boolean(url && NO_REFRESH_PATHS.some((path) => url.includes(path)));

@@ -6,6 +6,13 @@ export const apiRoutes = {
     // the role along with it — which is what makes Flow 7 actually resolve.
     refresh: '/auth/refresh',
     acceptInvitation: '/auth/accept-invitation',
+    /*
+      Password reset. Both answer 200 whatever the email, so the form
+      cannot be used to discover accounts. Not shipped on the backend yet —
+      the page turns the route miss into a sentence.
+    */
+    forgotPassword: '/auth/forgot-password',
+    resetPassword: '/auth/reset-password',
   },
   users: {
     list: '/users',

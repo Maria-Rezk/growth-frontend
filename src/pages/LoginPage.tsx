@@ -55,6 +55,7 @@ export function LoginPage() {
           {error ? <p className="error-box" role="alert">{error}</p> : null}
           <Button type="submit" loading={form.formState.isSubmitting}>Login</Button>
         </form>
+        <p className="auth-footnote"><Link to={appRoutes.forgotPassword}>Forgot your password?</Link></p>
         <p className="auth-footnote">Have an invitation? <Link to="/accept-invitation">Accept invitation</Link></p>
       </section>
     </main>

@@ -7,6 +7,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LoadingState } from '@/components/ui/State';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 
 /*
   Every page behind the login is its own chunk.
@@ -65,6 +66,7 @@ export function App() {
             inside would bounce them to /login and break the whole flow. */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>

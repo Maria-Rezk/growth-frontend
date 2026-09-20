@@ -9,6 +9,7 @@
 export const appRoutes = {
   login: '/login',
   acceptInvitation: '/accept-invitation',
+  forgotPassword: '/forgot-password',
   myWork: '/my-work',
   /** The client portal's landing page — what is waiting on the client, and what was delivered. */
   clientHome: '/home',
