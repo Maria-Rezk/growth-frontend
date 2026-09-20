@@ -142,7 +142,7 @@ function ClientHomeInner({ companyId }: { companyId: string }) {
             {latestReport ? (
               <div className="stack-list">
                 <p>
-                  <strong>{latestReport.title ?? `${monthName(latestReport.month)} ${latestReport.year}`}</strong>
+                  <Link className="table-link" to={appRoutes.report(latestReport.id)}><strong>{latestReport.title ?? `${monthName(latestReport.month)} ${latestReport.year}`}</strong></Link>
                   <span className="muted"> · generated {formatDate(latestReport.createdAt)}</span>
                 </p>
                 {latestReport.summary ? <p className="pre-wrap muted">{latestReport.summary}</p> : null}

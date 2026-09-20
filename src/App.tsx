@@ -38,6 +38,7 @@ const TasksPage = pick(() => import('@/pages/TasksPage'), 'TasksPage');
 const TaskDetailPage = pick(() => import('@/pages/TaskDetailPage'), 'TaskDetailPage');
 const ApprovalQueuePage = pick(() => import('@/pages/ApprovalQueuePage'), 'ApprovalQueuePage');
 const ReportsPage = pick(() => import('@/pages/ReportsPage'), 'ReportsPage');
+const ReportDetailPage = pick(() => import('@/pages/ReportDetailPage'), 'ReportDetailPage');
 const MembersPage = pick(() => import('@/pages/MembersPage'), 'MembersPage');
 const NotificationsPage = pick(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
 const CampaignsPage = pick(() => import('@/pages/CampaignsPage'), 'CampaignsPage');
@@ -77,6 +78,7 @@ export function App() {
             <Route path="/posts" element={<PostsPage />} />
             <Route path="/posts/:postId" element={<PostDetailPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports/:reportId" element={<ReportDetailPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
 
             {/* The agency's back office. A client-side user is sent Home. */}

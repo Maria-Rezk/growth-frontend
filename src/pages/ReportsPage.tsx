@@ -2,7 +2,8 @@ import { FormEvent, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
+import { appRoutes } from '@/config/appRoutes';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
 import { ErrorState } from '@/components/ui/State';
 import { DataTable, type Column } from '@/components/ui/DataTable';
@@ -73,6 +74,7 @@ function ReportsInner({ companyId }: { companyId: string }) {
       sortValue: (report) => report.metrics?.leads.total ?? 0,
       render: (report) => report.metrics?.leads.total ?? '—',
     },
+    { key: 'actions', header: '', className: 'cell-right', render: (report) => <ButtonLink to={appRoutes.report(report.id)} variant="secondary" size="sm">Open</ButtonLink> },
   ], []);
 
   const submit = async (event: FormEvent) => {

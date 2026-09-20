@@ -15,6 +15,7 @@ export const appRoutes = {
   posts: '/posts',
   post: (postId: string) => `/posts/${postId}`,
   reports: '/reports',
+  report: (reportId: string) => `/reports/${reportId}`,
   contentPlans: '/content-plans',
   brandProfile: '/brand-profile',
   approvals: '/approvals',
