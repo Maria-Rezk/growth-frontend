@@ -2,6 +2,7 @@ import { lazy, Suspense, type ComponentType } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { AdminRoute } from '@/components/layout/RequireAdmin';
+import { AgencyRoute, LandingRedirect } from '@/components/layout/AgencyRoute';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LoadingState } from '@/components/ui/State';
 import { LoginPage } from '@/pages/LoginPage';
@@ -44,6 +45,7 @@ const ResponsibilitiesPage = pick(() => import('@/pages/ResponsibilitiesPage'), 
 const EmployeesPage = pick(() => import('@/pages/EmployeesPage'), 'EmployeesPage');
 const ClientsPage = pick(() => import('@/pages/ClientsPage'), 'ClientsPage');
 const AdminDashboardPage = pick(() => import('@/pages/admin/AdminDashboardPage'), 'AdminDashboardPage');
+const ClientHomePage = pick(() => import('@/pages/ClientHomePage'), 'ClientHomePage');
 const AdminActivityPage = pick(() => import('@/pages/admin/AdminActivityPage'), 'AdminActivityPage');
 
 /** One fallback for every chunk: same spinner the pages themselves use while their data loads, so a slow network never shows two kinds of "loading". */
@@ -63,26 +65,34 @@ export function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
-            {/* An employee lands on their own work, not on a client they
-                first have to choose. /dashboard stays the per-client overview. */}
-            <Route index element={<Navigate to="/my-work" replace />} />
-            <Route path="/my-work" element={<MyWorkPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            {/* Staff land on their own work; a client lands on their Home.
+                /dashboard stays the per-client overview for staff. */}
+            <Route index element={<LandingRedirect />} />
+
+            {/* Shared by staff and clients: the brand's content, plans,
+                brand profile, reports and notifications. */}
+            <Route path="/home" element={<ClientHomePage />} />
             <Route path="/brand-profile" element={<BrandProfilePage />} />
             <Route path="/content-plans" element={<ContentPlansPage />} />
-            <Route path="/ai-studio" element={<AiStudioPage />} />
             <Route path="/posts" element={<PostsPage />} />
             <Route path="/posts/:postId" element={<PostDetailPage />} />
-            <Route path="/leads" element={<LeadsPage />} />
-            <Route path="/leads/:leadId" element={<LeadDetailPage />} />
-            <Route path="/tasks" element={<TasksPage />} />
-            <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
-            <Route path="/approvals" element={<ApprovalQueuePage />} />
-            <Route path="/campaigns" element={<CampaignsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/members" element={<MembersPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/responsibilities" element={<ResponsibilitiesPage />} />
+
+            {/* The agency's back office. A client-side user is sent Home. */}
+            <Route element={<AgencyRoute />}>
+              <Route path="/my-work" element={<MyWorkPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/ai-studio" element={<AiStudioPage />} />
+              <Route path="/leads" element={<LeadsPage />} />
+              <Route path="/leads/:leadId" element={<LeadDetailPage />} />
+              <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+              <Route path="/approvals" element={<ApprovalQueuePage />} />
+              <Route path="/campaigns" element={<CampaignsPage />} />
+              <Route path="/members" element={<MembersPage />} />
+              <Route path="/responsibilities" element={<ResponsibilitiesPage />} />
+            </Route>
             {/* Platform admin. Guarded as a route rather than in-page so a
                 USER who types the URL is sent away and the admin pages never
                 mount — nothing fetches on their behalf. Cosmetic, as ever: the

@@ -3664,3 +3664,17 @@ a.list-row:hover strong {
   width: 100%;
   justify-content: center;
 }
+
+/* Queue rows inside a card body that already has padding. */
+.queue-list--flush {
+  padding: 0;
+}
+
+.recommendation-list {
+  margin: 0;
+  padding-inline-start: 18px;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  display: grid;
+  gap: 4px;
+}

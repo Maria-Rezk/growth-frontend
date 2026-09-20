@@ -53,3 +53,15 @@ export const CLIENT_SIDE_ROLES: CompanyMembershipRole[] = [
   CompanyMembershipRole.CLIENT_OWNER,
   CompanyMembershipRole.CLIENT_REVIEWER,
 ];
+
+/**
+ * True when every role somebody holds on a client is a client-side one.
+ *
+ * This is the switch for the client portal: a Client Owner or Reviewer sees
+ * their brand's content, plans and reports and nothing of the agency's back
+ * office. Somebody who is also Designer on the same client is staff, and
+ * gets the full app. No roles at all is not a client — it is "not set up".
+ */
+export function isClientSideOnly(roles: CompanyMembershipRole[]): boolean {
+  return roles.length > 0 && roles.every((role) => CLIENT_SIDE_ROLES.includes(role));
+}

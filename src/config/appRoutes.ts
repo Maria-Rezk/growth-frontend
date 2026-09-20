@@ -10,6 +10,13 @@ export const appRoutes = {
   login: '/login',
   acceptInvitation: '/accept-invitation',
   myWork: '/my-work',
+  /** The client portal's landing page — what is waiting on the client, and what was delivered. */
+  clientHome: '/home',
+  posts: '/posts',
+  post: (postId: string) => `/posts/${postId}`,
+  reports: '/reports',
+  contentPlans: '/content-plans',
+  brandProfile: '/brand-profile',
   approvals: '/approvals',
   tasks: '/tasks',
   task: (taskId: string) => `/tasks/${taskId}`,

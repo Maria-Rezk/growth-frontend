@@ -5,6 +5,8 @@ type Dictionary = Record<string, string>;
 export const messages: Record<AppLanguage, Dictionary> = {
   en: {
     'nav.myWork': 'My work',
+    'nav.home': 'Home',
+    'nav.group.yourBrand': 'Your brand',
     'nav.dashboard': 'Client overview',
     'nav.brandProfile': 'Brand profile',
     'nav.contentPlans': 'Content plans',
@@ -45,6 +47,8 @@ export const messages: Record<AppLanguage, Dictionary> = {
   },
   ar: {
     'nav.myWork': 'عملي اليوم',
+    'nav.home': 'الرئيسية',
+    'nav.group.yourBrand': 'علامتك التجارية',
     'nav.dashboard': 'نظرة عامة على العميل',
     'nav.brandProfile': 'ملف العلامة التجارية',
     'nav.contentPlans': 'خطط المحتوى',

@@ -97,3 +97,19 @@ describe('getActiveRoles', () => {
     expect(getActiveRoles(undefined, 'c1')).toEqual([]);
   });
 });
+
+describe('isClientSideOnly', () => {
+  it('is true only when every held role is client-side', () => {
+    expect(isClientSideOnly([CompanyMembershipRole.CLIENT_OWNER])).toBe(true);
+    expect(isClientSideOnly([CompanyMembershipRole.CLIENT_OWNER, CompanyMembershipRole.CLIENT_REVIEWER])).toBe(true);
+  });
+
+  it('treats anyone with an agency role as staff, whatever else they hold', () => {
+    expect(isClientSideOnly([CompanyMembershipRole.CLIENT_OWNER, CompanyMembershipRole.DESIGNER])).toBe(false);
+    expect(isClientSideOnly([CompanyMembershipRole.ACCOUNT_MANAGER])).toBe(false);
+  });
+
+  it('is false for no roles — that is "not set up", not a client', () => {
+    expect(isClientSideOnly([])).toBe(false);
+  });
+});

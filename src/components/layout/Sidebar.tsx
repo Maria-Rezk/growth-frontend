@@ -5,6 +5,7 @@ import { useLocale } from '@/context/LocaleContext';
 import { useAuth } from '@/context/AuthContext';
 import { Logo } from '@/components/brand/Logo';
 import { isPlatformAdmin } from '@/types/domain';
+import { useClientView } from '@/hooks/useClientView';
 import {
   BellIcon,
   BrandIcon,
@@ -78,6 +79,25 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 /*
+  The client portal: a Client Owner or Reviewer sees their brand and nothing
+  of the agency's back office. Six entries, no groups — there is nothing to
+  group.
+*/
+const CLIENT_NAV: NavGroup[] = [
+  {
+    key: 'nav.group.yourBrand',
+    items: [
+      { to: '/home', key: 'nav.home', icon: OverviewIcon },
+      { to: '/posts', key: 'nav.posts', icon: PostIcon },
+      { to: '/content-plans', key: 'nav.contentPlans', icon: PlanIcon },
+      { to: '/brand-profile', key: 'nav.brandProfile', icon: BrandIcon },
+      { to: '/reports', key: 'nav.reports', icon: ReportIcon },
+      { to: '/notifications', key: 'nav.notifications', icon: BellIcon },
+    ],
+  },
+];
+
+/*
   Shown to both admin roles. The operations dashboard is deliberately NOT
   behind a Super Admin check — an AGENCY_ADMIN reaches every widget on it.
 */
@@ -94,13 +114,16 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const { unreadCount } = useNotifications();
   const { t } = useLocale();
   const { user } = useAuth();
-  const navGroups = isPlatformAdmin(user?.platformRole) ? [...NAV_GROUPS, PLATFORM_ADMIN_GROUP] : NAV_GROUPS;
+  const { isClient } = useClientView();
+  const navGroups = isClient
+    ? CLIENT_NAV
+    : isPlatformAdmin(user?.platformRole) ? [...NAV_GROUPS, PLATFORM_ADMIN_GROUP] : NAV_GROUPS;
 
   return (
     <aside className={open ? 'sidebar sidebar--open' : 'sidebar'}>
       {/* Plain Link, not NavLink — the brand is a shortcut home, not a nav
           item, and it should never render in the active state. */}
-      <Link to="/dashboard" className="sidebar__brand" onClick={onClose} aria-label={t('brand.home')}>
+      <Link to={isClient ? '/home' : '/dashboard'} className="sidebar__brand" onClick={onClose} aria-label={t('brand.home')}>
         <Logo height={30} />
       </Link>
 

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { companiesService } from '@/services/companies';
+import { useAuth } from '@/context/AuthContext';
 import { env } from '@/config/env';
 import { demoCompany, demoMemberships } from '@/services/demoStore';
 import type { Company, CompanyMembershipRole, Membership } from '@/types/domain';
@@ -25,8 +26,20 @@ const ACTIVE_COMPANY_KEY = 'growth.activeCompanyId';
 
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [companies, setCompanies] = useState<Company[]>(() => (env.demoMode ? [demoCompany] : []));
-  const [memberships, setMemberships] = useState<Membership[]>(() => (env.demoMode ? demoMemberships : []));
+  /*
+    Every membership row of the active client, as the API returns them. The
+    signed-in person's own row is what the gates need, and it is derived
+    below — `/companies/:id/members` lists everybody, and reading the first
+    active row as "mine" showed a Designer the Account Manager's controls.
+  */
+  const [allMemberships, setMemberships] = useState<Membership[]>(() => (env.demoMode ? demoMemberships : []));
+  const memberships = useMemo(
+    () => (userId ? allMemberships.filter((membership) => membership.userId === userId) : []),
+    [allMemberships, userId],
+  );
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(() =>
     env.demoMode ? demoCompany.id : window.localStorage.getItem(ACTIVE_COMPANY_KEY),
   );
