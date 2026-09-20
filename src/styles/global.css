@@ -3514,3 +3514,142 @@ a.list-row:hover strong {
 .attachment-row__actions .btn--ghost svg {
   margin-inline-end: 0;
 }
+
+/* ------------------------------------------------------------- Utilities */
+/* Screen-reader-only text: a label for an icon-only control, or a heading
+   that gives structure without taking space. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ----------------------------------------------------------- Phone layout */
+/* The rules below are what make the app usable one-handed. Tiles go compact
+   so the first task is above the fold, the topbar keeps the client name to
+   one line, and the board says it scrolls. */
+
+/* The wrapper is a grid item: without this its automatic minimum width is
+   the whole column strip, and the page grows to 1,700px. */
+.kanban-wrap {
+  min-width: 0;
+}
+
+/* Board: the columns already scroll sideways; on a phone nothing says so.
+   A fading edge is the affordance, and scroll-snap makes a swipe land on a
+   whole column rather than half of one. */
+.kanban {
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--s-2);
+}
+
+.kanban-column {
+  scroll-snap-align: start;
+}
+
+.board-hint {
+  display: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .kanban-wrap {
+    position: relative;
+  }
+
+  .kanban-wrap::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    width: 40px;
+    pointer-events: none;
+    background: linear-gradient(to var(--fade-direction, right), transparent, var(--canvas));
+  }
+
+  [dir='rtl'] .kanban-wrap::after {
+    --fade-direction: left;
+  }
+
+  .kanban {
+    grid-auto-columns: min(82vw, 300px);
+  }
+
+  .board-hint {
+    display: block;
+  }
+}
+
+@media (max-width: 760px) {
+  /* One line, always. The switcher shows the full name on tap. */
+  .company-switcher {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .company-switcher .input {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .topbar {
+    gap: var(--s-1);
+  }
+
+  .topbar__divider {
+    display: none;
+  }
+
+  /* The logout button keeps its icon and drops its label. */
+  .topbar .btn--ghost {
+    padding-inline: var(--s-2);
+  }
+
+  .topbar .btn--ghost .btn__label {
+    display: none;
+  }
+
+  /* KPI tiles: two per row, number beside the label, helper text hidden.
+     Three full-height tiles pushed the first real row off a phone screen. */
+  .task-alerts,
+  .stat-grid,
+  .stat-grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-2);
+  }
+
+  .task-alert,
+  .metric-card {
+    padding: var(--s-3);
+  }
+
+  .task-alert strong,
+  .metric-card strong {
+    font-size: 22px;
+    margin: 2px 0;
+  }
+
+  .task-alert p,
+  .metric-card p {
+    display: none;
+  }
+
+  /* Pipeline tiles: two per row without an orphan cell. */
+  .pipeline-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pipeline-summary__item {
+    padding: var(--s-3);
+  }
+}

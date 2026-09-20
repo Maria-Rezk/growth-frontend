@@ -31,9 +31,10 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         {user?.fullName ?? user?.email ?? t('common.user')}
       </span>
 
-      <Button variant="ghost" size="sm" onClick={logout}>
+      <Button variant="ghost" size="sm" onClick={logout} aria-label={t('common.logout')}>
         <LogoutIcon size={15} />
-        {t('common.logout')}
+        {/* Label hides under 760px; the aria-label keeps the button named. */}
+        <span className="btn__label">{t('common.logout')}</span>
       </Button>
     </header>
   );

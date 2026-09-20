@@ -14,7 +14,10 @@ export function KanbanBoard<T extends { id: string; status: string }>({
   emptyText?: string;
 }) {
   return (
-    <div className="kanban" role="list">
+    <div className="kanban-wrap">
+      {/* Phones only (CSS): the columns scroll sideways, and nothing else says so. */}
+      <p className="board-hint" aria-hidden="true">Swipe sideways for the other {columns.length - 1} stages →</p>
+      <div className="kanban" role="list">
       {columns.map((column) => {
         const columnItems = items.filter((item) => item.status === column);
         return (
@@ -29,6 +32,7 @@ export function KanbanBoard<T extends { id: string; status: string }>({
           </section>
         );
       })}
+      </div>
     </div>
   );
 }
