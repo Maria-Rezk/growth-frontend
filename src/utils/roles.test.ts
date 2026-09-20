@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CompanyMembershipRole, type Membership } from '@/types/domain';
-import { membershipRoles, rolesLabel } from '@/utils/roles';
+import { isClientSideOnly, membershipRoles, rolesLabel } from '@/utils/roles';
 import { getActiveRoles, hasPermission } from '@/utils/permissions';
 
 function membership(partial: Partial<Membership>): Membership {
