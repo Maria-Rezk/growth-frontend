@@ -54,6 +54,8 @@ export const queryKeys = {
   myWork: (companyIds: readonly string[], filters?: Record<string, unknown>) =>
     ['my-work', [...companyIds].sort().join('|'), filters ?? {}] as const,
   task: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId] as const,
+  /** Cross-client reviews waiting on me. Under MY_WORK_KEY so every task mutation refreshes it. */
+  myReviews: (companyIds: readonly string[]) => ['my-work', 'reviews', [...companyIds].sort().join('|')] as const,
   /*
     Nested under 'tasks' on purpose: every task mutation already invalidates
     ['companies', id, 'tasks'], and a verdict must drop the task out of the
