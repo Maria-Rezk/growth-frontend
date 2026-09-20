@@ -5,6 +5,9 @@ import {
   buildCampaignMetrics,
   demoCampaigns,
   demoDelay,
+  demoLeads,
+  demoPosts,
+  demoTasks,
   makeId,
 } from '@/services/demoStore';
 import type {
@@ -132,29 +135,29 @@ export const campaignsService = {
   // --- Links (attach = POST, detach = DELETE on the same path) ---
 
   async attachPost(companyId: string, campaignId: string, postId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
+    if (env.demoMode) { const post = demoPosts.find((p) => p.id === postId); if (post) post.campaignId = campaignId; return demoDelay(undefined); }
     await http.post(apiRoutes.campaigns.post(companyId, campaignId, postId));
   },
   async detachPost(companyId: string, campaignId: string, postId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
+    if (env.demoMode) { const post = demoPosts.find((p) => p.id === postId); if (post) post.campaignId = null; return demoDelay(undefined); }
     await http.delete(apiRoutes.campaigns.post(companyId, campaignId, postId));
   },
 
   async attachLead(companyId: string, campaignId: string, leadId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
+    if (env.demoMode) { const lead = demoLeads.find((l) => l.id === leadId); if (lead) lead.campaignId = campaignId; return demoDelay(undefined); }
     await http.post(apiRoutes.campaigns.lead(companyId, campaignId, leadId));
   },
   async detachLead(companyId: string, campaignId: string, leadId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
+    if (env.demoMode) { const lead = demoLeads.find((l) => l.id === leadId); if (lead) lead.campaignId = null; return demoDelay(undefined); }
     await http.delete(apiRoutes.campaigns.lead(companyId, campaignId, leadId));
   },
 
   async attachTask(companyId: string, campaignId: string, taskId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
+    if (env.demoMode) { const task = demoTasks.find((t) => t.id === taskId); if (task) task.campaignId = campaignId; return demoDelay(undefined); }
     await http.post(apiRoutes.campaigns.task(companyId, campaignId, taskId));
   },
   async detachTask(companyId: string, campaignId: string, taskId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
+    if (env.demoMode) { const task = demoTasks.find((t) => t.id === taskId); if (task) task.campaignId = null; return demoDelay(undefined); }
     await http.delete(apiRoutes.campaigns.task(companyId, campaignId, taskId));
   },
 };

@@ -42,6 +42,7 @@ const ReportDetailPage = pick(() => import('@/pages/ReportDetailPage'), 'ReportD
 const MembersPage = pick(() => import('@/pages/MembersPage'), 'MembersPage');
 const NotificationsPage = pick(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
 const CampaignsPage = pick(() => import('@/pages/CampaignsPage'), 'CampaignsPage');
+const CampaignDetailPage = pick(() => import('@/pages/CampaignDetailPage'), 'CampaignDetailPage');
 const ResponsibilitiesPage = pick(() => import('@/pages/ResponsibilitiesPage'), 'ResponsibilitiesPage');
 const EmployeesPage = pick(() => import('@/pages/EmployeesPage'), 'EmployeesPage');
 const ClientsPage = pick(() => import('@/pages/ClientsPage'), 'ClientsPage');
@@ -92,6 +93,7 @@ export function App() {
               <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
               <Route path="/approvals" element={<ApprovalQueuePage />} />
               <Route path="/campaigns" element={<CampaignsPage />} />
+              <Route path="/campaigns/:campaignId" element={<CampaignDetailPage />} />
               <Route path="/members" element={<MembersPage />} />
               <Route path="/responsibilities" element={<ResponsibilitiesPage />} />
             </Route>

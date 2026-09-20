@@ -217,6 +217,8 @@ export interface ContentPost {
   status: PostStatus;
   scheduledAt?: ISODate;
   publishedUrl?: string;
+  /** Set when the post is attached to a campaign. */
+  campaignId?: UUID | null;
   createdAt?: ISODate;
   updatedAt?: ISODate;
 }
@@ -296,6 +298,8 @@ export interface Lead {
   status: LeadStatus;
   assignedToId?: UUID;
   assignedTo?: User;
+  /** Set when the lead is attached to a campaign. */
+  campaignId?: UUID | null;
   createdAt?: ISODate;
   updatedAt?: ISODate;
 }
