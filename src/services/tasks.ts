@@ -50,6 +50,32 @@ function normalizePaginated(raw: unknown): Paginated<Task> {
   };
 }
 
+/*
+  Task comments on the wire use `comment` for the text and `userId` for the
+  author, sometimes with the user embedded as `user` — the same drift the
+  post comments have. Normalised here so the page reads `body` and `author`
+  and never has to know which spelling arrived.
+*/
+type RawTaskComment = Partial<TaskComment> & {
+  id: string;
+  taskId?: string;
+  comment?: string;
+  userId?: string;
+  user?: TaskComment['author'];
+  createdBy?: TaskComment['author'];
+};
+
+export function normalizeTaskComment(raw: RawTaskComment, taskId: string): TaskComment {
+  return {
+    id: raw.id,
+    taskId: raw.taskId ?? taskId,
+    body: raw.body ?? raw.comment ?? '',
+    authorId: raw.authorId ?? raw.userId ?? raw.author?.id ?? raw.user?.id ?? raw.createdBy?.id,
+    author: raw.author ?? raw.user ?? raw.createdBy,
+    createdAt: raw.createdAt,
+  };
+}
+
 /** Demo-only: the shape of the API's review errors, so the demo branch exercises the same handling. */
 function demoReviewError(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
   return Object.assign(new Error(message), { statusCode, code });
@@ -249,7 +275,8 @@ export const tasksService = {
   async comments(companyId: string, taskId: string): Promise<TaskComment[]> {
     if (env.demoMode) return demoDelay(demoTaskComments.filter((comment) => comment.taskId === taskId));
     const response = await http.get(apiRoutes.tasks.comments(companyId, taskId));
-    return unwrap<TaskComment[]>(response.data);
+    const raw = unwrap<RawTaskComment[]>(response.data);
+    return (Array.isArray(raw) ? raw : []).map((item) => normalizeTaskComment(item, taskId));
   },
   async addComment(companyId: string, taskId: string, body: string): Promise<TaskComment> {
     if (env.demoMode) {
@@ -259,7 +286,7 @@ export const tasksService = {
       return demoDelay(comment);
     }
     const response = await http.post(apiRoutes.tasks.comments(companyId, taskId), { comment: body });
-    return unwrap<TaskComment>(response.data);
+    return normalizeTaskComment(unwrap<RawTaskComment>(response.data), taskId);
   },
   async attachments(companyId: string, taskId: string): Promise<TaskAttachment[]> {
     if (env.demoMode) return demoDelay(demoTaskAttachments.filter((attachment) => attachment.taskId === taskId));

@@ -13,6 +13,7 @@ import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskRevie
 import { AttachmentList } from '@/components/domain/AttachmentList';
 import { Badge } from '@/components/ui/Badge';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useTaskActor } from '@/hooks/useTaskActor';
 import { tasksService } from '@/services/tasks';
 import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
@@ -48,6 +49,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   const [comment, setComment] = useState('');
+  const { userId: actorId } = useTaskActor();
 
   if (task.loading) return <LoadingState />;
   if (task.error || !task.data) return <ErrorState message={task.error ?? 'Task not found.'} onRetry={task.refetch} />;
@@ -155,7 +157,14 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
           <Card>
             <CardHeader title="Comments" />
             <div className="content-card__body stack-list">
-              <CommentsList loading={comments.loading} error={comments.error} data={comments.data} onRetry={comments.refetch} />
+              <CommentsList
+                loading={comments.loading}
+                error={comments.error}
+                data={comments.data}
+                onRetry={comments.refetch}
+                resolveName={resolveName}
+                currentUserId={actorId}
+              />
 
               <form className="inline-form" onSubmit={addComment}>
                 <Textarea
@@ -334,22 +343,32 @@ function CommentsList({
   error,
   data,
   onRetry,
+  resolveName,
+  currentUserId,
 }: {
   loading: boolean;
   error: string | null;
   data: TaskComment[] | null;
   onRetry: () => void;
+  /** Members lookup, for the common case where the API sends an author id and no object. */
+  resolveName: (id?: string | null) => string;
+  currentUserId: string | null;
 }) {
   if (loading) return <p className="muted">Loading comments…</p>;
   if (error) return <ErrorState message={error} onRetry={onRetry} />;
   if (!data?.length) return <p className="muted">No comments yet.</p>;
 
+  const authorName = (item: TaskComment) => {
+    if (item.authorId && item.authorId === currentUserId) return 'You';
+    return item.author?.fullName ?? item.author?.email ?? (item.authorId ? resolveName(item.authorId) : 'Team member');
+  };
+
   return (
     <>
       {data.map((item) => (
         <div className="comment" key={item.id}>
-          <strong>{item.author?.fullName ?? 'Team member'}</strong>
-          <p className="pre-wrap">{item.body}</p>
+          <strong>{authorName(item)}</strong>
+          <p className="pre-wrap">{item.body || <span className="muted">(empty comment)</span>}</p>
           <time>{formatDateTime(item.createdAt)}</time>
         </div>
       ))}
