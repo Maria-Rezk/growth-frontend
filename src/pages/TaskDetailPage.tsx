@@ -5,7 +5,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Select, Textarea, Input } from '@/components/ui/Fields';
-import { LoadingState, ErrorState } from '@/components/ui/State';
+import { ErrorState } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
@@ -23,6 +23,7 @@ import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
 import { TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { DetailSkeleton } from '@/components/ui/Skeleton';
 
 export function TaskDetailPage() {
   const { taskId = '' } = useParams();
@@ -53,7 +54,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const { userId: actorId } = useTaskActor();
   const confirm = useConfirm();
 
-  if (task.loading) return <LoadingState />;
+  if (task.loading) return <DetailSkeleton />;
   if (task.error || !task.data) return <ErrorState message={task.error ?? 'Task not found.'} onRetry={task.refetch} />;
 
   const current = task.data;
@@ -80,7 +81,6 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
     const result = await update.mutate(companyId, taskId, { assignedToId: assignedToId || undefined });
     if (result) {
       task.setData(result);
-      toast.success('Assignment updated.');
       await logs.refetch();
     }
   };
@@ -103,7 +103,6 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
     // Clear the input either way, so re-picking the same file re-fires change.
     input.value = '';
     if (result) {
-      toast.success('Attachment added.');
       await attachments.refetch();
     }
   };
@@ -113,7 +112,6 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
     try {
       const result = await detachMutation.mutate(companyId, taskId, attachmentId);
       if (result !== null) {
-        toast.success('Attachment removed.');
         await attachments.refetch();
       }
     } finally {

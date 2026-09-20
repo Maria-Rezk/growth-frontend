@@ -11,7 +11,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { ApprovalQueue } from '@/components/domain/ApprovalQueue';
 import { ApproverPicker } from '@/components/domain/ApproverPicker';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
@@ -32,6 +32,8 @@ import { TASK_BOARD, isOverdue } from '@/utils/workflow';
 import { formatWaiting, isInReview, isWaitingLong, needsApprover, userLabel } from '@/utils/taskReview';
 import { TaskPriority, TaskStatus, TaskType, type Membership, type Task } from '@/types/domain';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
+import { BoardSkeleton } from '@/components/ui/Skeleton';
 
 type ViewMode = 'board' | 'table';
 /** `approvals` is the review queue — what is waiting on *me* — and reads a different endpoint. */
@@ -238,7 +240,7 @@ function TaskBoardView({
   assigneeName: AssigneeNameFn;
   scope: Scope;
 }) {
-  if (loading) return <Card><LoadingState label="Loading tasks…" /></Card>;
+  if (loading) return <BoardSkeleton columns={TASK_BOARD} />;
   if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
 
   if (rows.length === 0) {
@@ -392,6 +394,8 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
     setAreaId('');
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
@@ -411,7 +415,7 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
   });
 
   return (
-    <Modal open={open} onClose={close} title="Create task" footer={<><Button variant="secondary" type="button" onClick={close}>Cancel</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading}>Create task</Button></>}>
+    <Modal open={open} onClose={cancel} title="Create task" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading}>Create task</Button></>}>
       <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
           <Input id="task-title" {...form.register('title')} />

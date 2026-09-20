@@ -248,7 +248,6 @@ function CellEditorModal({
       note: note.trim() || undefined,
     });
     if (result) {
-      toast.success('Assignment saved.');
       close();
     }
   };
@@ -257,7 +256,6 @@ function CellEditorModal({
     if (!target.cell) return;
     const ok = await clear.mutate(companyId, target.cell.assignmentId);
     if (ok !== null) {
-      toast.success('Assignment cleared.');
       close();
     }
   };

@@ -12,7 +12,7 @@ import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { Pagination } from '@/components/ui/Pagination';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -26,6 +26,8 @@ import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { LEAD_PIPELINE } from '@/utils/workflow';
 import { LeadStatus, LeadSource, type Lead } from '@/types/domain';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
+import { BoardSkeleton } from '@/components/ui/Skeleton';
 
 const STATUS_OPTIONS = Object.values(LeadStatus);
 const SOURCE_OPTIONS = Object.values(LeadSource);
@@ -248,7 +250,7 @@ function PipelineView({
   totalPages: number;
   onPageChange: (page: number) => void;
 }) {
-  if (loading) return <Card><LoadingState label="Loading pipeline…" /></Card>;
+  if (loading) return <BoardSkeleton columns={LEAD_PIPELINE} />;
   if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
 
   if (rows.length === 0) {
@@ -313,6 +315,8 @@ function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: str
     create.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
@@ -334,11 +338,11 @@ function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: str
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={cancel}
       title="Create lead"
       footer={
         <>
-          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
           <Button type="submit" form="lead-form" loading={form.formState.isSubmitting || create.loading}>Create lead</Button>
         </>
       }

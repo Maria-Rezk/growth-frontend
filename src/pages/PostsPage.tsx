@@ -11,7 +11,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -25,6 +25,8 @@ import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { POST_BOARD } from '@/utils/workflow';
 import { PostStatus, type ContentPost } from '@/types/domain';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
+import { BoardSkeleton } from '@/components/ui/Skeleton';
 
 const STATUS_OPTIONS = Object.values(PostStatus);
 type ViewMode = 'board' | 'table';
@@ -183,7 +185,7 @@ function PostBoardView({
   rows: ContentPost[];
   onRetry: () => void;
 }) {
-  if (loading) return <Card><LoadingState label="Loading board…" /></Card>;
+  if (loading) return <BoardSkeleton columns={POST_BOARD} />;
   if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
 
   if (rows.length === 0) {
@@ -255,6 +257,8 @@ function PostFormModal({ open, companyId, onClose }: { open: boolean; companyId:
     create.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
@@ -274,7 +278,7 @@ function PostFormModal({ open, companyId, onClose }: { open: boolean; companyId:
   });
 
   return (
-    <Modal open={open} onClose={close} title="Create content draft" footer={<><Button variant="secondary" type="button" onClick={close}>Cancel</Button><Button type="submit" form="post-form" loading={form.formState.isSubmitting || create.loading}>Create draft</Button></>}>
+    <Modal open={open} onClose={cancel} title="Create content draft" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="post-form" loading={form.formState.isSubmitting || create.loading}>Create draft</Button></>}>
       <form id="post-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="post-title" error={form.formState.errors.title?.message}>
           <Input id="post-title" {...form.register('title')} />

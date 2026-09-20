@@ -1,3 +1,15 @@
+/*
+  Dates follow the app's language, not the operating system's. `LocaleProvider`
+  writes the chosen language onto <html lang>, so reading it here keeps the
+  formatter in step with the toggle without threading a locale through every
+  call. Undefined (no document — tests, SSR) falls back to the runtime default.
+*/
+function appLocale(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const lang = document.documentElement.lang;
+  return lang === 'ar' ? 'ar-EG' : lang || undefined;
+}
+
 export function humanize(value?: string | null): string {
   if (!value) return '—';
   return value
@@ -11,7 +23,7 @@ export function formatDate(value?: string | null): string {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(appLocale(), {
     year: 'numeric',
     month: 'short',
     day: '2-digit',
@@ -22,7 +34,7 @@ export function formatDateTime(value?: string | null): string {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(appLocale(), {
     year: 'numeric',
     month: 'short',
     day: '2-digit',

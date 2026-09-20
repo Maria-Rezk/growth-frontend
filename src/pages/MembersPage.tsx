@@ -29,6 +29,7 @@ import {
 import { RoleChecklist, RolePills } from '@/components/domain/RoleChecklist';
 import { membershipRoles, rolesLabel } from '@/utils/roles';
 import { formatDateTime, humanize } from '@/utils/format';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
 export function MembersPage() {
   return <RequireCompany>{(companyId) => <MembersInner companyId={companyId} />}</RequireCompany>;
@@ -227,6 +228,8 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
     setResult(null);
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   const acceptUrl = result ? invitationAcceptUrl(result.invitationToken) : '';
 
@@ -243,13 +246,13 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={cancel}
       title="Invite member"
       footer={result
-        ? <Button onClick={close}>Done</Button>
+        ? <Button onClick={cancel}>Done</Button>
         : (
           <>
-            <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+            <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
             <Button form="invite-form" type="submit" loading={form.formState.isSubmitting || create.loading}>
               Create invitation
             </Button>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { notificationsService } from '@/services/notifications';
 import { queryKeys } from '@/lib/queryClient';
@@ -9,6 +9,7 @@ import type { AppNotification, NotificationType } from '@/types/domain';
 import { NotificationFilters, type NotificationFiltersValue } from '@/components/notifications/NotificationFilters';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { notificationMessage, notificationTitle } from '@/components/notifications/notificationMeta';
+import { ListSkeleton } from '@/components/ui/Skeleton';
 
 const DEFAULT_FILTERS: NotificationFiltersValue = {
   readStatus: 'ALL',
@@ -103,7 +104,7 @@ export function NotificationsPage() {
       <NotificationFilters value={filters} notificationTypes={notificationTypes} onChange={setFilters} />
 
       <Card className="notifications-list-card">
-        {notifications.loading ? <LoadingState label="Loading notifications…" /> : null}
+        {notifications.loading ? <ListSkeleton rows={6} /> : null}
         {notifications.error ? (
           <ErrorState message={notifications.error} onRetry={notifications.refetch} />
         ) : null}

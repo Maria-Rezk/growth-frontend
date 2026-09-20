@@ -26,3 +26,38 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
 }
+
+/* Layout for the composed skeletons (board, list, detail). */
+.skeleton-card {
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 8px;
+}
+
+.skeleton-gap {
+  margin-top: 8px;
+}
+
+.skeleton-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.skeleton-list-row:last-child {
+  border-bottom: 0;
+}
+
+.skeleton-list-row__main {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+}

@@ -19,6 +19,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { formatDate, humanize } from '@/utils/format';
 import { fromInputDateTime } from '@/utils/format';
 import { CampaignObjective, CampaignStatus, type Campaign } from '@/types/domain';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
 const campaignSchema = z.object({
   name: z.string().trim().min(3, 'Campaign name is required.'),
@@ -163,6 +164,8 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
     create.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   const submit = form.handleSubmit(async (values) => {
     const budgetNumber = values.budget?.trim() ? Number(values.budget) : undefined;
@@ -192,9 +195,9 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={cancel}
       title="Create campaign"
-      footer={<><Button variant="secondary" type="button" onClick={close}>Cancel</Button><Button type="submit" form="campaign-form" loading={form.formState.isSubmitting || create.loading}>Create campaign</Button></>}
+      footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="campaign-form" loading={form.formState.isSubmitting || create.loading}>Create campaign</Button></>}
     >
       <form id="campaign-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Name" htmlFor="campaign-name" error={form.formState.errors.name?.message}>

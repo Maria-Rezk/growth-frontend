@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Pagination } from '@/components/ui/Pagination';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { CheckIcon } from '@/components/ui/icons';
 import { useAsync } from '@/hooks/useAsync';
 import { useTaskReview } from '@/hooks/useTaskReview';
@@ -18,6 +18,7 @@ import type { Task } from '@/types/domain';
 import { formatDateTime, humanize } from '@/utils/format';
 import { byWaitingLongest, formatWaiting, isWaitingLong, userLabel } from '@/utils/taskReview';
 import { isOverdue } from '@/utils/workflow';
+import { ListSkeleton } from '@/components/ui/Skeleton';
 
 const PAGE_SIZE = 25;
 
@@ -62,7 +63,7 @@ export function ApprovalQueue({ companyId, compact = false }: { companyId: strin
   // One instant per render so two rows submitted a second apart do not straddle an hour boundary.
   const now = useMemo(() => Date.now(), [queue.data]);
 
-  if (queue.loading) return <Card><LoadingState label="Loading your approval queue…" /></Card>;
+  if (queue.loading) return <ListSkeleton rows={4} />;
   if (queue.error) return <Card><ErrorState message={queue.error} onRetry={queue.refetch} /></Card>;
 
   // The API already orders oldest first; sorting again costs nothing and protects the promise.

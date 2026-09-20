@@ -27,6 +27,7 @@ import {
   type DueBucket,
 } from '@/utils/dueBuckets';
 import { TaskStatus } from '@/types/domain';
+import { ListSkeleton } from '@/components/ui/Skeleton';
 
 /**
  * My work — every open task assigned to the signed-in user, across every
@@ -137,7 +138,7 @@ function MyWorkInner() {
 
   const submit = (task: MyWorkTask) => review.submit(task.clientId, task.id);
 
-  if (work.loading) return <LoadingState label="Loading your work…" />;
+  if (work.loading) return <><PageHeader title="My work" subtitle={MY_WORK_SUBTITLE} /><ListSkeleton rows={6} /></>;
   if (work.error) return <ErrorState message={work.error} onRetry={work.refetch} />;
 
   /*

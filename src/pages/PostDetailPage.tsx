@@ -4,7 +4,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
-import { LoadingState, ErrorState } from '@/components/ui/State';
+import { ErrorState } from '@/components/ui/State';
 import { Badge } from '@/components/ui/Badge';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -18,6 +18,7 @@ import { filesService } from '@/services/files';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, fromInputDateTime, humanize } from '@/utils/format';
 import { CompanyMembershipRole } from '@/types/domain';
+import { DetailSkeleton } from '@/components/ui/Skeleton';
 
 export function PostDetailPage() {
   const { postId = '' } = useParams();
@@ -51,7 +52,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   const [publishedUrl, setPublishedUrl] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
 
-  if (post.loading) return <LoadingState />;
+  if (post.loading) return <DetailSkeleton />;
   if (post.error || !post.data) return <ErrorState message={post.error ?? 'Post not found.'} onRetry={post.refetch} />;
 
   // Internal comments are filtered out for client roles.

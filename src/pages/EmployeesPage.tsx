@@ -21,6 +21,7 @@ import { RoleChecklist } from '@/components/domain/RoleChecklist';
 import { membershipRoles, rolesLabel } from '@/utils/roles';
 import { humanize } from '@/utils/format';
 import { sortByName } from '@/utils/sort';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
 export function EmployeesPage() {
   return (
@@ -170,15 +171,17 @@ function CreateEmployeeModal({ open, onClose }: { open: boolean; onClose: () => 
     create.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={cancel}
       title="Add employee"
       footer={(
         <>
-          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
           <Button form="create-employee-form" type="submit" loading={form.formState.isSubmitting || create.loading}>
             Create employee
           </Button>
@@ -261,15 +264,17 @@ function EditEmployeeModal({ employee, onClose }: { employee: Employee | null; o
     update.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, Boolean(employee));
+  const cancel = discard(close);
 
   return (
     <Modal
       open={Boolean(employee)}
-      onClose={close}
+      onClose={cancel}
       title={`Edit ${employee?.fullName ?? employee?.email ?? 'employee'}`}
       footer={(
         <>
-          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
           <Button form="edit-employee-form" type="submit" loading={form.formState.isSubmitting || update.loading}>
             Save changes
           </Button>
@@ -496,15 +501,17 @@ function AssignClientModal({ employee, onClose }: { employee: Employee | null; o
     update.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, Boolean(employee));
+  const cancel = discard(close);
 
   return (
     <Modal
       open={Boolean(employee)}
-      onClose={close}
+      onClose={cancel}
       title={`Assign ${employee?.fullName ?? employee?.email ?? 'employee'} to a client`}
       footer={(
         <>
-          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
           <Button
             form="assign-client-form"
             type="submit"

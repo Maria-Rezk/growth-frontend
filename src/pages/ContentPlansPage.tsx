@@ -16,6 +16,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { contentService } from '@/services/content';
 import { formatDateTime } from '@/utils/format';
 import type { ContentPlan } from '@/types/domain';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const now = new Date();
@@ -124,6 +125,8 @@ function PlanFormModal({ open, companyId, onClose }: { open: boolean; companyId:
     create.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
@@ -141,11 +144,11 @@ function PlanFormModal({ open, companyId, onClose }: { open: boolean; companyId:
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={cancel}
       title="Create content plan"
       footer={
         <>
-          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
           <Button type="submit" form="plan-form" loading={form.formState.isSubmitting || create.loading}>Create plan</Button>
         </>
       }

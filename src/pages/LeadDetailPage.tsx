@@ -5,7 +5,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Select, Textarea } from '@/components/ui/Fields';
-import { LoadingState, ErrorState } from '@/components/ui/State';
+import { ErrorState } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
@@ -16,6 +16,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize } from '@/utils/format';
 import { LeadStatus, type LeadNote } from '@/types/domain';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { DetailSkeleton } from '@/components/ui/Skeleton';
 
 export function LeadDetailPage() {
   const { leadId = '' } = useParams();
@@ -41,7 +42,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   const [statusNote, setStatusNote] = useState('');
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | ''>('');
 
-  if (lead.loading) return <LoadingState />;
+  if (lead.loading) return <DetailSkeleton />;
   if (lead.error || !lead.data) return <ErrorState message={lead.error ?? 'Lead not found.'} onRetry={lead.refetch} />;
 
   const currentStatus = lead.data.status;
@@ -69,7 +70,6 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
     const result = await update.mutate(companyId, leadId, { assignedToId: assignedToId || undefined });
     if (result) {
       lead.setData(result);
-      toast.success('Assignment updated.');
     }
   };
 

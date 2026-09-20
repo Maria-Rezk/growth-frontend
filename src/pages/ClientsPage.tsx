@@ -19,6 +19,7 @@ import { ADMIN_DASHBOARD_KEY, queryKeys } from '@/lib/queryClient';
 import { companiesService } from '@/services/companies';
 import type { Company } from '@/types/domain';
 import { formatDate, humanize } from '@/utils/format';
+import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
 export function ClientsPage() {
   return (
@@ -195,15 +196,17 @@ function CreateClientModal({ open, onClose }: { open: boolean; onClose: () => vo
     create.reset();
     onClose();
   };
+  const discard = useDiscardGuard(form, open);
+  const cancel = discard(close);
 
   return (
     <Modal
       open={open}
-      onClose={close}
+      onClose={cancel}
       title="Add client"
       footer={(
         <>
-          <Button variant="secondary" type="button" onClick={close}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
           <Button form="create-client-form" type="submit" loading={form.formState.isSubmitting || create.loading}>
             Add client
           </Button>
