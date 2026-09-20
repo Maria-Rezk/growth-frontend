@@ -30,6 +30,10 @@ const TYPE_META: Partial<Record<NotificationType, NotificationTypeMeta>> = {
   TASK_ASSIGNED: { tone: 'task', label: 'Task assigned', icon: <CheckIcon size={ICON_SIZE} /> },
   TASK_STATUS_CHANGED: { tone: 'task', label: 'Task status changed', icon: <RefreshIcon size={ICON_SIZE} /> },
   TASK_COMMENTED: { tone: 'task', label: 'Task commented', icon: <MessageIcon size={ICON_SIZE} /> },
+  // The internal approval gate. Submitted goes to the approver; the two verdicts go to the assignee.
+  TASK_SUBMITTED_FOR_REVIEW: { tone: 'task', label: 'Waiting for your review', icon: <ClockIcon size={ICON_SIZE} /> },
+  TASK_APPROVED: { tone: 'task', label: 'Task approved', icon: <CheckIcon size={ICON_SIZE} /> },
+  TASK_CHANGES_REQUESTED: { tone: 'task', label: 'Changes requested on a task', icon: <AlertIcon size={ICON_SIZE} /> },
 
   POST_SUBMITTED_TO_CLIENT: { tone: 'post', label: 'Post submitted for review', icon: <ArrowUpRightIcon size={ICON_SIZE} /> },
   POST_CHANGES_REQUESTED: { tone: 'post', label: 'Changes requested', icon: <AlertIcon size={ICON_SIZE} /> },
@@ -80,8 +84,9 @@ export function notificationMessage(notification: AppNotification): string {
 }
 
 export function notificationLink(notification: AppNotification): string | null {
-  const entityType = notification.relatedEntityType?.toUpperCase();
-  const entityId = notification.relatedEntityId;
+  // Newer notifications spell the target `entityType` / `entityId`; older ones `related*`. Both deep-link.
+  const entityType = (notification.relatedEntityType ?? notification.entityType)?.toUpperCase();
+  const entityId = notification.relatedEntityId ?? notification.entityId;
 
   if (!entityType || !entityId) return null;
 

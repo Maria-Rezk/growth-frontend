@@ -6,6 +6,14 @@ export interface ApiErrorShape {
   statusCode?: number;
   fieldErrors?: Record<string, string>;
   /**
+   * Machine-readable reason, when the API sends one (`APPROVER_REQUIRED`,
+   * `INVALID_TRANSITION`, …). Switch on this, never on `message` — the copy
+   * is free to change, the code is the contract.
+   */
+  code?: string;
+  /** Present on `INVALID_TRANSITION` / `REVIEW_ACTIONS_ONLY`: the status the task was in. */
+  from?: string;
+  /**
    * True when the response body was JSON — i.e. the answer came from the API
    * itself rather than from something sitting in front of it (an offline
    * tunnel, a reverse proxy, a CDN error page), which serve HTML.
@@ -349,13 +357,64 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   type: TaskType;
-  assignedToId?: UUID;
-  assignedTo?: User;
+  /** The doer. Stays on the same person through every round of review. */
+  assignedToId?: UUID | null;
+  assignedTo?: User | null;
+  /**
+   * Who must say yes. `null` means the task cannot be submitted for review —
+   * the UI has to ask for a name first. Resolved from the responsibility
+   * matrix at creation; changing the matrix later never rewrites it.
+   */
+  approverId?: UUID | null;
+  approver?: User | null;
+  /** When it was handed over. Age it for "waiting 2 days". Cleared on every verdict and on cancel. */
+  submittedForReviewAt?: ISODate | null;
+  /** The last verdict, approve or request-changes. */
+  reviewedAt?: ISODate | null;
+  /** The approver's last note. Shown while the doer reworks it; history is in the activity log. */
+  reviewNote?: string | null;
   relatedEntityType?: string;
   relatedEntityId?: UUID;
   dueDate?: ISODate;
+  campaignId?: UUID | null;
+  completedAt?: ISODate | null;
+  notes?: string | null;
+  createdById?: UUID;
+  updatedById?: UUID;
   createdAt?: ISODate;
   updatedAt?: ISODate;
+}
+
+/**
+ * Error codes the review endpoints answer with. 422s are things the user can
+ * fix on the spot; 409s mean somebody else already acted — refresh, do not
+ * retry.
+ */
+export const TaskReviewErrorCode = {
+  APPROVER_REQUIRED: 'APPROVER_REQUIRED',
+  REVIEW_NOTE_REQUIRED: 'REVIEW_NOTE_REQUIRED',
+  INVALID_TRANSITION: 'INVALID_TRANSITION',
+  REVIEW_ACTIONS_ONLY: 'REVIEW_ACTIONS_ONLY',
+} as const;
+export type TaskReviewErrorCode = (typeof TaskReviewErrorCode)[keyof typeof TaskReviewErrorCode];
+
+/** Why `resolve-approver` did or did not name somebody. Drives the picker's copy. */
+export type ApproverResolutionReason =
+  | 'RESOLVED'
+  | 'MULTIPLE_APPROVERS'
+  | 'NO_APPROVER_IN_AREA'
+  | 'NO_MATCHING_AREA'
+  | 'UNMAPPED_TASK_TYPE';
+
+export interface ApproverResolution {
+  taskType: TaskType;
+  /** Set only when exactly one active person holds TO_APPROVE in the matching area. */
+  approverId: UUID | null;
+  reason: ApproverResolutionReason;
+  areaId: UUID | null;
+  areaName: string | null;
+  /** Everybody holding TO_APPROVE in that area — the choices when there are several. */
+  candidateUserIds: UUID[];
 }
 
 export interface TaskComment {
@@ -553,6 +612,9 @@ export type NotificationType =
   | 'TASK_ASSIGNED'
   | 'TASK_STATUS_CHANGED'
   | 'TASK_COMMENTED'
+  | 'TASK_SUBMITTED_FOR_REVIEW'
+  | 'TASK_APPROVED'
+  | 'TASK_CHANGES_REQUESTED'
   | 'POST_SUBMITTED_TO_CLIENT'
   | 'POST_CHANGES_REQUESTED'
   | 'POST_APPROVED'
@@ -573,6 +635,10 @@ export interface AppNotification {
   readAt?: ISODate | null;
   relatedEntityType?: string;
   relatedEntityId?: UUID;
+  /** Newer notifications name the target as `entityType` / `entityId`; the service folds both spellings into the `related*` pair. */
+  entityType?: string;
+  entityId?: UUID;
+  metadata?: Record<string, unknown>;
   createdAt?: ISODate;
 }
 
@@ -616,10 +682,20 @@ export const RESPONSIBILITY_TYPE_LABELS: Record<ResponsibilityType, string> = {
   OTHER: 'Other',
 };
 
+/**
+ * The keys the backend matches a task type against. Area *names* are free text
+ * and differ per client ("Design", "Creative", «تصميم»), so the key is what
+ * actually routes a task to its approver.
+ */
+export const AREA_KEYS = ['DESIGN', 'COPYWRITING', 'PUBLISHING', 'REPORTING', 'CLIENT_REVIEW', 'FOLLOW_UP'] as const;
+export type AreaKey = (typeof AREA_KEYS)[number];
+
 export interface ResponsibilityArea {
   id: UUID;
   companyId: UUID;
   name: string;
+  /** Optional, upper-cased, unique per client. Null means "match by name only". */
+  areaKey?: AreaKey | string | null;
   description: string | null;
   sortOrder: number;
   isActive: boolean;
@@ -631,6 +707,8 @@ export interface ResponsibilityArea {
 
 export interface ResponsibilityAreaPayload {
   name: string;
+  /** Send `null` to clear it. */
+  areaKey?: AreaKey | null;
   description?: string;
   sortOrder?: number;
   isActive?: boolean;
@@ -692,7 +770,7 @@ export interface ResponsibilityMatrixCell {
 }
 
 export interface ResponsibilityMatrix {
-  areas: Array<{ id: UUID; name: string; sortOrder: number }>;
+  areas: Array<{ id: UUID; name: string; sortOrder: number; areaKey?: string | null }>;
   members: Array<{
     userId: UUID;
     fullName: string;
@@ -870,6 +948,14 @@ export interface ApprovalsSummary {
   clients: ApprovalsClientRow[];
 }
 
+export interface InternalApprovalByApproverRow {
+  userId: UUID;
+  fullName: string;
+  count: number;
+  oldestWaitingHours: number;
+  approverIsInactive: boolean;
+}
+
 export interface TaskHealth {
   openTotal: number;
   byStatus: Record<string, number>;
@@ -879,6 +965,21 @@ export interface TaskHealth {
   highPriority: number;
   unassigned: number;
   completedToday: number;
+  /*
+    Internal (agency-side) approval gates. Optional because a backend that
+    predates the task approval flow omits them; the widget then renders the
+    section as not available rather than as zeros.
+  */
+  /** Every task currently in review. */
+  waitingInternalApproval?: number;
+  /** Mean age of open reviews. */
+  averageInternalApprovalWaitHours?: number;
+  /** Longest wait first. Honours client and priority filters, ignores the employee filter. */
+  internalApprovalByApprover?: InternalApprovalByApproverRow[];
+  /** In review with nobody named — every pre-release review lands here, nothing was backfilled. */
+  internalApprovalWithoutApprover?: number;
+  /** Waiting on somebody who has been deactivated. */
+  internalApprovalWithInactiveApprover?: number;
 }
 
 export interface TeamWorkloadRow {

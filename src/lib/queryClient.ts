@@ -54,6 +54,16 @@ export const queryKeys = {
   myWork: (companyIds: readonly string[], filters?: Record<string, unknown>) =>
     ['my-work', [...companyIds].sort().join('|'), filters ?? {}] as const,
   task: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId] as const,
+  /*
+    Nested under 'tasks' on purpose: every task mutation already invalidates
+    ['companies', id, 'tasks'], and a verdict must drop the task out of the
+    queue without each screen remembering to say so.
+  */
+  approvalQueue: (companyId: string, params?: Record<string, unknown>) =>
+    ['companies', companyId, 'tasks', 'approval-queue', params ?? {}] as const,
+  // Under 'responsibilities' so a matrix edit re-reads who approves what.
+  resolveApprover: (companyId: string, taskType: string) =>
+    ['companies', companyId, 'responsibilities', 'resolve-approver', taskType] as const,
   reports: (companyId: string) => ['companies', companyId, 'reports'] as const,
   contentPlans: (companyId: string) => ['companies', companyId, 'content-plans'] as const,
   aiGenerations: (companyId: string) => ['companies', companyId, 'ai-generations'] as const,

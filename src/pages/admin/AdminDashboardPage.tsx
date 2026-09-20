@@ -8,6 +8,7 @@ import { CampaignsCard } from '@/components/admin/CampaignsCard';
 import { ClientHealthCard } from '@/components/admin/ClientHealthCard';
 import { ContentPipelineCard } from '@/components/admin/ContentPipelineCard';
 import { ContentPlansCard } from '@/components/admin/ContentPlansCard';
+import { InternalApprovalsCard } from '@/components/admin/InternalApprovalsCard';
 import { KpiRow } from '@/components/admin/KpiRow';
 import { LeadsCard } from '@/components/admin/LeadsCard';
 import { OverdueLeadsModal } from '@/components/admin/OverdueLeadsModal';
@@ -104,13 +105,16 @@ export function AdminDashboardPage() {
 
       <div className="grid-2">
         <ContentPipelineCard filters={sharedFilters} />
-        <ApprovalsCard filters={sharedFilters} />
-      </div>
-
-      <div className="grid-2">
-        <TaskHealthCard filters={sharedFilters} onShowAttention={showAttention} />
         <LeadsCard filters={sharedFilters} onShowOverdue={() => setOverdueLeadsOpen(true)} />
       </div>
+
+      {/* The two approval gates side by side: the client's, and the agency's own. */}
+      <div className="grid-2">
+        <ApprovalsCard filters={sharedFilters} />
+        <InternalApprovalsCard filters={sharedFilters} />
+      </div>
+
+      <TaskHealthCard filters={sharedFilters} onShowAttention={showAttention} />
 
       <section className="section-block">
         <SectionHeader

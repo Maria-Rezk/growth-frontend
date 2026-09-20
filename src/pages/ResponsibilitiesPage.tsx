@@ -12,14 +12,23 @@ import { useAsync, useMutation } from '@/hooks/useAsync';
 import { responsibilitiesService } from '@/services/responsibilities';
 import { queryKeys } from '@/lib/queryClient';
 import {
+  AREA_KEYS,
   CompanyMembershipRole,
   RESPONSIBILITY_TYPE_LABELS,
+  type AreaKey,
   type ResponsibilityArea,
   type ResponsibilityMatrix,
   type ResponsibilityMatrixCell,
   type ResponsibilityType,
 } from '@/types/domain';
 import { rolesLabel } from '@/utils/roles';
+import { humanize } from '@/utils/format';
+
+/** What each key routes: the task type that lands on this area's approver. */
+const AREA_KEY_OPTIONS: Array<{ value: AreaKey; label: string }> = AREA_KEYS.map((key) => ({
+  value: key,
+  label: `${humanize(key)} — ${humanize(key).toLowerCase()} tasks`,
+}));
 
 const TYPE_OPTIONS = Object.entries(RESPONSIBILITY_TYPE_LABELS) as Array<[ResponsibilityType, string]>;
 
@@ -150,7 +159,10 @@ function MatrixGrid({
           <tbody>
             {matrix.areas.map((area) => (
               <tr key={area.id}>
-                <th scope="row" className="raci__area-col">{area.name}</th>
+                <th scope="row" className="raci__area-col">
+                  {area.name}
+                  {area.areaKey ? <span className="raci__area-key" title={`Routes ${humanize(area.areaKey).toLowerCase()} tasks to this row's approver`}>{humanize(area.areaKey)}</span> : null}
+                </th>
                 {matrix.members.map((member) => {
                   const cell = cellMap.get(cellKey(area.id, member.userId));
                   return (
@@ -322,6 +334,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
 
   const [editing, setEditing] = useState<ResponsibilityArea | null>(null);
   const [name, setName] = useState('');
+  const [areaKey, setAreaKey] = useState('');
   const [description, setDescription] = useState('');
   const [sortOrder, setSortOrder] = useState('0');
   const [isActive, setIsActive] = useState(true);
@@ -331,6 +344,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
   const resetForm = () => {
     setEditing(null);
     setName('');
+    setAreaKey('');
     setDescription('');
     setSortOrder('0');
     setIsActive(true);
@@ -342,6 +356,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
   const startEdit = (area: ResponsibilityArea) => {
     setEditing(area);
     setName(area.name);
+    setAreaKey(area.areaKey ?? '');
     setDescription(area.description ?? '');
     setSortOrder(String(area.sortOrder));
     setIsActive(area.isActive);
@@ -365,6 +380,12 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
     }
     const payload = {
       name: trimmedName,
+      /*
+        The key is what task routing matches on — names are free text and
+        differ per client. Send `null` on edit to clear a key; omit it on
+        create when none was picked so the backend's name fallback applies.
+      */
+      ...(areaKey ? { areaKey: areaKey as AreaKey } : editing?.areaKey ? { areaKey: null } : {}),
       description: description.trim() || undefined,
       sortOrder: order,
       isActive,
@@ -411,6 +432,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
                 <strong>{area.name}</strong>
                 <p className="muted">
                   Order {area.sortOrder}
+                  {area.areaKey ? ` · routes ${humanize(area.areaKey).toLowerCase()} tasks` : ''}
                   {area.description ? ` · ${area.description}` : ''}
                 </p>
               </div>
@@ -437,6 +459,16 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
           <h3>{editing ? `Edit "${editing.name}"` : 'New area'}</h3>
           <Field label="Name" htmlFor="area-name" hint="Unique per company, 2–120 characters.">
             <Input id="area-name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={120} required />
+          </Field>
+          <Field
+            label="Task routing key"
+            htmlFor="area-key"
+            hint="Which kind of task this area approves. Without a key the backend matches on common names only; set it and “change one cell instead of forty tasks” actually works."
+          >
+            <Select id="area-key" value={areaKey} onChange={(event) => setAreaKey(event.target.value)}>
+              <option value="">No key — match by name</option>
+              {AREA_KEY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
           </Field>
           <Field label="Description (optional)" htmlFor="area-description">
             <Textarea id="area-description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} rows={2} />

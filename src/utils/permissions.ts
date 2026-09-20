@@ -10,6 +10,8 @@ export type Permission =
   | 'assets:upload'
   | 'leads:manage'
   | 'tasks:manage'
+  /** Name or change who approves a task. Account Manager (and platform admins, checked separately). */
+  | 'tasks:approver'
   | 'members:manage'
   | 'reports:view'
   | 'brand:edit';
@@ -24,6 +26,7 @@ const ROLE_PERMISSIONS: Record<CompanyMembershipRole, Permission[]> = {
     'assets:upload',
     'leads:manage',
     'tasks:manage',
+    'tasks:approver',
     'members:manage',
     'reports:view',
     'brand:edit',

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -12,9 +12,12 @@ import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
+import { ApprovalQueue } from '@/components/domain/ApprovalQueue';
+import { ApproverPicker } from '@/components/domain/ApproverPicker';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
+import { Badge } from '@/components/ui/Badge';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { applyServerFieldErrors } from '@/lib/forms';
@@ -25,11 +28,13 @@ import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
+import { formatWaiting, isInReview, isWaitingLong, needsApprover, userLabel } from '@/utils/taskReview';
 import { TaskPriority, TaskStatus, TaskType, type Membership, type Task } from '@/types/domain';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 
 type ViewMode = 'board' | 'table';
-type Scope = 'all' | 'mine';
+/** `approvals` is the review queue — what is waiting on *me* — and reads a different endpoint. */
+type Scope = 'all' | 'mine' | 'approvals';
 type AssigneeNameFn = (id?: string | null) => string;
 
 const taskSchema = z.object({
@@ -38,6 +43,7 @@ const taskSchema = z.object({
   type: z.nativeEnum(TaskType),
   priority: z.nativeEnum(TaskPriority),
   assignedToId: z.string().optional(),
+  approverId: z.string().optional(),
   dueDate: z.string().optional(),
 });
 
@@ -63,10 +69,11 @@ function TasksInner({ companyId }: { companyId: string }) {
   const [createOpen, setCreateOpen] = useState(false);
 
   const filters = { status: status || undefined, priority: priority || undefined, type: type || undefined, search: debouncedSearch || undefined };
+  const listScope = scope === 'approvals' ? 'all' : scope;
   const tasks = useAsync(
-    () => (scope === 'mine' ? tasksService.listMine(companyId, filters) : tasksService.list(companyId, filters)),
-    [companyId, scope, status, priority, type, debouncedSearch],
-    { queryKey: [...queryKeys.tasks(companyId, filters), scope] },
+    () => (listScope === 'mine' ? tasksService.listMine(companyId, filters) : tasksService.list(companyId, filters)),
+    [companyId, listScope, status, priority, type, debouncedSearch],
+    { queryKey: [...queryKeys.tasks(companyId, filters), listScope], enabled: scope !== 'approvals' },
   );
   const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
 
@@ -80,11 +87,11 @@ function TasksInner({ companyId }: { companyId: string }) {
     has chosen, but the field filters do not. One extra unfiltered request,
     cached separately.
   */
-  const alertScope = { scope };
+  const alertScope = { scope: listScope };
   const alertTasks = useAsync(
-    () => (scope === 'mine' ? tasksService.listMine(companyId) : tasksService.list(companyId)),
-    [companyId, scope],
-    { queryKey: [...queryKeys.tasks(companyId, alertScope), 'alerts'] },
+    () => (listScope === 'mine' ? tasksService.listMine(companyId) : tasksService.list(companyId)),
+    [companyId, listScope],
+    { queryKey: [...queryKeys.tasks(companyId, alertScope), 'alerts'], enabled: scope !== 'approvals' },
   );
 
   // Resolve assignedToId (a user id) to a display name using company members.
@@ -102,12 +109,15 @@ function TasksInner({ companyId }: { companyId: string }) {
   const alertRows = alertTasks.data ?? [];
   const overdueCount = alertRows.filter(isTaskOverdue).length;
   const highPriorityCount = alertRows.filter((task) => task.priority === TaskPriority.HIGH || task.priority === TaskPriority.URGENT).length;
+  // In review with nobody named — nothing will happen to these until somebody is.
+  const needsApproverCount = alertRows.filter(needsApprover).length;
 
   const columns = useMemo<Column<Task>[]>(() => [
     { key: 'title', header: 'Task', sortValue: (task) => task.title, render: (task) => <div><Link className="table-link" to={`/tasks/${task.id}`}>{task.title}</Link><p className="muted">{humanize(task.type)}</p></div> },
-    { key: 'status', header: 'Status', sortValue: (task) => task.status, render: (task) => <StatusBadge value={task.status} /> },
+    { key: 'status', header: 'Status', sortValue: (task) => task.status, render: (task) => <ReviewStatusCell task={task} /> },
     { key: 'priority', header: 'Priority', sortValue: (task) => task.priority, render: (task) => <StatusBadge value={task.priority} /> },
     { key: 'assignee', header: 'Assigned', sortValue: (task) => assigneeName(task.assignedToId), render: (task) => assigneeName(task.assignedToId) },
+    { key: 'approver', header: 'Approver', sortValue: (task) => (task.approverId ? userLabel(task.approver, assigneeName(task.approverId)) : ''), render: (task) => <ApproverCell task={task} resolveName={assigneeName} /> },
     { key: 'due', header: 'Due', sortValue: (task) => task.dueDate ?? '', render: (task) => <span className={isTaskOverdue(task) ? 'danger-text' : undefined}>{formatDateTime(task.dueDate)}</span> },
     { key: 'actions', header: '', className: 'cell-right', render: (task) => <ButtonLink to={`/tasks/${task.id}`} variant="secondary" size="sm">Open</ButtonLink> },
   ], [assigneeName]);
@@ -135,10 +145,15 @@ function TasksInner({ companyId }: { companyId: string }) {
           <strong>{alertTasks.loading ? '—' : highPriorityCount}</strong>
           <p>Urgent and high-priority items, ignoring the filters below.</p>
         </div>
+        <div className={needsApproverCount > 0 ? 'task-alert task-alert--warning card' : 'task-alert card'}>
+          <span>Needs an approver</span>
+          <strong>{alertTasks.loading ? '—' : needsApproverCount}</strong>
+          <p>In review with nobody named to approve. They wait until somebody is.</p>
+        </div>
       </div>
 
       <div className="toolbar card">
-        <div className="toolbar__filters toolbar__filters--wide">
+        <div className={scope === 'approvals' ? 'toolbar__filters' : 'toolbar__filters toolbar__filters--wide'}>
           {/* A <label htmlFor> pointing at a role="group" that has no id is a
               dangling association. SegmentedControl already names itself with
               aria-label, so this just needs a visual heading. */}
@@ -148,23 +163,33 @@ function TasksInner({ companyId }: { companyId: string }) {
               label="Task scope"
               value={scope}
               onChange={setScope}
-              options={[{ label: 'All tasks', value: 'all' }, { label: 'My tasks', value: 'mine' }]}
+              options={[
+                { label: 'All tasks', value: 'all' },
+                { label: 'My tasks', value: 'mine' },
+                { label: 'Awaiting my approval', value: 'approvals' },
+              ]}
             />
           </div>
+          {scope === 'approvals' ? null : (<>
           <Field label="Search" htmlFor="task-search"><Input id="task-search" placeholder="Search task title" value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
           <Field label="Status" htmlFor="task-filter"><Select id="task-filter" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{Object.values(TaskStatus).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
           <Field label="Priority" htmlFor="task-priority-filter"><Select id="task-priority-filter" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">All priorities</option>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
           <Field label="Type" htmlFor="task-type-filter"><Select id="task-type-filter" value={type} onChange={(event) => setType(event.target.value)}><option value="">All types</option>{Object.values(TaskType).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
+          </>)}
         </div>
-        <SegmentedControl<ViewMode>
-          label="Task view"
-          value={view}
-          onChange={setView}
-          options={[{ label: 'Board', value: 'board' }, { label: 'Table', value: 'table' }]}
-        />
+        {scope === 'approvals' ? null : (
+          <SegmentedControl<ViewMode>
+            label="Task view"
+            value={view}
+            onChange={setView}
+            options={[{ label: 'Board', value: 'board' }, { label: 'Table', value: 'table' }]}
+          />
+        )}
       </div>
 
-      {view === 'board' ? (
+      {scope === 'approvals' ? (
+        <ApprovalQueue companyId={companyId} compact />
+      ) : view === 'board' ? (
         <TaskBoardView
           loading={tasks.loading}
           refreshing={tasks.refreshing}
@@ -243,6 +268,22 @@ function TaskBoardCard({ task, assigneeName }: { task: Task; assigneeName: strin
         <span>{humanize(task.type)}</span>
         <span>{assigneeName}</span>
       </div>
+      {isInReview(task) ? (
+        <div className="kanban-card__review">
+          {needsApprover(task) ? (
+            <Badge tone="warning">Needs an approver</Badge>
+          ) : (
+            <>
+              <span className="muted">Waiting on {userLabel(task.approver)}</span>
+              <Badge tone={isWaitingLong(task.submittedForReviewAt) ? 'warning' : 'info'}>{formatWaiting(task.submittedForReviewAt)}</Badge>
+            </>
+          )}
+        </div>
+      ) : task.reviewNote && task.status !== TaskStatus.DONE && task.status !== TaskStatus.CANCELED ? (
+        <div className="kanban-card__review">
+          <Badge tone="warning">Changes requested</Badge>
+        </div>
+      ) : null}
       <div className="kanban-card__footer">
         {/* A canceled task can't be overdue — nobody is expected to finish it. */}
         <span className={isTaskOverdue(task) ? 'danger-text' : undefined}>{isTaskOverdue(task) ? 'Overdue' : 'Due'}</span>
@@ -252,12 +293,50 @@ function TaskBoardCard({ task, assigneeName }: { task: Task; assigneeName: strin
   );
 }
 
+/** Status, plus how long a review has been waiting — the number that decides who gets chased. */
+function ReviewStatusCell({ task }: { task: Task }) {
+  if (!isInReview(task)) {
+    return (
+      <span className="cell-stack">
+        <StatusBadge value={task.status} />
+        {task.reviewNote && task.status !== TaskStatus.DONE && task.status !== TaskStatus.CANCELED ? <span className="muted">Changes requested</span> : null}
+      </span>
+    );
+  }
+  return (
+    <span className="cell-stack">
+      <StatusBadge value={task.status} />
+      <span className={isWaitingLong(task.submittedForReviewAt) ? 'danger-text' : 'muted'}>waiting {formatWaiting(task.submittedForReviewAt)}</span>
+    </span>
+  );
+}
+
+function ApproverCell({ task, resolveName }: { task: Task; resolveName: AssigneeNameFn }) {
+  if (!task.approverId) {
+    return isInReview(task) ? <Badge tone="warning">Needs an approver</Badge> : <span className="muted">—</span>;
+  }
+  const inactive = task.approver?.status && task.approver.status !== 'ACTIVE';
+  return (
+    <span className="cell-stack">
+      <span>{userLabel(task.approver, resolveName(task.approverId))}</span>
+      {inactive ? <Badge tone="danger">Deactivated</Badge> : null}
+    </span>
+  );
+}
+
 function TaskModal({ open, companyId, onClose, members }: { open: boolean; companyId: string; onClose: () => void; members: Membership[] }) {
   const form = useForm<TaskForm>({
     resolver: zodResolver(taskSchema),
-    defaultValues: { title: '', description: '', type: TaskType.GENERAL, priority: TaskPriority.MEDIUM, assignedToId: '', dueDate: '' },
+    defaultValues: { title: '', description: '', type: TaskType.GENERAL, priority: TaskPriority.MEDIUM, assignedToId: '', approverId: '', dueDate: '' },
     mode: 'onBlur',
   });
+
+  // Stable, so the picker's pre-fill effect does not re-run on every render.
+  const setApprover = useCallback(
+    (userId: string) => form.setValue('approverId', userId, { shouldDirty: true }),
+    [form],
+  );
+  const watchedType = form.watch('type');
 
   /*
     The responsibility matrix decides who this work belongs to.
@@ -312,6 +391,8 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
       type: values.type,
       priority: values.priority,
       assignedToId: values.assignedToId || undefined,
+      // Empty means "let the matrix decide" — the backend resolves it again on create.
+      approverId: values.approverId || undefined,
       dueDate: fromInputDateTime(values.dueDate ?? ''),
     });
     if (result) {
@@ -376,6 +457,21 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
             <Input id="due" type="datetime-local" {...form.register('dueDate')} />
           </Field>
         </div>
+        {/*
+          Pre-filled from `resolve-approver` for the chosen type, and refilled
+          when the type changes. Whoever is picked here is who the task waits
+          on at "Submit for review"; the matrix is read once, at creation.
+        */}
+        {open ? (
+          <ApproverPicker
+            companyId={companyId}
+            taskType={watchedType}
+            members={members}
+            value={form.watch('approverId') ?? ''}
+            onChange={setApprover}
+            error={form.formState.errors.approverId?.message}
+          />
+        ) : null}
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>

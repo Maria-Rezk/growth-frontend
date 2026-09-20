@@ -46,6 +46,9 @@ export function TaskHealthCard({
             <Stat label="Urgent" value={data.urgent} tone="warning" />
             <Stat label="High priority" value={data.highPriority} />
             <Stat label="Unassigned" value={data.unassigned} tone="warning" />
+            {data.waitingInternalApproval !== undefined ? (
+              <Stat label="In review" value={data.waitingInternalApproval} tone="info" hint="Waiting on an internal approver — see “Waiting on the team”." />
+            ) : null}
             <Stat label="Completed today" value={data.completedToday} tone="success" />
           </StatStrip>
         </>

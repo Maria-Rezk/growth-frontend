@@ -186,7 +186,14 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
   }
 
   const data = error.response?.data as
-    | { message?: string | string[]; error?: string; statusCode?: number; errors?: Record<string, string | string[]> }
+    | {
+        message?: string | string[];
+        error?: string;
+        statusCode?: number;
+        code?: string;
+        from?: string;
+        errors?: Record<string, string | string[]>;
+      }
     | undefined;
 
   const messageValue = data?.message ?? data?.error;
@@ -225,6 +232,8 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
   return {
     message: networkMessage,
     statusCode: data?.statusCode ?? error.response?.status,
+    code: typeof data?.code === 'string' ? data.code : undefined,
+    from: typeof data?.from === 'string' ? data.from : undefined,
     fieldErrors: Object.keys(fieldErrors).length ? fieldErrors : undefined,
     isApiResponse,
   };
@@ -232,6 +241,16 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
 
 export function errorMessage(error: unknown): string {
   return (error as ApiErrorShape | undefined)?.message ?? 'Something went wrong.';
+}
+
+/** The API's machine-readable reason, if it sent one. Compare against a code constant, never a message. */
+export function errorCode(error: unknown): string | undefined {
+  return (error as ApiErrorShape | undefined)?.code;
+}
+
+/** True for a 409 — somebody else already acted. The right move is to refresh, not retry. */
+export function isConflict(error: unknown): boolean {
+  return (error as ApiErrorShape | undefined)?.statusCode === 409;
 }
 
 /*

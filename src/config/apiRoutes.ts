@@ -97,6 +97,18 @@ export const apiRoutes = {
     attachment: (companyId: string, taskId: string, attachmentId: string) => `/companies/${companyId}/tasks/${taskId}/attachments/${attachmentId}`,
     activityLogs: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/activity-logs`,
     myTasks: (companyId: string) => `/companies/${companyId}/tasks/my`,
+    /*
+      Review actions. `IN_REVIEW` is no longer a value the status endpoint
+      accepts in either direction (409 REVIEW_ACTIONS_ONLY) — these three are
+      the only way into and out of review. Each returns the full task.
+    */
+    submitForReview: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/submit-for-review`,
+    approve: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/approve`,
+    requestChanges: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/request-changes`,
+    /** Tasks in review where the caller is the approver, oldest submission first. Per client. */
+    approvalQueue: (companyId: string) => `/companies/${companyId}/tasks/approval-queue`,
+    /** Who the matrix says approves a task type on this client. Pre-fills the approver picker. */
+    resolveApprover: (companyId: string) => `/companies/${companyId}/tasks/resolve-approver`,
   },
   invitations: {
     list: (companyId: string) => `/companies/${companyId}/invitations`,

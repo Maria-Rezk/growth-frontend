@@ -4,11 +4,24 @@ import { http, unwrap } from '@/lib/http';
 import { demoDelay, demoNotifications } from '@/services/demoStore';
 import type { AppNotification } from '@/types/domain';
 
+/**
+ * The task-approval notifications name their target as `entityType` /
+ * `entityId`, older ones as `relatedEntityType` / `relatedEntityId`. Fold
+ * both into the `related*` pair so every reader sees one spelling.
+ */
+function normalizeNotification(raw: AppNotification): AppNotification {
+  return {
+    ...raw,
+    relatedEntityType: raw.relatedEntityType ?? raw.entityType,
+    relatedEntityId: raw.relatedEntityId ?? raw.entityId,
+  };
+}
+
 export const notificationsService = {
   async list(): Promise<AppNotification[]> {
     if (env.demoMode) return demoDelay(demoNotifications);
     const response = await http.get(apiRoutes.notifications.list);
-    return unwrap<AppNotification[]>(response.data);
+    return unwrap<AppNotification[]>(response.data).map(normalizeNotification);
   },
   async unreadCount(): Promise<number> {
     if (env.demoMode) return demoDelay(demoNotifications.filter((notification) => !notification.readAt).length);

@@ -3158,3 +3158,293 @@ a.list-row:hover strong {
     transition-duration: .01ms !important;
   }
 }
+
+/* ------------------------------------------------------ Task approval flow */
+/* A task carries a named approver. The review card owns the verdict, the
+   note banner shows the approver's last word while the doer reworks it, and
+   the queue lists what is waiting on me, oldest first. */
+
+.task-alerts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.task-alert--warning strong {
+  color: var(--warning);
+}
+
+/* Review card: a soft left rule while the task is waiting, so the state reads
+   at a glance from the column of cards on the right. */
+.review-panel--waiting {
+  border-inline-start: 3px solid var(--info);
+}
+
+.review-approver {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: 13px;
+}
+
+.review-approver__label {
+  color: var(--muted);
+}
+
+.review-approver__value {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.review-approver__value strong {
+  font-weight: 500;
+}
+
+.review-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--info-border);
+  border-radius: var(--r-md);
+  background: var(--info-soft);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.review-status svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--info);
+}
+
+.review-status p + p {
+  margin-top: var(--s-1);
+}
+
+.review-status--done {
+  border-color: var(--success-border);
+  background: var(--success-soft);
+}
+
+.review-status--done svg {
+  color: var(--success);
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.review-actions .btn svg,
+.queue-row__actions .btn svg {
+  margin-inline-end: 4px;
+}
+
+.review-actions > p {
+  flex-basis: 100%;
+  font-size: 12px;
+}
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* The approver's note, pinned above the task while it is back with the doer. */
+.review-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--warning-border);
+  border-inline-start-width: 3px;
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--ink);
+  margin-bottom: var(--s-4);
+}
+
+.review-note svg {
+  flex: none;
+  color: var(--warning);
+  margin-top: 1px;
+}
+
+.review-note__title {
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.review-note .pre-wrap {
+  font-size: 13.5px;
+}
+
+/* Board card: who it is waiting on, and for how long. */
+.kanban-card__review {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  font-size: 12px;
+}
+
+.cell-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: 12px;
+}
+
+/* Approval queue rows: the waiting age is the first thing on the row because
+   it is the number that decides the order. */
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--s-4);
+}
+
+.queue-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.queue-row:last-child {
+  border-bottom: 0;
+}
+
+.queue-row__wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--s-2) 0;
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.queue-row__wait strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.queue-row--stale .queue-row__wait {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.queue-row--stale .queue-row__wait strong {
+  color: var(--warning);
+}
+
+.queue-row__main {
+  min-width: 0;
+}
+
+.queue-row__title {
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.queue-row__title:hover {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.queue-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.queue-row__description {
+  margin-top: var(--s-1);
+  color: var(--ink-secondary);
+  font-size: 12.5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.queue-row__tags {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.queue-row__actions {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: flex-end;
+}
+
+/* Admin: internal approval breakdown. */
+.approver-row--inactive td:first-child {
+  color: var(--danger);
+}
+
+@media (max-width: 900px) {
+  .queue-row {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .queue-row__tags {
+    grid-column: 2;
+  }
+
+  .queue-row__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .task-alerts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The routing key next to an area name on the matrix — the thing that maps
+   a task type onto this row's approver. */
+.raci__area-key {
+  display: inline-block;
+  margin-inline-start: var(--s-2);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: var(--info-soft);
+  border: 1px solid var(--info-border);
+  color: var(--info);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}

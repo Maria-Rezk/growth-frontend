@@ -9,12 +9,15 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { ClientFilter, type ClientFilterValue } from '@/components/domain/ClientFilter';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useTaskReview } from '@/hooks/useTaskReview';
+import { Badge } from '@/components/ui/Badge';
 import { useCompany } from '@/context/CompanyContext';
 import { myWorkService, type MyWorkTask } from '@/services/myWork';
 import { tasksService } from '@/services/tasks';
 import { MY_WORK_KEY, queryKeys } from '@/lib/queryClient';
 import { formatDate, humanize } from '@/utils/format';
 import { needsTaskAction } from '@/utils/workflow';
+import { SUBMITTABLE_STATUSES, formatWaiting, isInReview, isWaitingLong, userLabel } from '@/utils/taskReview';
 import {
   byDueDateAscending,
   DUE_BUCKETS,
@@ -85,6 +88,14 @@ function MyWorkInner() {
     },
   });
 
+  /*
+    Submit for review is the way a task leaves my desk when somebody has to
+    sign it off. It replaces "Done" on any task that has an approver — the
+    status endpoint refuses IN_REVIEW, and DONE without a verdict would skip
+    the gate the approver was named for.
+  */
+  const review = useTaskReview();
+
   const openTasks = useMemo(
     () => (work.data?.tasks ?? []).filter(needsTaskAction),
     [work.data],
@@ -123,6 +134,8 @@ function MyWorkInner() {
     const result = await setStatus.mutate(task.clientId, task.id, status);
     if (result) toast.success(`${task.title} → ${humanize(status)}`);
   };
+
+  const submit = (task: MyWorkTask) => review.submit(task.clientId, task.id);
 
   if (work.loading) return <LoadingState label="Loading your work…" />;
   if (work.error) return <ErrorState message={work.error} onRetry={work.refetch} />;
@@ -206,15 +219,17 @@ function MyWorkInner() {
               bucket={bucket}
               tasks={[...groups[bucket]].sort((a, b) => byDueDateAscending(a.dueDate, b.dueDate))}
               showClient={client === 'all'}
-              busy={setStatus.loading}
+              busy={setStatus.loading || review.busy}
               onOpen={openTask}
               onMove={move}
+              onSubmit={submit}
             />
           ))}
         </>
       )}
 
       {setStatus.error ? <p className="error-box" role="alert">{setStatus.error}</p> : null}
+      {review.error ? <p className="error-box" role="alert">{review.error}</p> : null}
     </>
   );
 }
@@ -267,6 +282,7 @@ function DueGroup({
   busy,
   onOpen,
   onMove,
+  onSubmit,
 }: {
   bucket: DueBucket;
   tasks: MyWorkTask[];
@@ -274,6 +290,7 @@ function DueGroup({
   busy: boolean;
   onOpen: (task: MyWorkTask) => void;
   onMove: (task: MyWorkTask, status: TaskStatus) => void;
+  onSubmit: (task: MyWorkTask) => void;
 }) {
   // An empty bucket is noise, not information — the tiles above already say
   // "zero overdue" for the one case where zero is worth stating.
@@ -301,18 +318,33 @@ function DueGroup({
 
               <div className="work-row__tags">
                 {showClient ? <span className="client-tag">{task.clientName}</span> : null}
+                {task.reviewNote && !isInReview(task) ? <Badge tone="warning">Changes requested</Badge> : null}
                 <StatusBadge value={task.status} />
               </div>
 
               <div className="work-row__actions">
-                {task.status === TaskStatus.TODO ? (
-                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => onMove(task, TaskStatus.IN_PROGRESS)}>
-                    Start
-                  </Button>
-                ) : null}
-                <Button size="sm" variant="ghost" disabled={busy} onClick={() => onMove(task, TaskStatus.DONE)}>
-                  Done
-                </Button>
+                {isInReview(task) ? (
+                  <span className={isWaitingLong(task.submittedForReviewAt) ? 'muted danger-text' : 'muted'}>
+                    Waiting on {userLabel(task.approver, 'an approver')} · {formatWaiting(task.submittedForReviewAt)}
+                  </span>
+                ) : (
+                  <>
+                    {task.status === TaskStatus.TODO ? (
+                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => onMove(task, TaskStatus.IN_PROGRESS)}>
+                        Start
+                      </Button>
+                    ) : null}
+                    {task.approverId && SUBMITTABLE_STATUSES.includes(task.status) ? (
+                      <Button size="sm" disabled={busy} onClick={() => onSubmit(task)} title={`Sends it to ${userLabel(task.approver)} for approval`}>
+                        Submit for review
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => onMove(task, TaskStatus.DONE)}>
+                        Done
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
             </li>
           ))}

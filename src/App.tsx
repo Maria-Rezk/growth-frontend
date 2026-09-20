@@ -15,6 +15,7 @@ import { LeadsPage } from '@/pages/LeadsPage';
 import { LeadDetailPage } from '@/pages/LeadDetailPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { TaskDetailPage } from '@/pages/TaskDetailPage';
+import { ApprovalQueuePage } from '@/pages/ApprovalQueuePage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { MembersPage } from '@/pages/MembersPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
@@ -51,6 +52,7 @@ export function App() {
           <Route path="/leads/:leadId" element={<LeadDetailPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+          <Route path="/approvals" element={<ApprovalQueuePage />} />
           <Route path="/campaigns" element={<CampaignsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/members" element={<MembersPage />} />

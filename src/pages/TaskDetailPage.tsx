@@ -9,13 +9,16 @@ import { LoadingState, ErrorState } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
+import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskReviewPanel';
+import { Badge } from '@/components/ui/Badge';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { tasksService } from '@/services/tasks';
 import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
-import { TaskStatus, type TaskAttachment, type TaskComment } from '@/types/domain';
+import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
+import { TaskStatus, type TaskActivityLog, type TaskAttachment, type TaskComment } from '@/types/domain';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 
 export function TaskDetailPage() {
@@ -48,6 +51,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
 
   const current = task.data;
   const overdue = isOverdue(current.dueDate) && current.status !== TaskStatus.DONE && current.status !== TaskStatus.CANCELED;
+  const inReview = isInReview(current);
 
   const resolveName = (id?: string | null) => {
     if (!id) return 'Unassigned';
@@ -107,6 +111,8 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
 
       <div className="detail-grid">
         <section className="detail-main">
+          <ReviewNoteBanner task={current} />
+
           <Card>
             <CardHeader title="Task" action={<StatusBadge value={current.status} />} />
             <div className="content-card__body">
@@ -115,6 +121,13 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <div><span>Priority</span><strong><StatusBadge value={current.priority} /></strong></div>
                 <div><span>Type</span><strong>{humanize(current.type)}</strong></div>
                 <div><span>Assigned</span><strong>{resolveName(current.assignedToId)}</strong></div>
+                <div>
+                  <span>Approver</span>
+                  <strong>
+                    {current.approverId ? userLabel(current.approver, resolveName(current.approverId)) : <Badge tone="warning">Needs an approver</Badge>}
+                    {approverIsInactive(current) ? <> <Badge tone="danger">Deactivated</Badge></> : null}
+                  </strong>
+                </div>
                 <div>
                   <span>{overdue ? 'Overdue' : 'Due'}</span>
                   <strong className={overdue ? 'danger-text' : undefined}>{formatDateTime(current.dueDate)}</strong>
@@ -144,20 +157,55 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
         </section>
 
         <aside className="detail-side">
+          <TaskReviewPanel
+            companyId={companyId}
+            task={current}
+            members={members.data ?? []}
+            membersLoading={members.loading}
+            onTask={task.setData}
+            onActivity={() => void logs.refetch()}
+          />
+
           <Card>
             <CardHeader title="Status" />
             <div className="content-card__body">
               <RoleGate permission="tasks:manage" fallback={<p className="muted">Your role cannot change task status.</p>}>
-                <Field label="Status" htmlFor="task-status">
-                  <Select
-                    id="task-status"
-                    value={current.status}
-                    disabled={setStatus.loading}
-                    onChange={(event) => changeStatus(event.target.value as TaskStatus)}
-                  >
-                    {Object.values(TaskStatus).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
-                  </Select>
-                </Field>
+                {/*
+                  `IN_REVIEW` is not on offer in either direction: the status
+                  endpoint answers 409 REVIEW_ACTIONS_ONLY. While the task is in
+                  review the status is read-only and the review card above owns
+                  the verdict; the one status still allowed from here is Cancel.
+                */}
+                {inReview ? (
+                  <div className="stack-list">
+                    <p className="muted">
+                      In review — waiting on {userLabel(current.approver, 'an approver')}. Approve or request changes from the review card.
+                    </p>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      loading={setStatus.loading}
+                      onClick={() => {
+                        if (window.confirm('Cancel this task? It leaves the approval queue and the waiting clock is cleared.')) {
+                          void changeStatus(TaskStatus.CANCELED);
+                        }
+                      }}
+                    >
+                      Cancel task
+                    </Button>
+                  </div>
+                ) : (
+                  <Field label="Status" htmlFor="task-status" hint="Review is entered with “Submit for review”, not from here.">
+                    <Select
+                      id="task-status"
+                      value={current.status}
+                      disabled={setStatus.loading}
+                      onChange={(event) => changeStatus(event.target.value as TaskStatus)}
+                    >
+                      {STATUS_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
+                    </Select>
+                  </Field>
+                )}
                 {setStatus.error ? <p className="error-box" role="alert">{setStatus.error}</p> : null}
               </RoleGate>
             </div>
@@ -216,7 +264,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <ErrorState message={logs.error} onRetry={logs.refetch} />
               ) : (
                 <Timeline
-                  items={(logs.data ?? []).map((item) => ({ id: item.id, title: humanize(item.action), createdAt: item.createdAt }))}
+                  items={(logs.data ?? []).map((item) => ({ id: item.id, ...describeActivity(item, resolveName), createdAt: item.createdAt }))}
                   empty={logs.loading ? 'Loading activity…' : 'No activity yet.'}
                 />
               )}
@@ -226,6 +274,37 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
       </div>
     </>
   );
+}
+
+/**
+ * The audit trail in words. The review rows carry who approved and what they
+ * said, which is the whole point of recording them — "Approved by Omar" as a
+ * row, not a comment somebody has to scroll for.
+ */
+function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null) => string): { title: string; body?: string } {
+  const meta = (log.metadata ?? {}) as Record<string, unknown>;
+  const approver = typeof meta.approverId === 'string' ? resolveName(meta.approverId) : null;
+  switch (log.action) {
+    case 'TASK_SUBMITTED_FOR_REVIEW':
+      return { title: 'Submitted for review', body: approver ? `Waiting on ${approver}` : undefined };
+    case 'TASK_APPROVED':
+      return { title: approver ? `Approved by ${approver}` : 'Approved' };
+    case 'TASK_CHANGES_REQUESTED':
+      return { title: approver ? `Changes requested by ${approver}` : 'Changes requested', body: typeof meta.note === 'string' ? meta.note : undefined };
+    case 'TASK_APPROVER_CHANGED':
+      return {
+        title: 'Approver changed',
+        body: `${typeof meta.from === 'string' ? resolveName(meta.from) : 'Nobody'} → ${typeof meta.to === 'string' ? resolveName(meta.to) : 'Nobody'}`,
+      };
+    case 'CREATED':
+    case 'TASK_CREATED':
+      return {
+        title: 'Created',
+        body: approver ? `Approver: ${approver}${meta.approverResolvedFromMatrix ? ' (from the responsibility matrix)' : ''}` : undefined,
+      };
+    default:
+      return { title: humanize(log.action) };
+  }
 }
 
 /** Previously `comments.data?.map()` with no empty and no error branch. */

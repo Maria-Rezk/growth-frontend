@@ -196,10 +196,15 @@ export let demoLeadHistory: LeadStatusHistory[] = [
   { id: 'lead-history-2', leadId: 'lead-1', fromStatus: 'CONTACTED', toStatus: 'INTERESTED', changedById: 'demo-user', changedBy: demoUser, createdAt: iso(-3) },
 ];
 
+/** The user object behind a demo membership, for `approver` / `assignedTo` relations. */
+export function demoMemberUser(userId: string): User | null {
+  return demoMemberships.find((membership) => membership.userId === userId)?.user ?? null;
+}
+
 export let demoTasks: Task[] = [
-  { id: 'task-1', companyId: demoCompany.id, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_PROGRESS', priority: 'HIGH', type: 'DESIGN', assignedToId: 'demo-designer', assignedTo: demoMemberships[1].user, relatedEntityType: 'POST', relatedEntityId: 'post-1', dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
-  { id: 'task-2', companyId: demoCompany.id, title: 'Follow up with Nour Clinic', description: 'Send proposal summary and confirm decision timeline.', status: 'TODO', priority: 'URGENT', type: 'FOLLOW_UP', assignedToId: 'demo-user', assignedTo: demoUser, relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', dueDate: iso(2), createdAt: iso(-1), updatedAt: iso(-1) },
-  { id: 'task-3', companyId: demoCompany.id, title: 'Prepare monthly report notes', description: 'Write recommendations based on content and lead conversion performance.', status: 'TODO', priority: 'MEDIUM', type: 'REPORTING', assignedToId: 'demo-user', assignedTo: demoUser, dueDate: iso(4), createdAt: iso(-3), updatedAt: iso(-3) },
+  { id: 'task-1', companyId: demoCompany.id, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_REVIEW', priority: 'HIGH', type: 'DESIGN', assignedToId: 'demo-designer', assignedTo: demoMemberships[1].user, approverId: demoUser.id, approver: demoUser, submittedForReviewAt: iso(-1), reviewedAt: null, reviewNote: null, relatedEntityType: 'POST', relatedEntityId: 'post-1', dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
+  { id: 'task-2', companyId: demoCompany.id, title: 'Follow up with Nour Clinic', description: 'Send proposal summary and confirm decision timeline.', status: 'IN_PROGRESS', priority: 'URGENT', type: 'FOLLOW_UP', assignedToId: 'demo-user', assignedTo: demoUser, approverId: 'demo-designer', approver: demoMemberships[1].user, submittedForReviewAt: null, reviewedAt: iso(-1), reviewNote: 'Add the pricing table before it goes out.', relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', dueDate: iso(2), createdAt: iso(-1), updatedAt: iso(-1) },
+  { id: 'task-3', companyId: demoCompany.id, title: 'Prepare monthly report notes', description: 'Write recommendations based on content and lead conversion performance.', status: 'TODO', priority: 'MEDIUM', type: 'REPORTING', assignedToId: 'demo-user', assignedTo: demoUser, approverId: null, approver: null, submittedForReviewAt: null, reviewedAt: null, reviewNote: null, dueDate: iso(4), createdAt: iso(-3), updatedAt: iso(-3) },
 ];
 
 export let demoTaskComments: TaskComment[] = [
