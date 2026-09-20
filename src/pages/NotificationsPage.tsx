@@ -10,6 +10,8 @@ import { NotificationFilters, type NotificationFiltersValue } from '@/components
 import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { notificationMessage, notificationTitle } from '@/components/notifications/notificationMeta';
 import { ListSkeleton } from '@/components/ui/Skeleton';
+import { NotificationPreferences } from '@/components/notifications/NotificationPreferences';
+import { useNotifications } from '@/context/NotificationsContext';
 
 const DEFAULT_FILTERS: NotificationFiltersValue = {
   readStatus: 'ALL',
@@ -58,14 +60,17 @@ export function NotificationsPage() {
     return Array.from(types).sort();
   }, [notifications.data]);
 
+  const { isVisible } = useNotifications();
+  const visibleNotifications = useMemo(() => (notifications.data ?? []).filter(isVisible), [isVisible, notifications.data]);
+
   const filteredNotifications = useMemo(
-    () => (notifications.data ?? []).filter((notification) => matchesFilters(notification, filters)),
-    [filters, notifications.data],
+    () => visibleNotifications.filter((notification) => matchesFilters(notification, filters)),
+    [filters, visibleNotifications],
   );
 
   const unreadCount = useMemo(
-    () => (notifications.data ?? []).filter((notification) => !notification.readAt).length,
-    [notifications.data],
+    () => visibleNotifications.filter((notification) => !notification.readAt).length,
+    [visibleNotifications],
   );
 
   return (
@@ -136,6 +141,7 @@ export function NotificationsPage() {
           />
         ))}
       </Card>
+      <NotificationPreferences />
     </>
   );
 }

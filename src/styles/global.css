@@ -3941,3 +3941,26 @@ a.list-row:hover strong {
     justify-content: flex-start;
   }
 }
+
+/* ---------------------------------------------- Notification preferences */
+.prefs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-4);
+}
+
+.prefs-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-1);
+}
+
+.prefs-group legend {
+  margin-bottom: var(--s-2);
+}
+
+.prefs-row {
+  font-size: 13px;
+}

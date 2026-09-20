@@ -61,6 +61,9 @@ const TONE_LABELS: Record<NotificationTone, string> = {
   report: 'Report',
 };
 
+/** Every type the app knows how to label, grouped — the rows of the preferences card. */
+export const NOTIFICATION_TYPES = Object.keys(TYPE_META) as NotificationType[];
+
 export function notificationTypeLabel(type: NotificationType): string {
   return TYPE_META[type]?.label ?? humanize(type);
 }
