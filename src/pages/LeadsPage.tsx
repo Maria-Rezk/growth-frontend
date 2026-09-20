@@ -25,9 +25,14 @@ import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { LEAD_PIPELINE } from '@/utils/workflow';
-import { LeadStatus, LeadSource, type Lead } from '@/types/domain';
+import { LeadStatus, LeadSource, type Lead, type Membership } from '@/types/domain';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 import { BoardSkeleton } from '@/components/ui/Skeleton';
+import { useTaskActor } from '@/hooks/useTaskActor';
+import { Badge } from '@/components/ui/Badge';
+import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { contactLinks, followUpBucket, isAdrift, isOpenLead, looksLikeDuplicate, type FollowUpBucket } from '@/utils/leadFollowUp';
+import { formatWaiting } from '@/utils/taskReview';
 
 const STATUS_OPTIONS = Object.values(LeadStatus);
 const SOURCE_OPTIONS = Object.values(LeadSource);
@@ -47,6 +52,7 @@ const leadSchema = z.object({
   interestedService: z.string().optional(),
   notes: z.string().optional(),
   nextFollowUpAt: z.string().optional(),
+  assignedToId: z.string().optional(),
 });
 
 type LeadForm = z.infer<typeof leadSchema>;
@@ -55,13 +61,18 @@ export function LeadsPage() {
   return <RequireCompany>{(companyId) => <LeadsInner companyId={companyId} />}</RequireCompany>;
 }
 
-const LEAD_FILTER_DEFAULTS = { status: '', source: '', search: '', view: 'pipeline', page: '1' } as const;
+const LEAD_FILTER_DEFAULTS = { status: '', source: '', search: '', view: 'pipeline', page: '1', scope: 'all', due: '' } as const;
+type Scope = 'all' | 'mine';
+type DueFilter = '' | 'overdue' | 'today' | 'week' | 'none';
 
 function LeadsInner({ companyId }: { companyId: string }) {
   // Filters and the page live in the URL so a filtered pipeline is a link,
   // and Back from a lead lands on the same page of the same list.
   const [urlFilters, setUrlFilters] = useUrlFilters<Record<keyof typeof LEAD_FILTER_DEFAULTS, string>>(LEAD_FILTER_DEFAULTS);
   const { status, source, search } = urlFilters;
+  const scope = (urlFilters.scope === 'mine' ? 'mine' : 'all') as Scope;
+  const due = (['overdue', 'today', 'week', 'none'].includes(urlFilters.due) ? urlFilters.due : '') as DueFilter;
+  const { userId } = useTaskActor();
   const view = (urlFilters.view === 'table' ? 'table' : 'pipeline') as ViewMode;
   const page = Math.max(1, Number.parseInt(urlFilters.page, 10) || 1);
   const setStatus = (value: string) => setUrlFilters({ status: value });
@@ -69,6 +80,8 @@ function LeadsInner({ companyId }: { companyId: string }) {
   const setSearch = (value: string) => setUrlFilters({ search: value });
   const setView = (value: ViewMode) => setUrlFilters({ view: value });
   const setPage = (value: number) => setUrlFilters({ page: String(value) });
+  const setScope = (value: Scope) => setUrlFilters({ scope: value, page: '1' });
+  const setDue = (value: DueFilter) => setUrlFilters({ due: value, page: '1' });
   const debouncedSearch = useDebouncedValue(search);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -77,6 +90,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
     status: status || undefined,
     source: source || undefined,
     search: debouncedSearch || undefined,
+    assignedToId: scope === 'mine' && userId ? userId : undefined,
     limit: pageSize,
     offset: (page - 1) * pageSize,
   };
@@ -107,6 +121,22 @@ function LeadsInner({ companyId }: { companyId: string }) {
     { queryKey: queryKeys.companyMembers(companyId) },
   );
 
+  /*
+    The follow-up tiles are the agent's day: overdue, today, this week, and
+    the leads nobody has scheduled. They read an unfiltered list (scope only,
+    like the task alerts) so a status filter cannot make "overdue" read 0.
+  */
+  const allLeads = useAsync(
+    () => leadsService.list(companyId, scope === 'mine' && userId ? { assignedToId: userId } : undefined),
+    [companyId, scope, userId],
+    { queryKey: [...queryKeys.leads(companyId, { scope, userId }), 'follow-up'] },
+  );
+  const followUp = useMemo(() => {
+    const open = (allLeads.data ?? []).filter(isOpenLead);
+    const count = (bucket: FollowUpBucket) => open.filter((lead) => followUpBucket(lead) === bucket).length;
+    return { overdue: count('overdue'), today: count('today'), week: count('week'), none: open.filter(isAdrift).length };
+  }, [allLeads.data]);
+
   // Any filter or view change restarts from page 1 so offsets stay valid.
   const setStatusFilter = (value: string) => { setStatus(value); setPage(1); };
   const setSourceFilter = (value: string) => { setSource(value); setPage(1); };
@@ -124,7 +154,10 @@ function LeadsInner({ companyId }: { companyId: string }) {
     };
   }, [members.data, members.loading]);
 
-  const rows = leads.data?.items ?? [];
+  const fetched = leads.data?.items ?? [];
+  const rows = due
+    ? fetched.filter((lead) => (due === 'none' ? isAdrift(lead) : followUpBucket(lead) === due))
+    : fetched;
   const total = leads.data?.total ?? rows.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -133,6 +166,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
     { key: 'source', header: 'Source', sortValue: (lead) => lead.source ?? '', render: (lead) => lead.source ? humanize(lead.source) : '—' },
     { key: 'status', header: 'Status', sortValue: (lead) => lead.status, render: (lead) => <StatusBadge value={lead.status} /> },
     { key: 'assigned', header: 'Assigned', sortValue: (lead) => assigneeName(lead.assignedToId), render: (lead) => assigneeName(lead.assignedToId) },
+    { key: 'followUp', header: 'Next follow-up', sortValue: (lead) => lead.nextFollowUpAt ?? '', render: (lead) => <FollowUpCell lead={lead} /> },
     { key: 'created', header: 'Created', sortValue: (lead) => lead.createdAt ?? '', render: (lead) => formatDateTime(lead.createdAt) },
     { key: 'actions', header: '', className: 'cell-right', render: (lead) => <ButtonLink to={`/leads/${lead.id}`} variant="secondary" size="sm">Open</ButtonLink> },
   ], [assigneeName]);
@@ -148,6 +182,13 @@ function LeadsInner({ companyId }: { companyId: string }) {
           </RoleGate>
         }
       />
+
+      <div className="task-alerts task-alerts--4">
+        <DueTile label="Overdue" value={followUp.overdue} tone="danger" active={due === 'overdue'} onClick={() => setDue(due === 'overdue' ? '' : 'overdue')} helper="Follow-up date has passed." loading={allLeads.loading} />
+        <DueTile label="Due today" value={followUp.today} tone="warning" active={due === 'today'} onClick={() => setDue(due === 'today' ? '' : 'today')} helper="Contact them before the day ends." loading={allLeads.loading} />
+        <DueTile label="This week" value={followUp.week} tone="info" active={due === 'week'} onClick={() => setDue(due === 'week' ? '' : 'week')} helper="Within the next seven days." loading={allLeads.loading} />
+        <DueTile label="No follow-up set" value={followUp.none} tone="neutral" active={due === 'none'} onClick={() => setDue(due === 'none' ? '' : 'none')} helper="Open leads nobody has scheduled." loading={allLeads.loading} />
+      </div>
 
       <div className="pipeline-summary card">
         {LEAD_PIPELINE.map((item) => (
@@ -165,7 +206,16 @@ function LeadsInner({ companyId }: { companyId: string }) {
       </div>
 
       <div className="toolbar card">
-        <div className="toolbar__filters">
+        <div className="toolbar__filters toolbar__filters--wide">
+          <div className="field">
+            <span className="field__label">Scope</span>
+            <SegmentedControl<Scope>
+              label="Lead scope"
+              value={scope}
+              onChange={setScope}
+              options={[{ label: 'All leads', value: 'all' }, { label: 'My leads', value: 'mine' }]}
+            />
+          </div>
           <Field label="Search" htmlFor="lead-search">
             <Input id="lead-search" placeholder="Search name or contact" value={search} onChange={(event) => setSearchFilter(event.target.value)} />
           </Field>
@@ -226,7 +276,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
         </>
       )}
 
-      <LeadModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} />
+      <LeadModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} members={members.data ?? []} existing={allLeads.data ?? []} />
     </>
   );
 }
@@ -306,20 +356,30 @@ function LeadBoardCard({ lead, assigneeName }: { lead: Lead; assigneeName: strin
         <span>{lead.source ? humanize(lead.source) : 'No source'}</span>
         <span>{assigneeName}</span>
       </div>
+      <ContactRow lead={lead} />
       <div className="kanban-card__footer">
-        <span>Updated</span>
-        <strong>{formatDateTime(lead.updatedAt ?? lead.createdAt)}</strong>
+        <FollowUpCell lead={lead} compact />
       </div>
     </Link>
   );
 }
 
-function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: string; onClose: () => void }) {
+function LeadModal({ open, companyId, onClose, members, existing }: { open: boolean; companyId: string; onClose: () => void; members: Membership[]; existing: Lead[] }) {
+  const { userId } = useTaskActor();
   const form = useForm<LeadForm>({
     resolver: zodResolver(leadSchema),
-    defaultValues: { name: '', email: '', phone: '', source: LeadSource.INSTAGRAM, interestedService: '', notes: '', nextFollowUpAt: '' },
+    // A lead is born owned: whoever adds it follows it up, unless they say otherwise.
+    defaultValues: { name: '', email: '', phone: '', source: LeadSource.INSTAGRAM, interestedService: '', notes: '', nextFollowUpAt: '', assignedToId: userId ?? '' },
     mode: 'onBlur',
   });
+
+  // "Looks like Nour Clinic (Contacted, 3 days ago)" — before the second record exists.
+  const watchedEmail = form.watch('email');
+  const watchedPhone = form.watch('phone');
+  const duplicate = useMemo(
+    () => existing.find((lead) => looksLikeDuplicate({ email: watchedEmail, phone: watchedPhone }, lead)) ?? null,
+    [existing, watchedEmail, watchedPhone],
+  );
 
   const create = useMutation(leadsService.create, {
     // Prefix key: refreshes every filtered list AND the pipeline counts.
@@ -346,6 +406,7 @@ function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: str
       interestedService: values.interestedService,
       notes: values.notes,
       nextFollowUpAt: fromInputDateTime(values.nextFollowUpAt ?? ''),
+      assignedToId: values.assignedToId || undefined,
       // no status — backend sets NEW
     });
     if (result) {
@@ -388,8 +449,28 @@ function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: str
             <Input id="lead-followup" type="datetime-local" {...form.register('nextFollowUpAt')} />
           </Field>
         </div>
+        {duplicate ? (
+          <div className="review-note review-note--inline" role="status">
+            <div>
+              <p className="review-note__title">Looks like an existing lead</p>
+              <p>
+                <Link className="table-link" to={`/leads/${duplicate.id}`}>{duplicate.name}</Link> has the same {duplicate.email && duplicate.email.toLowerCase() === (watchedEmail ?? '').trim().toLowerCase() ? 'email' : 'phone'} —
+                {' '}{humanize(duplicate.status)}, updated {formatDateTime(duplicate.updatedAt ?? duplicate.createdAt)}. Open it instead of creating a second one.
+              </p>
+            </div>
+          </div>
+        ) : null}
         <Field label="Interested service" htmlFor="lead-service" hint="What the lead asked about.">
           <Input id="lead-service" {...form.register('interestedService')} />
+        </Field>
+        <Field label="Assigned to" htmlFor="lead-assignee" hint="Who follows this lead up. Defaults to you.">
+          <Select
+            id="lead-assignee"
+            value={assigneeValueFor(members, form.watch('assignedToId'))}
+            onChange={(event) => form.setValue('assignedToId', assigneeUserId(event.target.value), { shouldDirty: true })}
+          >
+            <AssigneeOptions members={members} />
+          </Select>
         </Field>
         <Field label="Notes" htmlFor="lead-notes">
           <Textarea id="lead-notes" rows={3} {...form.register('notes')} />
@@ -397,5 +478,52 @@ function LeadModal({ open, companyId, onClose }: { open: boolean; companyId: str
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>
+  );
+}
+
+
+/** One of the four follow-up tiles. Pressed = the list is filtered to it. */
+function DueTile({ label, value, helper, tone, active, onClick, loading }: { label: string; value: number; helper: string; tone: 'danger' | 'warning' | 'info' | 'neutral'; active: boolean; onClick: () => void; loading: boolean }) {
+  return (
+    <button type="button" className={`task-alert card due-tile due-tile--${tone}${active ? ' due-tile--active' : ''}`} onClick={onClick} aria-pressed={active}>
+      <span>{label}</span>
+      <strong>{loading ? '—' : value}</strong>
+      <p>{helper}</p>
+    </button>
+  );
+}
+
+/** The follow-up date with its urgency: red when past, amber today, plain otherwise, and "not set" when adrift. */
+function FollowUpCell({ lead, compact = false }: { lead: Lead; compact?: boolean }) {
+  const bucket = followUpBucket(lead);
+  if (!isOpenLead(lead)) return <span className="muted">{compact ? 'Closed' : '—'}</span>;
+  if (!lead.nextFollowUpAt) return <Badge tone="warning">No follow-up set</Badge>;
+  if (bucket === 'overdue') {
+    return (
+      <span className="cell-stack">
+        <span className="danger-text">{formatDateTime(lead.nextFollowUpAt)}</span>
+        <span className="danger-text">overdue by {formatWaiting(lead.nextFollowUpAt)}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="cell-stack">
+      <span>{formatDateTime(lead.nextFollowUpAt)}</span>
+      {bucket === 'today' ? <Badge tone="warning">Today</Badge> : null}
+    </span>
+  );
+}
+
+/** Tap-to-contact on the card. Stops the click from opening the card. */
+function ContactRow({ lead }: { lead: Lead }) {
+  const links = contactLinks(lead);
+  if (!links.email && !links.phone && !links.whatsapp) return null;
+  const stop = (event: React.MouseEvent) => event.stopPropagation();
+  return (
+    <div className="contact-row" onClick={stop}>
+      {links.whatsapp ? <a href={links.whatsapp} target="_blank" rel="noopener noreferrer" onClick={stop}>WhatsApp</a> : null}
+      {links.phone ? <a href={links.phone} onClick={stop}>Call</a> : null}
+      {links.email ? <a href={links.email} onClick={stop}>Email</a> : null}
+    </div>
   );
 }

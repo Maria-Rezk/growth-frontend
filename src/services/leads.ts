@@ -179,6 +179,7 @@ export const leadsService = {
       interestedService: payload.interestedService || undefined,
       notes: payload.notes || undefined,
       nextFollowUpAt: payload.nextFollowUpAt || undefined,
+      assignedToId: payload.assignedToId || undefined,
     };
     const response = await http.post(apiRoutes.leads.list(companyId), body);
     return unwrap<Lead>(response.data);

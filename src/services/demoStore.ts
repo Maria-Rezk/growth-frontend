@@ -184,8 +184,8 @@ export let demoPostAssets: PostAsset[] = [
 ];
 
 export let demoLeads: Lead[] = [
-  { id: 'lead-1', companyId: demoCompany.id, name: 'Nour Clinic', email: 'hello@nourclinic.com', phone: '+963 999 111 222', source: 'Instagram DM', status: 'INTERESTED', assignedToId: 'demo-user', assignedTo: demoUser, createdAt: iso(-10), updatedAt: iso(-1) },
-  { id: 'lead-2', companyId: demoCompany.id, name: 'Alpha Retail', email: 'contact@alpharetail.com', phone: '+963 999 333 444', source: 'Website', status: 'CONTACTED', assignedToId: 'demo-user', assignedTo: demoUser, createdAt: iso(-5), updatedAt: iso(-2) },
+  { id: 'lead-1', companyId: demoCompany.id, name: 'Nour Clinic', email: 'hello@nourclinic.com', phone: '+963 999 111 222', source: 'Instagram DM', status: 'INTERESTED', nextFollowUpAt: iso(-1), assignedToId: 'demo-user', assignedTo: demoUser, createdAt: iso(-10), updatedAt: iso(-1) },
+  { id: 'lead-2', companyId: demoCompany.id, name: 'Alpha Retail', email: 'contact@alpharetail.com', phone: '+963 999 333 444', source: 'Website', status: 'CONTACTED', nextFollowUpAt: iso(0), assignedToId: 'demo-user', assignedTo: demoUser, createdAt: iso(-5), updatedAt: iso(-2) },
   { id: 'lead-3', companyId: demoCompany.id, name: 'Daleel Chicago', source: 'Referral', status: 'NEW', createdAt: iso(-1), updatedAt: iso(-1) },
 ];
 

@@ -4036,3 +4036,55 @@ a.list-row:hover strong {
   padding: var(--s-2) var(--s-3);
   font-size: 13px;
 }
+
+/* -------------------------------------------------------- CRM follow-ups */
+.due-tile {
+  text-align: start;
+  cursor: pointer;
+  font: inherit;
+  border: 1px solid var(--line);
+}
+
+.due-tile:hover {
+  border-color: var(--ink-secondary);
+}
+
+.due-tile--active {
+  border-color: var(--accent-text);
+  box-shadow: inset 0 -2px 0 var(--accent-text);
+}
+
+.due-tile--danger strong { color: var(--danger); }
+.due-tile--warning strong { color: var(--warning); }
+.due-tile--info strong { color: var(--info); }
+
+.contact-row {
+  display: flex;
+  gap: var(--s-3);
+  font-size: 12px;
+}
+
+.contact-row a {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+.contact-row a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .task-alerts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.task-alerts--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 980px) {
+  .task-alerts--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
