@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
 import { AttachmentList } from '@/components/domain/AttachmentList';
 import { PostWorkPanel } from '@/components/domain/PostWorkPanel';
+import { PostContentEditor } from '@/components/domain/PostContentEditor';
 import { WorkflowStepper } from '@/components/domain/WorkflowStepper';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useCompany } from '@/context/CompanyContext';
@@ -18,7 +19,7 @@ import { contentService } from '@/services/content';
 import { filesService } from '@/services/files';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, fromInputDateTime, humanize } from '@/utils/format';
-import { CompanyMembershipRole } from '@/types/domain';
+import { CompanyMembershipRole, PostStatus } from '@/types/domain';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 
 export function PostDetailPage() {
@@ -52,6 +53,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   const [changeNote, setChangeNote] = useState('');
   const [publishedUrl, setPublishedUrl] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
+  const [editing, setEditing] = useState(false);
 
   if (post.loading) return <DetailSkeleton />;
   if (post.error || !post.data) return <ErrorState message={post.error ?? 'Post not found.'} onRetry={post.refetch} />;
@@ -115,8 +117,35 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
       <div className="detail-grid">
         <section className="detail-main">
           <Card className="content-card">
-            <CardHeader title="Content package" action={<StatusBadge value={post.data.status} />} />
+            <CardHeader
+              title="Content package"
+              action={(
+                <span className="button-row">
+                  {/* Editable until it is live; a published post is a record. */}
+                  {!editing && post.data.status !== PostStatus.PUBLISHED && post.data.status !== PostStatus.CANCELED ? (
+                    <RoleGate permission="posts:edit">
+                      <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>Edit</Button>
+                    </RoleGate>
+                  ) : null}
+                  <StatusBadge value={post.data.status} />
+                </span>
+              )}
+            />
             <div className="content-card__body">
+              {editing ? (
+                <PostContentEditor
+                  companyId={companyId}
+                  post={post.data}
+                  onSaved={(saved) => { post.setData(saved); setEditing(false); }}
+                  onCancel={() => setEditing(false)}
+                />
+              ) : (
+              <>
+              {post.data.status === PostStatus.CHANGES_REQUESTED ? (
+                <p className="review-note review-note--inline">
+                  The client asked for changes — see their comment below, edit the content, then submit it again.
+                </p>
+              ) : null}
               <div className="content-meta-grid">
                 <div><span>Platform</span><strong>{post.data.platform ?? '—'}</strong></div>
                 <div><span>Format</span><strong>{post.data.contentType ?? '—'}</strong></div>
@@ -128,6 +157,8 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
               <hr />
               <h3>Visual brief</h3>
               <p className="pre-wrap muted">{post.data.visualBrief || 'No visual brief.'}</p>
+              </>
+              )}
             </div>
           </Card>
 

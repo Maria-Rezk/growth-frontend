@@ -4029,3 +4029,10 @@ a.list-row:hover strong {
     color: inherit;
   }
 }
+
+.review-note--inline {
+  display: block;
+  margin-bottom: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  font-size: 13px;
+}
