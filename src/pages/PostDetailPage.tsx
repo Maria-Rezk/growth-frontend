@@ -10,6 +10,7 @@ import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
 import { AttachmentList } from '@/components/domain/AttachmentList';
+import { PostWorkPanel } from '@/components/domain/PostWorkPanel';
 import { WorkflowStepper } from '@/components/domain/WorkflowStepper';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useCompany } from '@/context/CompanyContext';
@@ -203,6 +204,9 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
               ) : null}
             </div>
           </Card>
+
+          {/* Staff only: the client sees the result, not the production line. */}
+          {!isClient ? <PostWorkPanel companyId={companyId} post={post.data} /> : null}
 
           <Card className="content-card">
             <CardHeader title="Assets" subtitle="Attach creative files directly to this post." />

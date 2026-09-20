@@ -362,10 +362,35 @@ function ApproverCell({ task, resolveName }: { task: Task; resolveName: Assignee
   );
 }
 
-function TaskModal({ open, companyId, onClose, members }: { open: boolean; companyId: string; onClose: () => void; members: Membership[] }) {
+/** What a task is about, when it is created from a post, lead or campaign. */
+export interface TaskLink {
+  relatedEntityType: 'POST' | 'LEAD' | 'CAMPAIGN';
+  relatedEntityId: string;
+  /** Pre-fills the title, e.g. the post's name. */
+  label?: string;
+  /** Pre-selects the type, e.g. DESIGN for the design stage of a post. */
+  type?: TaskType;
+}
+
+export function TaskModal({
+  open,
+  companyId,
+  onClose,
+  members,
+  link,
+  onCreated,
+}: {
+  open: boolean;
+  companyId: string;
+  onClose: () => void;
+  members: Membership[];
+  /** Attach the new task to a record — the post detail's "Add task". */
+  link?: TaskLink;
+  onCreated?: (task: Task) => void;
+}) {
   const form = useForm<TaskForm>({
     resolver: zodResolver(taskSchema),
-    defaultValues: { title: '', description: '', type: TaskType.GENERAL, priority: TaskPriority.MEDIUM, assignedToId: '', approverId: '', dueDate: '' },
+    defaultValues: { title: link?.label ? `${link.label} — ` : '', description: '', type: link?.type ?? TaskType.GENERAL, priority: TaskPriority.MEDIUM, assignedToId: '', approverId: '', dueDate: '' },
     mode: 'onBlur',
   });
 
@@ -434,9 +459,12 @@ function TaskModal({ open, companyId, onClose, members }: { open: boolean; compa
       // Empty means "let the matrix decide" — the backend resolves it again on create.
       approverId: values.approverId || undefined,
       dueDate: fromInputDateTime(values.dueDate ?? ''),
+      relatedEntityType: link?.relatedEntityType,
+      relatedEntityId: link?.relatedEntityId,
     });
     if (result) {
       toast.success('Task created.');
+      onCreated?.(result);
       close();
     }
   });
