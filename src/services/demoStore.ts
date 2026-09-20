@@ -155,8 +155,10 @@ export let demoPosts: ContentPost[] = [
     visualBrief: 'CRM pipeline cards with source, owner and next step.',
     platform: 'Facebook',
     contentType: 'Static Post',
-    status: 'APPROVED',
-    scheduledAt: iso(1),
+    // Scheduled for yesterday and still not marked published — the case the
+    // "Due to publish" strip exists for.
+    status: 'SCHEDULED',
+    scheduledAt: iso(-1),
     createdAt: iso(-8),
     updatedAt: iso(-2),
   },

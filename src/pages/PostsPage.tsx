@@ -13,6 +13,7 @@ import { Modal } from '@/components/ui/Modal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
+import { PublishingDue } from '@/components/domain/PublishingDue';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -92,6 +93,10 @@ function PostsInner({ companyId }: { companyId: string }) {
     and then zeroed every other tile — and listPosts unwraps `items` out of a
     paginated envelope, so it was page-limited on top of that.
   */
+  // Unfiltered, so the publishing strip sees every scheduled post whatever
+  // the board is filtered to. Same key the client Home reads — one request.
+  const allPosts = useAsync(() => contentService.listPosts(companyId), [companyId], { queryKey: queryKeys.posts(companyId) });
+
   const overview = useAsync(
     () => reportsService.overview(companyId),
     [companyId],
@@ -120,6 +125,8 @@ function PostsInner({ companyId }: { companyId: string }) {
           </RoleGate>
         }
       />
+
+      <PublishingDue companyId={companyId} posts={allPosts.data ?? []} onPublished={() => { void allPosts.refetch(); void posts.refetch(); void overview.refetch(); }} />
 
       <div className="workflow-summary card">
         {POST_BOARD.map((item) => (
