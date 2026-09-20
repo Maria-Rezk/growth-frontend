@@ -3,6 +3,7 @@ import { useLocale } from '@/context/LocaleContext';
 import { Button } from '@/components/ui/Button';
 import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
 import { LanguageToggle } from '@/components/layout/LanguageToggle';
+import { CommandPalette } from '@/components/layout/CommandPalette';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
 import { LogoutIcon, MenuIcon } from '@/components/ui/icons';
@@ -22,6 +23,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
       <div className="topbar__spacer" />
 
+      <CommandPalette />
       {env.arabicEnabled ? <LanguageToggle /> : null}
       <ThemeToggle />
       <NotificationsDropdown />
