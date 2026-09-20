@@ -14,6 +14,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { PublishingDue } from '@/components/domain/PublishingDue';
+import { ContentCalendar } from '@/components/domain/ContentCalendar';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -30,7 +31,7 @@ import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 import { BoardSkeleton } from '@/components/ui/Skeleton';
 
 const STATUS_OPTIONS = Object.values(PostStatus);
-type ViewMode = 'board' | 'table';
+type ViewMode = 'board' | 'table' | 'calendar';
 
 // Backend enums — values must match exactly; labels are display-only.
 const PLATFORM_OPTIONS = [
@@ -72,7 +73,7 @@ function PostsInner({ companyId }: { companyId: string }) {
   // Filters live in the URL so a filtered board is a link, and a reload keeps it.
   const [urlFilters, setUrlFilters] = useUrlFilters<Record<keyof typeof POST_FILTER_DEFAULTS, string>>(POST_FILTER_DEFAULTS);
   const { status, search } = urlFilters;
-  const view = (urlFilters.view === 'table' ? 'table' : 'board') as ViewMode;
+  const view = (urlFilters.view === 'table' || urlFilters.view === 'calendar' ? urlFilters.view : 'board') as ViewMode;
   const setStatus = (value: string) => setUrlFilters({ status: value });
   const setSearch = (value: string) => setUrlFilters({ search: value });
   const setView = (value: ViewMode) => setUrlFilters({ view: value });
@@ -159,11 +160,15 @@ function PostsInner({ companyId }: { companyId: string }) {
           label="Content view"
           value={view}
           onChange={setView}
-          options={[{ label: 'Board', value: 'board' }, { label: 'Table', value: 'table' }]}
+          options={[{ label: 'Board', value: 'board' }, { label: 'Table', value: 'table' }, { label: 'Calendar', value: 'calendar' }]}
         />
       </div>
 
-      {view === 'board' ? (
+      {view === 'calendar' ? (
+        // The calendar reads every post, not the filtered page: a month with
+        // a status filter applied would look emptier than it is.
+        <ContentCalendar posts={allPosts.data ?? []} />
+      ) : view === 'board' ? (
         <PostBoardView
           loading={posts.loading}
           refreshing={posts.refreshing}
