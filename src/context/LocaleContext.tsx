@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { env } from '@/config/env';
 import { messages, type AppLanguage } from '@/i18n/messages';
 
 type Direction = 'ltr' | 'rtl';
@@ -15,6 +16,8 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 const LANG_KEY = 'growth.lang';
 
 function resolveInitialLang(): AppLanguage {
+  // A stored 'ar' from before the flag is not honoured while Arabic is off.
+  if (!env.arabicEnabled) return 'en';
   const stored = window.localStorage.getItem(LANG_KEY);
   return stored === 'ar' || stored === 'en' ? stored : 'en';
 }

@@ -6,6 +6,7 @@ import { LanguageToggle } from '@/components/layout/LanguageToggle';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
 import { LogoutIcon, MenuIcon } from '@/components/ui/icons';
+import { env } from '@/config/env';
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
@@ -21,7 +22,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
       <div className="topbar__spacer" />
 
-      <LanguageToggle />
+      {env.arabicEnabled ? <LanguageToggle /> : null}
       <ThemeToggle />
       <NotificationsDropdown />
 
