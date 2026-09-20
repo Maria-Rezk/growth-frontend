@@ -12,6 +12,7 @@ import { Timeline } from '@/components/domain/Timeline';
 import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskReviewPanel';
 import { AttachmentList } from '@/components/domain/AttachmentList';
 import { Badge } from '@/components/ui/Badge';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useTaskActor } from '@/hooks/useTaskActor';
 import { tasksService } from '@/services/tasks';
@@ -50,6 +51,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
 
   const [comment, setComment] = useState('');
   const { userId: actorId } = useTaskActor();
+  const confirm = useConfirm();
 
   if (task.loading) return <LoadingState />;
   if (task.error || !task.data) return <ErrorState message={task.error ?? 'Task not found.'} onRetry={task.refetch} />;
@@ -210,10 +212,15 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                       variant="danger"
                       size="sm"
                       loading={setStatus.loading}
-                      onClick={() => {
-                        if (window.confirm('Cancel this task? It leaves the approval queue and the waiting clock is cleared.')) {
-                          void changeStatus(TaskStatus.CANCELED);
-                        }
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: 'Cancel this task?',
+                          message: `It leaves ${userLabel(current.approver, 'the approver')}'s queue and the waiting clock is cleared. The task is kept, marked Canceled.`,
+                          confirmLabel: 'Cancel task',
+                          cancelLabel: 'Keep it',
+                          tone: 'danger',
+                        });
+                        if (ok) void changeStatus(TaskStatus.CANCELED);
                       }}
                     >
                       Cancel task

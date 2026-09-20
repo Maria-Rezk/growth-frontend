@@ -2,6 +2,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/State';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { ArrowUpRightIcon, CloseIcon } from '@/components/ui/icons';
 import { filesService } from '@/services/files';
 import { errorMessage } from '@/lib/http';
@@ -44,6 +45,7 @@ export function AttachmentList({
   emptyText?: string;
 }) {
   const [opening, setOpening] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const open = async (attachment: AttachmentLike) => {
     setOpening(attachment.id);
@@ -96,8 +98,14 @@ export function AttachmentList({
                   aria-label={`Remove ${name}`}
                   loading={removing === attachment.id}
                   disabled={removing !== null && removing !== undefined}
-                  onClick={() => {
-                    if (window.confirm(`Remove "${name}" from this task?`)) void onRemove(attachment);
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Remove attachment',
+                      message: <>Remove <strong>{name}</strong>? The file stays in storage; only its link to this task is removed.</>,
+                      confirmLabel: 'Remove',
+                      tone: 'danger',
+                    });
+                    if (ok) void onRemove(attachment);
                   }}
                 >
                   <CloseIcon size={14} />

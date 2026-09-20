@@ -3653,3 +3653,9 @@ a.list-row:hover strong {
     padding: var(--s-3);
   }
 }
+
+.confirm-dialog__message {
+  color: var(--ink-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}

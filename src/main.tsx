@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from '@/App';
 import { AppErrorBoundary } from '@/components/layout/AppErrorBoundary';
 import { ThemedToaster } from '@/components/layout/ThemedToaster';
+import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
 import { AuthProvider } from '@/context/AuthContext';
 import { LocaleProvider } from '@/context/LocaleContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -25,8 +26,10 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
           <LocaleProvider>
             <AuthProvider>
               <AppErrorBoundary>
-                <a className="skip-link" href="#main-content">Skip to main content</a>
-                <App />
+                <ConfirmProvider>
+                  <a className="skip-link" href="#main-content">Skip to main content</a>
+                  <App />
+                </ConfirmProvider>
               </AppErrorBoundary>
               <ThemedToaster />
             </AuthProvider>

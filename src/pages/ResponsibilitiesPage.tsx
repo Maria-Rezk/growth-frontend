@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/State';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { responsibilitiesService } from '@/services/responsibilities';
@@ -340,6 +341,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
   const [isActive, setIsActive] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const resetForm = () => {
     setEditing(null);
@@ -400,9 +402,12 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
   };
 
   const deleteArea = async (area: ResponsibilityArea) => {
-    const confirmed = window.confirm(
-      `Delete "${area.name}"? All responsibility assignments in this row will be removed too. This cannot be undone.`,
-    );
+    const confirmed = await confirm({
+      title: `Delete "${area.name}"?`,
+      message: 'Every responsibility assignment in this row is removed with it. This cannot be undone.',
+      confirmLabel: 'Delete area',
+      tone: 'danger',
+    });
     if (!confirmed) return;
     setDeletingId(area.id);
     try {

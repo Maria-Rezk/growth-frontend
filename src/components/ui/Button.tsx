@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { Link, type LinkProps } from 'react-router-dom';
-import type { ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes } from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md';
@@ -22,9 +22,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonSty
   loading?: boolean;
 }
 
-export function Button({ className, variant, size, loading, disabled, children, ...props }: ButtonProps) {
+// forwardRef so a dialog can hand initial focus to its confirm button.
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, variant, size, loading, disabled, children, ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       className={buttonClass({ variant, size }, className)}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
@@ -34,7 +39,7 @@ export function Button({ className, variant, size, loading, disabled, children, 
       {children}
     </button>
   );
-}
+});
 
 interface ButtonLinkProps extends LinkProps, ButtonStyleProps {}
 
