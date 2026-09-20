@@ -4088,3 +4088,31 @@ a.list-row:hover strong {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ------------------------------------------------------ Content plan page */
+.plan-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  margin-bottom: var(--s-4);
+}
+
+.plan-progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  transition: width .3s ease;
+}
+
+.plan-group + .plan-group {
+  margin-top: var(--s-4);
+}
+
+.plan-group .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-1);
+}

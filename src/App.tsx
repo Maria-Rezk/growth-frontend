@@ -29,6 +29,7 @@ const DashboardPage = pick(() => import('@/pages/DashboardPage'), 'DashboardPage
 const MyWorkPage = pick(() => import('@/pages/MyWorkPage'), 'MyWorkPage');
 const BrandProfilePage = pick(() => import('@/pages/BrandProfilePage'), 'BrandProfilePage');
 const ContentPlansPage = pick(() => import('@/pages/ContentPlansPage'), 'ContentPlansPage');
+const ContentPlanDetailPage = pick(() => import('@/pages/ContentPlanDetailPage'), 'ContentPlanDetailPage');
 const AiStudioPage = pick(() => import('@/pages/AiStudioPage'), 'AiStudioPage');
 const PostsPage = pick(() => import('@/pages/PostsPage'), 'PostsPage');
 const PostDetailPage = pick(() => import('@/pages/PostDetailPage'), 'PostDetailPage');
@@ -76,6 +77,7 @@ export function App() {
             <Route path="/home" element={<ClientHomePage />} />
             <Route path="/brand-profile" element={<BrandProfilePage />} />
             <Route path="/content-plans" element={<ContentPlansPage />} />
+            <Route path="/content-plans/:planId" element={<ContentPlanDetailPage />} />
             <Route path="/posts" element={<PostsPage />} />
             <Route path="/posts/:postId" element={<PostDetailPage />} />
             <Route path="/reports" element={<ReportsPage />} />

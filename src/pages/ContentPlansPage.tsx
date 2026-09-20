@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -51,7 +52,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
         const goal = (plan as { goal?: string }).goal;
         return (
           <div>
-            <strong>{plan.title}</strong>
+            <Link className="table-link" to={`/content-plans/${plan.id}`}>{plan.title}</Link>
             <p className="muted">
               {plan.month ? `${MONTHS[plan.month - 1]} ` : ''}{plan.year ?? ''}
               {goal ? ` · ${goal}` : ''}
@@ -74,7 +75,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
       key: 'actions',
       header: '',
       className: 'cell-right',
-      render: () => <ButtonLink to="/posts" variant="secondary" size="sm">View posts</ButtonLink>,
+      render: (plan) => <ButtonLink to={`/content-plans/${plan.id}`} variant="secondary" size="sm">Open</ButtonLink>,
     },
   ], []);
 

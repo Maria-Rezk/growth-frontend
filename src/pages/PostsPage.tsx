@@ -266,7 +266,7 @@ function PostBoardCard({ post }: { post: ContentPost }) {
   );
 }
 
-function PostFormModal({ open, companyId, onClose }: { open: boolean; companyId: string; onClose: () => void }) {
+export function PostFormModal({ open, companyId, onClose, planId, onCreated }: { open: boolean; companyId: string; onClose: () => void; /** Pre-select a content plan — the plan page's "Add post". */ planId?: string; onCreated?: (post: ContentPost) => void }) {
   // Content plans for the optional plan selector.
   const plans = useAsync(
     () => contentService.listPlans(companyId),
@@ -275,7 +275,7 @@ function PostFormModal({ open, companyId, onClose }: { open: boolean; companyId:
   );
   const form = useForm<PostForm>({
     resolver: zodResolver(postSchema),
-    defaultValues: { title: '', contentPlanId: '', caption: '', visualBrief: '', platform: 'INSTAGRAM', contentType: 'POST', scheduledAt: '' },
+    defaultValues: { title: '', contentPlanId: planId ?? '', caption: '', visualBrief: '', platform: 'INSTAGRAM', contentType: 'POST', scheduledAt: '' },
     mode: 'onBlur',
   });
 

@@ -17,6 +17,7 @@ export const appRoutes = {
   reports: '/reports',
   report: (reportId: string) => `/reports/${reportId}`,
   contentPlans: '/content-plans',
+  contentPlan: (planId: string) => `/content-plans/${planId}`,
   brandProfile: '/brand-profile',
   approvals: '/approvals',
   tasks: '/tasks',
