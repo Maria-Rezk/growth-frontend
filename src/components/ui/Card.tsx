@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import type { HTMLAttributes, ReactNode } from 'react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={clsx('card', className)} {...props} />;
@@ -18,6 +19,7 @@ export function CardHeader({ title, subtitle, action }: { title: string; subtitl
 }
 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+  usePageTitle(title);
   return (
     <div className="page-header">
       <div>

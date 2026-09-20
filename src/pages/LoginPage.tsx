@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
 import { appRoutes } from '@/config/appRoutes';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const loginSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
@@ -16,6 +17,7 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
+  usePageTitle('Sign in');
   const { login, isAuthenticated, error } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

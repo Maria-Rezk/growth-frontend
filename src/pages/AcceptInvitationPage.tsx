@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
 import { appRoutes, unwrapInvitationToken } from '@/config/appRoutes';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 /*
   Contract: POST /auth/accept-invitation
@@ -39,6 +40,7 @@ const invitationSchema = z
 type InvitationForm = z.infer<typeof invitationSchema>;
 
 export function AcceptInvitationPage() {
+  usePageTitle('Accept invitation');
   const { acceptInvitation, isAuthenticated, error } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
