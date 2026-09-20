@@ -49,11 +49,19 @@ export function AttachmentList({
 
   const open = async (attachment: AttachmentLike) => {
     setOpening(attachment.id);
-    const tab = window.open('', '_blank', 'noopener');
+    /*
+      Open the tab synchronously, inside the click, so popup blockers allow
+      it — then point it at the URL once it arrives. Not with the `noopener`
+      feature string: Chrome returns null for that, which is how this used
+      to fall through to the same tab. Severing `opener` by hand gives the
+      same protection and keeps the handle.
+    */
+    const tab = window.open('about:blank', '_blank');
+    if (tab) tab.opener = null;
     try {
       const url = await filesService.downloadUrl(companyId, attachment.fileId);
-      if (tab) tab.location.href = url;
-      else window.location.assign(url);
+      if (tab && !tab.closed) tab.location.href = url;
+      else window.open(url, '_blank');
     } catch (cause) {
       tab?.close();
       toast.error(errorMessage(cause));
