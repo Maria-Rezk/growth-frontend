@@ -156,6 +156,7 @@ function AiStudioInner({ companyId }: { companyId: string }) {
       <PageHeader
         title="AI studio"
         subtitle="The model drafts, a human reviews, the system applies. Nothing reaches a client unreviewed."
+        action={<AiUsage generations={generations.data} />}
       />
 
       <Card>
@@ -295,3 +296,20 @@ function AiStudioInner({ companyId }: { companyId: string }) {
 }
 
 /** Loading, error, empty and populated are four distinct states, all carded. */
+
+
+/**
+ * Is the AI earning its place? "12 of 30 applied" is the number that says
+ * so — a draft that never becomes a plan, post or caption cost a review
+ * and produced nothing.
+ */
+function AiUsage({ generations }: { generations: AiGeneration[] | null }) {
+  if (!generations?.length) return null;
+  const applied = generations.filter((generation) => generation.appliedAt).length;
+  const rate = Math.round((applied / generations.length) * 100);
+  return (
+    <span className={rate < 30 ? 'freshness freshness--stale' : 'freshness'} title="Drafts that were applied as a plan, post ideas or a caption">
+      {applied} of {generations.length} applied · {rate}%
+    </span>
+  );
+}

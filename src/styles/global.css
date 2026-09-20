@@ -4253,3 +4253,35 @@ a.list-row:hover strong {
     padding: 1px 4px;
   }
 }
+
+/* Freshness / usage chips beside a page title. */
+.freshness {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.freshness--stale {
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* Routing hint under a keyed matrix row. */
+.raci__routing {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.raci__routing--warn {
+  color: var(--warning);
+}

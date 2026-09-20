@@ -148,6 +148,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
       <PageHeader
         title="Brand profile"
         subtitle="The source of truth for AI prompts, content workflows and client strategy."
+        action={<BrandFreshness updatedAt={profile.data?.updatedAt} />}
       />
 
       <form className="form-grid" onSubmit={submit} noValidate>
@@ -311,5 +312,23 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
         </Card>
       </form>
     </>
+  );
+}
+
+
+/**
+ * "Updated 3 months ago" — and a nudge past ninety days. Everything the AI
+ * writes and every brief the team follows starts here; a stale profile is
+ * a quiet way to drift off-brand.
+ */
+function BrandFreshness({ updatedAt }: { updatedAt?: string }) {
+  if (!updatedAt) return null;
+  const days = Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86_400_000);
+  if (!Number.isFinite(days) || days < 0) return null;
+  const label = days === 0 ? 'Updated today' : days === 1 ? 'Updated yesterday' : days < 30 ? `Updated ${days} days ago` : days < 60 ? 'Updated last month' : `Updated ${Math.floor(days / 30)} months ago`;
+  return (
+    <span className={days >= 90 ? 'freshness freshness--stale' : 'freshness'} title={new Date(updatedAt).toLocaleString()}>
+      {label}{days >= 90 ? ' · worth a review' : ''}
+    </span>
   );
 }

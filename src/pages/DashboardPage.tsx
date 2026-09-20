@@ -19,6 +19,7 @@ import { humanizeRole } from '@/utils/roles';
 import { groupByStatus, needsLeadAction, needsPostAction, needsTaskAction, TASK_BOARD } from '@/utils/workflow';
 import { formatDate, formatPercent, humanize } from '@/utils/format';
 import { LeadStatus, PostStatus, TaskStatus, type ContentPost, type Task } from '@/types/domain';
+import { ReportDueNotice } from '@/components/domain/ReportDueNotice';
 
 /** Statuses that make a post "in the approval queue" — mirrors needsPostAction. */
 const POST_ACTION_STATUSES = [PostStatus.READY_FOR_CLIENT, PostStatus.CHANGES_REQUESTED, PostStatus.APPROVED];
@@ -72,6 +73,7 @@ function DashboardInner({ companyId }: { companyId: string }) {
     [companyId],
     { queryKey: queryKeys.posts(companyId, {}) },
   );
+  const reports = useAsync(() => reportsService.list(companyId), [companyId], { queryKey: queryKeys.reports(companyId) });
 
   const allPosts = posts.data ?? [];
   const allTasks = tasks.data ?? [];
@@ -140,11 +142,13 @@ function DashboardInner({ companyId }: { companyId: string }) {
         </Card>
       ) : null}
 
+      <ReportDueNotice reports={reports.data} loading={reports.loading} />
+
       <div className="stat-grid">
         <MetricCard
-          label="Approval queue"
+          label="Client approvals"
           value={display(approvalQueueCount, overview.loading)}
-          helper="Posts awaiting client or agency action"
+          helper="Posts awaiting the client's decision or your next step"
           tone="accent"
         />
         <MetricCard

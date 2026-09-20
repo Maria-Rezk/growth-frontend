@@ -163,6 +163,7 @@ function MatrixGrid({
                 <th scope="row" className="raci__area-col">
                   {area.name}
                   {area.areaKey ? <span className="raci__area-key" title={`Routes ${humanize(area.areaKey).toLowerCase()} tasks to this row's approver`}>{humanize(area.areaKey)}</span> : null}
+                  {area.areaKey ? <RoutingHint areaKey={area.areaKey} approvers={matrix.cells.filter((cell) => cell.areaId === area.id && cell.type === 'TO_APPROVE').map((cell) => matrix.members.find((member) => member.userId === cell.memberUserId)?.fullName ?? 'someone')} /> : null}
                 </th>
                 {matrix.members.map((member) => {
                   const cell = cellMap.get(cellKey(area.id, member.userId));
@@ -492,4 +493,16 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
       </div>
     </Modal>
   );
+}
+
+/**
+ * What the key actually does, in words: which tasks this row routes and to
+ * whom. One approver is the happy path; none or several means the task
+ * form will ask — say so here, where the fix is one cell away.
+ */
+function RoutingHint({ areaKey, approvers }: { areaKey: string; approvers: string[] }) {
+  const kind = humanize(areaKey).toLowerCase();
+  if (approvers.length === 1) return <span className="raci__routing">{kind} tasks → {approvers[0]}</span>;
+  if (approvers.length === 0) return <span className="raci__routing raci__routing--warn">{kind} tasks have no approver — set a “To Approve” cell</span>;
+  return <span className="raci__routing raci__routing--warn">{approvers.length} approve {kind} — each task will ask which</span>;
 }

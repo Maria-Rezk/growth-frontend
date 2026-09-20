@@ -95,7 +95,7 @@ function MembersInner({ companyId }: { companyId: string }) {
     <>
       <PageHeader
         title="Members"
-        subtitle="Client roles, reviewers and team access."
+        subtitle="Client-side people are invited here. Your own team is assigned from Platform admin › Employees, which is why the invite list offers client roles only."
         action={canManage ? <Button size="sm" onClick={() => setInviteOpen(true)}>Invite member</Button> : undefined}
       />
 

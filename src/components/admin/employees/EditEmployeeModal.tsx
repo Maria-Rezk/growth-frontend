@@ -13,6 +13,7 @@ import { usersService } from '@/services/users';
 import { type Employee } from '@/types/domain';
 import { humanize } from '@/utils/format';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
+import { HeldReviewsNotice } from '@/components/admin/employees/HeldReviewsNotice';
 
 const editEmployeeSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name is required.'),
@@ -89,6 +90,7 @@ export function EditEmployeeModal({ employee, onClose }: { employee: Employee | 
             {['ACTIVE', 'INACTIVE', 'SUSPENDED'].map((status) => <option key={status} value={status}>{humanize(status)}</option>)}
           </Select>
         </Field>
+        {form.watch('status') !== 'ACTIVE' && employee ? <HeldReviewsNotice userId={employee.id} /> : null}
         <Field
           label="New password"
           htmlFor="edit-employee-password"

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { StatusBadge } from '@/components/domain/StatusBadges';
-import { GlobeIcon, LeadIcon, PostIcon, SearchIcon, TaskIcon } from '@/components/ui/icons';
+import { CampaignIcon, GlobeIcon, LeadIcon, PlanIcon, PostIcon, SearchIcon, TaskIcon } from '@/components/ui/icons';
 import { appRoutes } from '@/config/appRoutes';
 import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
@@ -12,10 +12,11 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { contentService } from '@/services/content';
 import { leadsService } from '@/services/leads';
+import { campaignsService } from '@/services/campaigns';
 import { tasksService } from '@/services/tasks';
 import { humanize } from '@/utils/format';
 
-type Kind = 'client' | 'post' | 'task' | 'lead';
+type Kind = 'client' | 'post' | 'task' | 'lead' | 'plan' | 'campaign';
 
 interface Result {
   kind: Kind;
@@ -28,8 +29,8 @@ interface Result {
   companyId?: string;
 }
 
-const KIND_LABEL: Record<Kind, string> = { client: 'Clients', post: 'Content', task: 'Tasks', lead: 'Leads' };
-const KIND_ICON: Record<Kind, typeof TaskIcon> = { client: GlobeIcon, post: PostIcon, task: TaskIcon, lead: LeadIcon };
+const KIND_LABEL: Record<Kind, string> = { client: 'Clients', post: 'Content', task: 'Tasks', lead: 'Leads', plan: 'Content plans', campaign: 'Campaigns' };
+const KIND_ICON: Record<Kind, typeof TaskIcon> = { client: GlobeIcon, post: PostIcon, task: TaskIcon, lead: LeadIcon, plan: PlanIcon, campaign: CampaignIcon };
 const MAX_PER_KIND = 5;
 
 /**
@@ -84,6 +85,9 @@ function Palette({ onClose }: { onClose: () => void }) {
   const posts = useAsync(() => contentService.listPosts(companyId, { search: debounced }), [companyId, debounced], { queryKey: ['search', companyId, 'posts', debounced], enabled });
   const tasks = useAsync(() => tasksService.list(companyId, { search: debounced }), [companyId, debounced], { queryKey: ['search', companyId, 'tasks', debounced], enabled: enabled && !isClient });
   const leads = useAsync(() => leadsService.list(companyId, { search: debounced }), [companyId, debounced], { queryKey: ['search', companyId, 'leads', debounced], enabled: enabled && !isClient });
+  // Plans and campaigns are short lists with no search param: fetched once, matched locally.
+  const plans = useAsync(() => contentService.listPlans(companyId), [companyId], { queryKey: ['companies', companyId, 'content-plans'], enabled });
+  const campaigns = useAsync(() => campaignsService.list(companyId), [companyId], { queryKey: ['companies', companyId, 'campaigns', {}], enabled: enabled && !isClient });
 
   const results = useMemo<Result[]>(() => {
     if (!enabled) return [];
@@ -98,8 +102,10 @@ function Palette({ onClose }: { onClose: () => void }) {
     (posts.data ?? []).slice(0, MAX_PER_KIND).forEach((post) => list.push({ kind: 'post', id: post.id, title: post.title, meta: [post.platform, post.contentType].filter(Boolean).map((v) => humanize(v)).join(' · '), status: post.status, to: appRoutes.post(post.id) }));
     (tasks.data ?? []).slice(0, MAX_PER_KIND).forEach((task) => list.push({ kind: 'task', id: task.id, title: task.title, meta: humanize(task.type), status: task.status, to: appRoutes.task(task.id) }));
     (leads.data ?? []).slice(0, MAX_PER_KIND).forEach((lead) => list.push({ kind: 'lead', id: lead.id, title: lead.name, meta: [lead.source, lead.email].filter(Boolean).join(' · '), status: lead.status, to: `/leads/${lead.id}` }));
+    (plans.data ?? []).filter((plan) => plan.title.toLowerCase().includes(needle)).slice(0, MAX_PER_KIND).forEach((plan) => list.push({ kind: 'plan', id: plan.id, title: plan.title, meta: plan.month && plan.year ? `${plan.month}/${plan.year}` : undefined, to: `/content-plans/${plan.id}` }));
+    (campaigns.data ?? []).filter((campaign) => campaign.name.toLowerCase().includes(needle)).slice(0, MAX_PER_KIND).forEach((campaign) => list.push({ kind: 'campaign', id: campaign.id, title: campaign.name, meta: humanize(campaign.objective), status: campaign.status, to: `/campaigns/${campaign.id}` }));
     return list;
-  }, [activeCompanyId, companies, debounced, enabled, isClient, leads.data, posts.data, tasks.data]);
+  }, [activeCompanyId, campaigns.data, companies, debounced, enabled, isClient, leads.data, plans.data, posts.data, tasks.data]);
 
   useEffect(() => setActive(0), [results]);
 
