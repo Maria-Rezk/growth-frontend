@@ -4,6 +4,7 @@ import { CompanyProvider } from '@/context/CompanyContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
+import { WaitingBanner } from '@/components/layout/WaitingBanner';
 import { LoadingState } from '@/components/ui/State';
 
 export function DashboardLayout() {
@@ -16,6 +17,7 @@ export function DashboardLayout() {
           {sidebarOpen ? <button className="sidebar-scrim" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close menu" /> : null}
           <div className="main-shell">
             <Topbar onMenuClick={() => setSidebarOpen(true)} />
+            <WaitingBanner />
             <main id="main-content" className="page-container" tabIndex={-1}>
               {/* Inside the shell on purpose: a page chunk loading must not
                   unmount the sidebar and topbar around it. */}

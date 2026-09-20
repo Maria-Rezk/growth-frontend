@@ -3678,3 +3678,31 @@ a.list-row:hover strong {
   display: grid;
   gap: 4px;
 }
+
+/* The nudge under the topbar: one line, the whole thing is the link. */
+.waiting-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 8px var(--s-6);
+  background: var(--warning-soft);
+  border-bottom: 1px solid var(--warning-border);
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.waiting-banner svg {
+  flex: none;
+  color: var(--warning);
+}
+
+.waiting-banner:hover span {
+  text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .waiting-banner {
+    padding-inline: var(--s-4);
+  }
+}

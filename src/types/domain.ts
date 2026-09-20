@@ -615,6 +615,9 @@ export type NotificationType =
   | 'TASK_SUBMITTED_FOR_REVIEW'
   | 'TASK_APPROVED'
   | 'TASK_CHANGES_REQUESTED'
+  /** Ageing nudges (backend digest): a review has waited a day on the approver, two days escalates to the Account Manager. */
+  | 'REVIEW_WAITING_24H'
+  | 'REVIEW_WAITING_48H'
   | 'POST_SUBMITTED_TO_CLIENT'
   | 'POST_CHANGES_REQUESTED'
   | 'POST_APPROVED'

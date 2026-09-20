@@ -34,6 +34,8 @@ const TYPE_META: Partial<Record<NotificationType, NotificationTypeMeta>> = {
   TASK_SUBMITTED_FOR_REVIEW: { tone: 'task', label: 'Waiting for your review', icon: <ClockIcon size={ICON_SIZE} /> },
   TASK_APPROVED: { tone: 'task', label: 'Task approved', icon: <CheckIcon size={ICON_SIZE} /> },
   TASK_CHANGES_REQUESTED: { tone: 'task', label: 'Changes requested on a task', icon: <AlertIcon size={ICON_SIZE} /> },
+  REVIEW_WAITING_24H: { tone: 'task', label: 'A review has waited a day', icon: <ClockIcon size={ICON_SIZE} /> },
+  REVIEW_WAITING_48H: { tone: 'task', label: 'A review has waited two days', icon: <AlertIcon size={ICON_SIZE} /> },
 
   POST_SUBMITTED_TO_CLIENT: { tone: 'post', label: 'Post submitted for review', icon: <ArrowUpRightIcon size={ICON_SIZE} /> },
   POST_CHANGES_REQUESTED: { tone: 'post', label: 'Changes requested', icon: <AlertIcon size={ICON_SIZE} /> },
