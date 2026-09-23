@@ -25,6 +25,23 @@ interface CompanyContextValue {
 const CompanyContext = createContext<CompanyContextValue | null>(null);
 const ACTIVE_COMPANY_KEY = 'growth.activeCompanyId';
 
+function readActiveCompanyId(): string | null {
+  try {
+    return window.localStorage.getItem(ACTIVE_COMPANY_KEY);
+  } catch {
+    // Private browsing / storage disabled — the app still works, it just
+    // re-resolves the active client from the companies list on every load.
+    return null;
+  }
+}
+
+function writeActiveCompanyId(companyId: string): void {
+  try {
+    window.localStorage.setItem(ACTIVE_COMPANY_KEY, companyId);
+  } catch {
+    // Selection is still honoured for this session.
+  }
+}
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -42,7 +59,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     [allMemberships, userId],
   );
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(() =>
-    env.demoMode ? demoCompany.id : window.localStorage.getItem(ACTIVE_COMPANY_KEY),
+    env.demoMode ? demoCompany.id : readActiveCompanyId(),
   );
   const [loading, setLoading] = useState(!env.demoMode);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +90,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         : list[0]?.id ?? null;
       if (nextActiveId) {
         setActiveCompanyIdState(nextActiveId);
-        window.localStorage.setItem(ACTIVE_COMPANY_KEY, nextActiveId);
+        writeActiveCompanyId(nextActiveId);
         try {
           setMemberships(await companiesService.members(nextActiveId));
         } catch {
@@ -128,7 +145,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    window.localStorage.setItem(ACTIVE_COMPANY_KEY, companyId);
+    writeActiveCompanyId(companyId);
     void companiesService.members(companyId).then(setMemberships).catch(() => setMemberships([]));
   }, []);
 

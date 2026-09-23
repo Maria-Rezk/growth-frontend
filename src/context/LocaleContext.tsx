@@ -18,8 +18,16 @@ const LANG_KEY = 'growth.lang';
 function resolveInitialLang(): AppLanguage {
   // A stored 'ar' from before the flag is not honoured while Arabic is off.
   if (!env.arabicEnabled) return 'en';
-  const stored = window.localStorage.getItem(LANG_KEY);
-  return stored === 'ar' || stored === 'en' ? stored : 'en';
+  try {
+    const stored = window.localStorage.getItem(LANG_KEY);
+    return stored === 'ar' || stored === 'en' ? stored : 'en';
+  } catch {
+    // Private browsing / storage disabled. This runs during the very first
+    // render, above AppErrorBoundary in main.tsx — left unguarded, a browser
+    // that blocks storage entirely would throw here before any error
+    // boundary exists to catch it, producing a blank page instead of an app.
+    return 'en';
+  }
 }
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
@@ -29,7 +37,11 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = dir;
-    window.localStorage.setItem(LANG_KEY, lang);
+    try {
+      window.localStorage.setItem(LANG_KEY, lang);
+    } catch {
+      // Preference is still honoured for this session.
+    }
   }, [lang, dir]);
 
   const setLang = useCallback((next: AppLanguage) => setLangState(next), []);

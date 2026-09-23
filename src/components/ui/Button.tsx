@@ -24,12 +24,18 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonSty
 
 // forwardRef so a dialog can hand initial focus to its confirm button.
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant, size, loading, disabled, children, ...props },
+  // Defaults to "button", not the native element's own default of "submit".
+  // Every button that *should* submit a form already says `type="submit"`
+  // explicitly throughout this codebase — the native default only ever
+  // matters for the button that forgot to say what it is, and inside a
+  // <form> that forgetting means "Cancel" or "Remove" silently submits.
+  { className, variant, size, loading, disabled, children, type = 'button', ...props },
   ref,
 ) {
   return (
     <button
       ref={ref}
+      type={type}
       className={buttonClass({ variant, size }, className)}
       disabled={disabled || loading}
       aria-busy={loading || undefined}

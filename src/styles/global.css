@@ -384,10 +384,10 @@ hr {
 .sidebar__group-label {
   padding: var(--s-4) var(--s-2) var(--s-1);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: .04em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent-text);
 }
 
 .sidebar__group:first-child .sidebar__group-label {
@@ -575,6 +575,11 @@ hr {
   gap: var(--s-5);
 }
 
+/* Every page's title, highlighted in the brand accent so it reads as the one thing on the page that names where you are. */
+.page-header h1 {
+  color: var(--accent-text);
+}
+
 .page-header__subtitle {
   margin-top: var(--s-1);
   max-width: 68ch;
@@ -642,6 +647,7 @@ hr {
 
 .auth-card h1 {
   font-size: 18px;
+  color: var(--accent-text);
 }
 
 .auth-brand {
