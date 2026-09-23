@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { notificationsService } from '@/services/notifications';
+import { useAuth } from '@/context/AuthContext';
 import { queryKeys } from '@/lib/queryClient';
+import { readStored, writeStored } from '@/lib/storage';
 import type { AppNotification, NotificationType } from '@/types/domain';
 
 interface NotificationsContextValue {
@@ -21,32 +23,43 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
   the API has no field for them yet, and inventing a server shape here would
   be a guess. When it lands, `readMuted` / `writeMuted` become one call each
   and nothing above them changes.
-*/
-const MUTED_KEY = 'growth.notifications.muted';
 
-function readMuted(): Set<NotificationType> {
-  try {
-    const raw = window.localStorage.getItem(MUTED_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return new Set(Array.isArray(parsed) ? (parsed.filter((item) => typeof item === 'string') as NotificationType[]) : []);
-  } catch {
-    return new Set();
-  }
+  Keyed by user id — a device-level preference is only correct for one device
+  used by one person. A shared browser signing a second person in must not
+  hand them the first person's mutes (or silence a notification type for
+  them without their say), so each account gets its own record.
+*/
+const MUTED_VERSION = 1;
+const mutedKeyFor = (userId: string) => `growth.notifications.muted.${userId}`;
+
+/** Exported for testing per-user isolation directly, without mounting the whole provider tree. */
+export function readMuted(userId: string | null): Set<NotificationType> {
+  if (!userId) return new Set();
+  const stored = readStored<unknown>('local', mutedKeyFor(userId), MUTED_VERSION);
+  const parsed = stored?.data;
+  return new Set(Array.isArray(parsed) ? (parsed.filter((item) => typeof item === 'string') as NotificationType[]) : []);
 }
 
-function writeMuted(muted: Set<NotificationType>): void {
-  try {
-    window.localStorage.setItem(MUTED_KEY, JSON.stringify([...muted]));
-  } catch {
-    // Private mode or blocked storage: the preference lasts the session.
-  }
+export function writeMuted(userId: string | null, muted: Set<NotificationType>): void {
+  if (!userId) return;
+  writeStored('local', mutedKeyFor(userId), MUTED_VERSION, [...muted]);
 }
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const queryClient = useQueryClient();
-  const [muted, setMutedState] = useState<Set<NotificationType>>(readMuted);
+  // Re-reads whenever the signed-in user changes — this provider stays
+  // mounted across a same-tab account switch that doesn't unmount the shell.
+  const [muted, setMutedState] = useState<Set<NotificationType>>(() => readMuted(userId));
 
-  useEffect(() => writeMuted(muted), [muted]);
+  useEffect(() => {
+    setMutedState(readMuted(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId) writeMuted(userId, muted);
+  }, [muted, userId]);
 
   const { data: serverCount } = useQuery({
     queryKey: queryKeys.unreadNotifications,

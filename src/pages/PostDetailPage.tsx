@@ -14,6 +14,8 @@ import { PostWorkPanel } from '@/components/domain/PostWorkPanel';
 import { PostContentEditor } from '@/components/domain/PostContentEditor';
 import { WorkflowStepper } from '@/components/domain/WorkflowStepper';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { hasFormDraft, scopeDraftKey } from '@/hooks/useFormDraft';
+import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { contentService } from '@/services/content';
 import { filesService } from '@/services/files';
@@ -28,6 +30,7 @@ export function PostDetailPage() {
 }
 
 function PostDetailInner({ companyId, postId }: { companyId: string; postId: string }) {
+  const { user } = useAuth();
   const { hasRole } = useCompany();
   // Client roles must never see internal agency comments.
   const isClient = hasRole(CompanyMembershipRole.CLIENT_OWNER, CompanyMembershipRole.CLIENT_REVIEWER);
@@ -53,7 +56,11 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   const [changeNote, setChangeNote] = useState('');
   const [publishedUrl, setPublishedUrl] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
-  const [editing, setEditing] = useState(false);
+  // A refresh mid-edit would otherwise strand an unsaved caption behind a
+  // button the person has to remember to click again — reopen the editor by
+  // itself when there is a draft waiting for this post, for this person.
+  const draftKey = scopeDraftKey(user?.id, `post-content:${postId}`);
+  const [editing, setEditing] = useState(() => Boolean(draftKey && hasFormDraft(draftKey)));
 
   if (post.loading) return <DetailSkeleton />;
   if (post.error || !post.data) return <ErrorState message={post.error ?? 'Post not found.'} onRetry={post.refetch} />;

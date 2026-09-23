@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { scopeDraftKey, useFormDraft } from '@/hooks/useFormDraft';
+import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { aiService, AiGenerationType, type AiGeneration } from '@/services/ai';
 import { contentService } from '@/services/content';
@@ -68,6 +70,7 @@ export function AiStudioPage() {
 }
 
 function AiStudioInner({ companyId }: { companyId: string }) {
+  const { user } = useAuth();
   const { hasRole } = useCompany();
   const canGenerate = hasRole(...GENERATOR_ROLES);
 
@@ -112,6 +115,13 @@ function AiStudioInner({ companyId }: { companyId: string }) {
     mode: 'onBlur',
   });
 
+  // A goal or brief can be long enough to be real work — restore it after an
+  // accidental refresh. Not keyed on the output type: switching type mid-draft
+  // (a common way to explore the form) must not lose what was already typed.
+  // Keyed on the signed-in user too, so a shared browser never resurfaces one
+  // person's half-written brief in someone else's session.
+  const draft = useFormDraft(scopeDraftKey(user?.id, `ai-studio:${companyId}`), form);
+
   const type = form.watch('type');
   const busy = genPlan.loading || genIdeas.loading || genCaption.loading;
   const generateError = genPlan.error || genIdeas.error || genCaption.error;
@@ -146,7 +156,10 @@ function AiStudioInner({ companyId }: { companyId: string }) {
       });
     }
 
-    if (result) toast.success('AI draft generated. Review it before applying.');
+    if (result) {
+      toast.success('AI draft generated. Review it before applying.');
+      draft.discard();
+    }
   });
 
   const postOptions = posts.data ?? [];
@@ -161,6 +174,7 @@ function AiStudioInner({ companyId }: { companyId: string }) {
 
       <Card>
         <CardHeader title="New draft" subtitle="Choose the output type and give clear brand-specific direction." />
+        {draft.restored ? <p className="muted">Restored what you were writing before.</p> : null}
         <form className="form-grid form-card" onSubmit={submit} noValidate>
           <div className="grid-2">
             <Field label="Output type" htmlFor="ai-type">

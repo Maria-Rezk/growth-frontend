@@ -3,22 +3,39 @@ import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import type { ApiErrorShape, User } from '@/types/domain';
 
-const ACCESS_TOKEN_KEY = 'growth.accessToken';
-
 type ApiEnvelope<T> =
   | T
   | { data?: T; items?: T; result?: T; payload?: T; record?: T; message?: unknown }
   | { data?: { data?: T; items?: T; result?: T; payload?: T; record?: T } };
 
+/*
+  In-memory only — deliberately not localStorage/sessionStorage.
+
+  The access token is a bearer credential: anything that can read it can call
+  the API as this user for as long as it's valid. Browser storage is readable
+  by any script running on the page, so an XSS anywhere in the app (or in a
+  dependency) can exfiltrate a token sitting in localStorage long after the
+  page that leaked it is gone. A module-level variable is readable only by
+  code running *right now*, and disappears on every navigation and refresh.
+
+  This does not lose "stay signed in after a refresh": that guarantee comes
+  from the httpOnly refresh cookie (already set by the API — this module
+  never reads or writes it, the browser handles it automatically via
+  `withCredentials`), not from anything client-side JS holds onto. On every
+  app boot, AuthContext exchanges that cookie for a fresh access token into
+  this variable — see `reloadUser`.
+*/
+let accessToken: string | null = null;
+
 export const tokenStorage = {
   get(): string | null {
-    return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+    return accessToken;
   },
   set(token: string): void {
-    window.localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    accessToken = token;
   },
   clear(): void {
-    window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+    accessToken = null;
   },
 };
 
@@ -128,7 +145,7 @@ async function requestRefresh(): Promise<string | null> {
   Endpoints where a 401 is the answer, not a symptom. Retrying a rejected login
   after a refresh would be nonsense, and refreshing on a failed refresh recurses.
 */
-const NO_REFRESH_PATHS = [apiRoutes.auth.login, apiRoutes.auth.refresh, apiRoutes.auth.acceptInvitation, apiRoutes.auth.forgotPassword, apiRoutes.auth.resetPassword];
+const NO_REFRESH_PATHS = [apiRoutes.auth.login, apiRoutes.auth.refresh, apiRoutes.auth.logout, apiRoutes.auth.acceptInvitation, apiRoutes.auth.forgotPassword, apiRoutes.auth.resetPassword];
 
 function skipsRefresh(url?: string): boolean {
   return Boolean(url && NO_REFRESH_PATHS.some((path) => url.includes(path)));

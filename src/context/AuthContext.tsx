@@ -9,10 +9,32 @@ import {
   setUnauthorizedHandler,
   tokenStorage,
 } from '@/lib/http';
+import { useStorageSync } from '@/hooks/useStorageSync';
 import { demoUser as DEMO_USER } from '@/services/demoStore';
 import type { AuthResponse, LoginRequest, User } from '@/types/domain';
 
 type AcceptResult = { accepted: boolean; authenticated: boolean };
+
+/*
+  Cross-tab sign-in/sign-out signal.
+
+  The access token itself is never in browser storage (see tokenStorage in
+  http.ts), so there is no shared secret here to watch — this key carries
+  nothing but "something changed, go check", the same idea as a doorbell.
+  Every tab reacts by re-running its own httpOnly-cookie-backed refresh
+  (signing in elsewhere) or clearing its own state (signing out elsewhere),
+  never by trusting a value read out of storage.
+*/
+const AUTH_BROADCAST_KEY = 'growth.auth.broadcast';
+
+function broadcastAuthEvent(kind: 'signed-in' | 'signed-out'): void {
+  try {
+    window.localStorage.setItem(AUTH_BROADCAST_KEY, JSON.stringify({ kind, at: Date.now() }));
+  } catch {
+    // Best effort — other tabs simply won't hear about it until their own
+    // next request notices the session changed.
+  }
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -34,7 +56,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(!env.demoMode);
   const [error, setError] = useState<string | null>(null);
 
-  const logout = useCallback(() => {
+  /**
+   * Clears this tab's session state. Used both by the explicit "Logout"
+   * button and by automatic sign-out (a second 401, a failed refresh) — the
+   * automatic path deliberately does *not* go through the exported `logout`
+   * below, so an expired session never fires the "revoke on the server" call
+   * or the cross-tab broadcast a person's own Logout click means.
+   */
+  const clearSession = useCallback(() => {
     if (env.demoMode) {
       setToken('demo-token');
       setUser(DEMO_USER);
@@ -46,29 +75,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  const applyAuth = useCallback((auth: AuthResponse) => {
-    tokenStorage.set(auth.accessToken);
-    setToken(auth.accessToken);
-    setUser(auth.user);
-  }, []);
+  /** The person's own "Logout" action: revoke the session, not just forget it locally, and tell other tabs. */
+  const logout = useCallback(() => {
+    clearSession();
+    if (env.demoMode) return;
+    void authService.logout();
+    broadcastAuthEvent('signed-out');
+  }, [clearSession]);
+
+  const applyAuth = useCallback(
+    (auth: AuthResponse) => {
+      tokenStorage.set(auth.accessToken);
+      setToken(auth.accessToken);
+      setUser(auth.user);
+      if (!env.demoMode) broadcastAuthEvent('signed-in');
+    },
+    [],
+  );
 
   const reloadUser = useCallback(async () => {
-    if (!tokenStorage.get()) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
-      const currentUser = await authService.me();
-      setUser(currentUser);
+      /*
+        Nothing client-side says whether this browser has a session — the
+        access token lives only in memory, so it's gone after every refresh
+        by design (see tokenStorage in http.ts). The httpOnly refresh cookie
+        is the actual source of truth: exchange it for a fresh access token
+        the same way the 401 interceptor does mid-session, on every app boot.
+      */
+      const refreshedToken = await refreshSession();
+      if (!refreshedToken) {
+        // No cookie, or it's expired/revoked — the ordinary signed-out
+        // state, not a failure worth showing an error for.
+        setToken(null);
+        setUser(null);
+        return;
+      }
+      setToken(refreshedToken);
+      setUser(await authService.me());
     } catch (err) {
-      logout();
+      clearSession();
       setError(err instanceof Error ? err.message : 'Could not restore session.');
     } finally {
       setLoading(false);
     }
-  }, [logout]);
+  }, [clearSession]);
 
   /*
     Flow 7 — a role that changed mid-session.
@@ -117,7 +169,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setUnauthorizedHandler(logout);
+    // The automatic path: a second 401 or a failed refresh. Does not revoke
+    // the server-side session or tell other tabs — see `clearSession` above.
+    setUnauthorizedHandler(clearSession);
     setForbiddenHandler(() => {
       void syncRoleAfterForbidden();
     });
@@ -136,7 +190,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setForbiddenHandler(null);
       setSessionRefreshedHandler(null);
     };
-  }, [logout, reloadUser, syncRoleAfterForbidden]);
+  }, [clearSession, reloadUser, syncRoleAfterForbidden]);
+
+  /*
+    Multiple tabs on the same session.
+
+    The access token is in-memory per tab (see tokenStorage in http.ts), so
+    each tab's React state is already its own copy with nothing shared to go
+    stale — but nothing tells a second tab that the person clicked Logout in
+    the first one, or signed in again there after being bounced out. This
+    listens for that broadcast (see `broadcastAuthEvent` above) and reacts:
+    'signed-out' clears local state immediately instead of waiting for this
+    tab's next request to 401; 'signed-in' re-runs this tab's own refresh so
+    it picks up the new session the same way a fresh page load would.
+  */
+  useStorageSync(
+    AUTH_BROADCAST_KEY,
+    useCallback(
+      (raw) => {
+        if (env.demoMode || !raw) return;
+        try {
+          const { kind } = JSON.parse(raw) as { kind?: string };
+          if (kind === 'signed-out') {
+            setToken(null);
+            setUser(null);
+          } else if (kind === 'signed-in') {
+            void reloadUser();
+          }
+        } catch {
+          // Malformed broadcast — ignore it rather than guess.
+        }
+      },
+      [reloadUser],
+    ),
+  );
 
   const login = useCallback(
     async (payload: LoginRequest) => {

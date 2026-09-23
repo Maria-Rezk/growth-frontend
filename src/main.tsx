@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from '@/App';
 import { AppErrorBoundary } from '@/components/layout/AppErrorBoundary';
+import { NetworkStatusToast } from '@/components/layout/NetworkStatusToast';
 import { ThemedToaster } from '@/components/layout/ThemedToaster';
 import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
 import { AuthProvider } from '@/context/AuthContext';
@@ -32,6 +33,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
                 </ConfirmProvider>
               </AppErrorBoundary>
               <ThemedToaster />
+              <NetworkStatusToast />
             </AuthProvider>
           </LocaleProvider>
         </ThemeProvider>

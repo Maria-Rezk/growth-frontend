@@ -6,9 +6,13 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { WaitingBanner } from '@/components/layout/WaitingBanner';
 import { LoadingState } from '@/components/ui/State';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // One place for every authenticated page: a refresh or Back returns to
+  // where the person was on that exact URL instead of snapping to the top.
+  useScrollRestoration();
   return (
     <CompanyProvider>
       <NotificationsProvider>

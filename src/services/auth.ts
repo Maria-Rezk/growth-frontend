@@ -22,6 +22,22 @@ export const authService = {
     return unwrap<User & { memberships?: Membership[] }>(response.data);
   },
   /**
+   * Revokes the refresh cookie server-side. Best-effort and fire-and-forget
+   * in spirit: the client-side sign-out (clearing the in-memory token and
+   * app state) must complete regardless of what this call does — a
+   * route-miss (the endpoint may not exist yet, see the backend handoff
+   * doc), a timeout, or being offline are all swallowed rather than
+   * surfaced to the person clicking "Logout".
+   */
+  async logout(): Promise<void> {
+    if (env.demoMode) return;
+    try {
+      await http.post(apiRoutes.auth.logout);
+    } catch {
+      // Nothing actionable — see doc comment above.
+    }
+  },
+  /**
    * Accepts an invitation.
    *
    * The API takes `{ token, fullName, password }` for a new user and `{ token }`

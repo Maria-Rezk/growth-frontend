@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { companiesService } from '@/services/companies';
 import { useAuth } from '@/context/AuthContext';
 import { env } from '@/config/env';
+import { useStorageSync } from '@/hooks/useStorageSync';
 import { demoCompany, demoMemberships } from '@/services/demoStore';
 import type { Company, CompanyMembershipRole, Membership } from '@/types/domain';
 import { sortByName } from '@/utils/sort';
@@ -130,6 +131,23 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(ACTIVE_COMPANY_KEY, companyId);
     void companiesService.members(companyId).then(setMemberships).catch(() => setMemberships([]));
   }, []);
+
+  /*
+    Switching the active client in one tab (the sidebar switcher) is a change
+    someone made on purpose; every other open tab on this session should
+    follow it rather than keep showing — and letting the person act on — a
+    workspace they just navigated away from elsewhere.
+  */
+  useStorageSync(
+    ACTIVE_COMPANY_KEY,
+    useCallback(
+      (newValue) => {
+        if (env.demoMode || !newValue || newValue === activeCompanyId) return;
+        setActiveCompanyIdState(newValue);
+      },
+      [activeCompanyId],
+    ),
+  );
 
   const activeCompany = useMemo(
     () => companies.find((company) => company.id === activeCompanyId) ?? null,

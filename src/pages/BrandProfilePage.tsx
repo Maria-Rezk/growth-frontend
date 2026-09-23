@@ -11,7 +11,9 @@ import { FormErrorSummary } from '@/components/ui/FormErrorSummary';
 import { LoadingState, ErrorState } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { useAsync, useMutation } from '@/hooks/useAsync';
+import { scopeDraftKey, useFormDraft } from '@/hooks/useFormDraft';
 import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning';
+import { useAuth } from '@/context/AuthContext';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { brandProfilesService } from '@/services/brandProfiles';
 import { queryKeys } from '@/lib/queryClient';
@@ -102,6 +104,7 @@ export function BrandProfilePage() {
 }
 
 function BrandProfileInner({ companyId }: { companyId: string }) {
+  const { user } = useAuth();
   const profile = useAsync(
     () => brandProfilesService.get(companyId),
     [companyId],
@@ -126,16 +129,32 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
 
   useEffect(() => {
     if (!profile.data) return;
-    // `reset` (not setValue) so isDirty returns to false and the loaded values
-    // become the new baseline for the dirty check.
+    /*
+      Only while pristine. `refetchOnWindowFocus` (queryClient.ts) means
+      `profile.data` can now change under an open, half-filled form — e.g. the
+      person tabs away, someone else saves a brand update, they tab back. This
+      guard is what stops that background refresh from silently overwriting
+      whatever they were still typing; the reset only ever applies to a form
+      nobody has touched yet.
+      `reset` (not setValue) so isDirty returns to false and the loaded values
+      become the new baseline for the dirty check.
+    */
+    if (form.formState.isDirty) return;
     form.reset(toFormValues(profile.data));
   }, [form, profile.data]);
+
+  const draft = useFormDraft(
+    profile.data ? scopeDraftKey(user?.id, `brand-profile:${companyId}`) : null,
+    form,
+    { enabled: Boolean(profile.data), serverUpdatedAt: profile.data?.updatedAt },
+  );
 
   const submit = form.handleSubmit(async (values) => {
     const result = await save.mutate(companyId, toPayload(values), Boolean(profile.data));
     if (result) {
       profile.setData(result);
       form.reset(toFormValues(result));
+      draft.discard();
       toast.success('Brand profile saved.');
     }
   });
@@ -299,7 +318,11 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
             <div className="form-status-row">
               <span>
                 {isDirty
-                  ? <span className="unsaved-pill">Unsaved changes</span>
+                  ? (
+                    <span className="unsaved-pill">
+                      {draft.restored ? 'Unsaved changes — restored from your last visit' : 'Unsaved changes'}
+                    </span>
+                  )
                   : <span className="muted">All changes saved.</span>}
               </span>
               <RoleGate permission="brand:edit" fallback={<span className="muted">Your role cannot edit the brand profile.</span>}>

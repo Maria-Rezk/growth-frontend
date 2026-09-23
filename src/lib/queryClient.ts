@@ -12,10 +12,22 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 45_000,
       gcTime: 10 * 60_000,
-      refetchOnWindowFocus: false,
+      /*
+        Both on. This was the main reason data needed a manual refresh: a
+        stale query only re-fetches on its own after `staleTime`, on remount,
+        or on one of these two triggers — with both off, switching back to a
+        tab (or a laptop waking up and reconnecting) never updated anything
+        someone else had changed in the meantime. React Query already
+        de-dupes and only re-fetches queries currently in use, so this does
+        not turn into background polling.
+      */
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
       retry: shouldRetry,
     },
     mutations: {
+      // Not retried automatically: a failed POST/PATCH must not silently
+      // resubmit — the caller decides whether to retry, same as before.
       retry: false,
     },
   },

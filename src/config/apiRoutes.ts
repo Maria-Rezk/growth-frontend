@@ -5,6 +5,13 @@ export const apiRoutes = {
     // Exchanges the httpOnly refresh cookie for a new access token, re-issuing
     // the role along with it — which is what makes Flow 7 actually resolve.
     refresh: '/auth/refresh',
+    /*
+      Revokes the httpOnly refresh cookie server-side on explicit sign-out.
+      Not confirmed shipped — see docs/backend-handoff-frontend-seams.md.
+      Called best-effort: a route-miss must not stop the client-side sign-out
+      the button already promises.
+    */
+    logout: '/auth/logout',
     acceptInvitation: '/auth/accept-invitation',
     /*
       Password reset. Both answer 200 whatever the email, so the form

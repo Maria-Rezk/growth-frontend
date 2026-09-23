@@ -8,6 +8,7 @@ import { LoadingState } from '@/components/ui/State';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { recoverFromChunkLoadError } from '@/lib/chunkReload';
 
 /*
   Every page behind the login is its own chunk.
@@ -22,7 +23,21 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
   contract without renaming anything.
 */
 function pick<T extends Record<string, unknown>, K extends keyof T>(load: () => Promise<T>, key: K) {
-  return lazy(() => load().then((module) => ({ default: module[key] as ComponentType })));
+  return lazy(() =>
+    load()
+      .then((module) => ({ default: module[key] as ComponentType }))
+      .catch((error: unknown) => {
+        // A chunk 404 after a new deploy: reload once to pick up the current
+        // build instead of leaving the error boundary's "Try again" stuck
+        // re-requesting a file that no longer exists. See chunkReload.ts.
+        if (recoverFromChunkLoadError(error)) {
+          return new Promise<{ default: ComponentType }>(() => {
+            /* navigation away via reload — never resolves */
+          });
+        }
+        throw error;
+      }),
+  );
 }
 
 const AcceptInvitationPage = pick(() => import('@/pages/AcceptInvitationPage'), 'AcceptInvitationPage');

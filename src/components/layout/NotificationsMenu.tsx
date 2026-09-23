@@ -2,12 +2,14 @@ import { Link } from 'react-router-dom';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { notificationsService } from '@/services/notifications';
 import { useNotifications } from '@/context/NotificationsContext';
+import { queryKeys } from '@/lib/queryClient';
 import { Button } from '@/components/ui/Button';
 import { formatDateTime, humanize } from '@/utils/format';
 
 export function NotificationsMenu({ open }: { open: boolean }) {
   const { refreshUnreadCount } = useNotifications();
-  const list = useAsync(() => notificationsService.list(), [open]);
+  // Shares queryKeys.notifications — see NotificationsDropdown for why.
+  const list = useAsync(() => notificationsService.list(), [], { queryKey: queryKeys.notifications });
   const markAll = useMutation(notificationsService.markAllRead);
 
   if (!open) return null;

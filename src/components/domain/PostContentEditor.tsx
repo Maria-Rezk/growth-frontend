@@ -5,7 +5,9 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
+import { scopeDraftKey, useFormDraft } from '@/hooks/useFormDraft';
 import { useMutation } from '@/hooks/useAsync';
+import { useAuth } from '@/context/AuthContext';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { contentService } from '@/services/content';
 import type { ContentPost } from '@/types/domain';
@@ -53,8 +55,14 @@ export function PostContentEditor({
     },
     mode: 'onBlur',
   });
+  const { user } = useAuth();
   const discard = useDiscardGuard(form);
   const cancel = discard(onCancel);
+
+  // Keyed on the post and the signed-in user: switching which post is open,
+  // or which person is signed in on this browser, must never surface someone
+  // else's half-written caption.
+  const draft = useFormDraft(scopeDraftKey(user?.id, `post-content:${post.id}`), form, { serverUpdatedAt: post.updatedAt });
 
   const save = useMutation(contentService.updatePost, {
     invalidateKeys: [['companies', companyId, 'posts']],
@@ -72,6 +80,7 @@ export function PostContentEditor({
     if (result) {
       toast.success('Content saved.');
       form.reset(values);
+      draft.discard();
       onSaved(result);
     }
   });
@@ -108,6 +117,7 @@ export function PostContentEditor({
       <Field label="Visual brief" htmlFor="edit-brief" hint="What the designer needs to make.">
         <Textarea id="edit-brief" rows={4} {...form.register('visualBrief')} />
       </Field>
+      {draft.restored ? <p className="muted">Restored your unsaved edits from before.</p> : null}
       {save.error ? <p className="error-box" role="alert">{save.error}</p> : null}
       <div className="form-actions">
         <Button variant="secondary" type="button" onClick={cancel} disabled={save.loading}>Cancel</Button>

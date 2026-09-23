@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useNotifications } from '@/context/NotificationsContext';
 import { notificationsService } from '@/services/notifications';
+import { queryKeys } from '@/lib/queryClient';
 import type { AppNotification } from '@/types/domain';
 import { BellIcon } from '@/components/ui/icons';
 import { NotificationItem } from './NotificationItem';
@@ -14,7 +15,14 @@ export function NotificationsDropdown() {
   const { unreadCount, refreshUnreadCount, isVisible } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const list = useAsync(() => notificationsService.list(), [open]);
+  /*
+    Shares `queryKeys.notifications` with the full Notifications page and
+    NotificationsContext — it used to key on its own `factory.toString()`
+    fallback, a private cache that neither of those invalidated. Marking
+    something read on the full page (or from here) left the dropdown showing
+    the old unread state until it happened to go stale on its own.
+  */
+  const list = useAsync(() => notificationsService.list(), [], { queryKey: queryKeys.notifications });
   const markRead = useMutation(notificationsService.markRead);
   const markAll = useMutation(notificationsService.markAllRead);
 

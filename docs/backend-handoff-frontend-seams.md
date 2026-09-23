@@ -247,3 +247,27 @@ POST /api/auth/reset-password    { "token": "…", "password": "…" } → 200 |
 | 4 | Report share link | M |
 | **4b** | **`lostReason` / `dealValue`** | **S** |
 | 5 | `sequence` + post gate | L |
+
+---
+
+## 7. Added for the browser-persistence pass (session 23 September 2026)
+
+Two items, neither blocking — the frontend degrades safely if the answer to either is "not yet."
+
+### 7a. Confirm the refresh cookie's flags
+
+**Why:** the access token used to live in `localStorage` (any script on the page could read it, and it survived indefinitely). It's now held in memory only and re-minted from the refresh cookie on every page load — which makes that cookie the entire client-side security boundary, so its flags matter more than they did before.
+
+**Ask:** confirm `Set-Cookie` on `/auth/login` and `/auth/refresh` already sends `HttpOnly; Secure; SameSite=Lax` (or `Strict`) — the frontend has always assumed `HttpOnly` (it never reads the cookie) but cannot verify the rest from here. If refresh tokens don't already rotate on each use (a new cookie value per `/auth/refresh` call, the old one rejected if replayed), that's the other half of "proper expiration, rotation and renewal" worth confirming.
+
+### 7b. `POST /auth/logout`
+
+**Why:** today, clicking "Logout" only clears client-side state — the refresh cookie itself is never revoked, so a copy of it (stolen, or simply not cleared by a shared computer's next user) is still good for new access tokens after "logout".
+
+```http
+POST /api/auth/logout   → 200 | 204, clears/invalidates the refresh cookie server-side
+```
+
+**Frontend seam:** `src/services/auth.ts` → `authService.logout()` already calls this on every explicit sign-out. It treats a route-miss as success (nothing shipped yet), so nothing breaks until this lands — but until it does, "Logout" is cosmetic against a copied cookie.
+
+**Acceptance:** *Given* a signed-in session, *when* the person logs out and the same (now-stale) refresh cookie is replayed against `/auth/refresh`, *then* it is rejected.
