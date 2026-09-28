@@ -12,12 +12,10 @@ import { queryKeys } from '@/lib/queryClient';
 import { myReviewsService } from '@/services/myWork';
 
 /**
- * The approval queue — everything waiting on *me*, across every client.
- *
- * Deliberately not behind <RequireCompany>: an approver on five clients
- * should see one list, not tour five workspaces. Same fan-out as My work;
- * the client is a tag on the row and a filter, not a gate. Approving a row
- * sends the verdict to that row's client, whatever client is active.
+ * The approval queue — everything waiting on *me*, across every client, from
+ * one server-paged request. Deliberately not behind <RequireCompany>: the
+ * client is a tag on the row and a filter, not a gate. Approving a row sends
+ * the verdict to that row's client, whatever client is active.
  */
 export function ApprovalQueuePage() {
   const { companies, loading, error, refreshCompanies } = useCompany();
@@ -32,18 +30,22 @@ export function ApprovalQueuePage() {
 
 const SUBTITLE = 'Tasks submitted to you for review, across every client you approve on. Oldest first.';
 
+const PAGE_SIZE = 25;
+
 function ApprovalQueueInner() {
   const { companies } = useCompany();
   const [client, setClient] = useState<ClientFilterValue>('all');
-  const companyIds = useMemo(() => companies.map((company) => company.id), [companies]);
+  // Grows by a page on "Show more"; one query, so a verdict's invalidation refreshes everything shown.
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const reviews = useAsync(
-    () => myReviewsService.listAcrossClients(companies),
-    [companyIds.join('|')],
-    { queryKey: queryKeys.myReviews(companyIds) },
+    () => myReviewsService.list({ limit, offset: 0 }),
+    [limit],
+    { queryKey: queryKeys.meApprovalQueue({ limit }), keepPreviousData: true },
   );
 
-  const rows = useMemo<QueueTask[]>(() => reviews.data?.tasks ?? [], [reviews.data]);
+  const rows = useMemo<QueueTask[]>(() => reviews.data?.items ?? [], [reviews.data]);
+  const total = reviews.data?.total ?? 0;
   const visible = useMemo(() => (client === 'all' ? rows : rows.filter((task) => task.clientId === client)), [client, rows]);
 
   const clientOptions = useMemo(() => {
@@ -55,9 +57,6 @@ function ApprovalQueueInner() {
   if (reviews.loading) return <><PageHeader title="Approval queue" subtitle={SUBTITLE} /><ListSkeleton rows={4} /></>;
   if (reviews.error) return <><PageHeader title="Approval queue" subtitle={SUBTITLE} /><ErrorState message={reviews.error} onRetry={reviews.refetch} /></>;
 
-  const failed = reviews.data?.unavailableClients ?? [];
-  const nothingLoaded = failed.length > 0 && failed.length === companies.length;
-
   return (
     <>
       <PageHeader
@@ -66,31 +65,27 @@ function ApprovalQueueInner() {
         action={<ButtonLink to={appRoutes.tasks} variant="secondary" size="sm">All tasks</ButtonLink>}
       />
 
-      {nothingLoaded ? (
-        <ErrorState message={reviews.data?.failure ?? 'Your queue could not be loaded for any client.'} onRetry={reviews.refetch} />
-      ) : (
-        <>
-          {failed.length ? (
-            <div className="error-box notice-row" role="alert">
-              <span>Could not load the queue for {failed.join(', ')}. Everything else is up to date.</span>
-              <Button variant="secondary" size="sm" onClick={reviews.refetch}>Try again</Button>
-            </div>
-          ) : null}
+      {rows.length > 0 && companies.length > 1 ? (
+        <ClientFilter options={clientOptions} value={client} total={rows.length} onChange={setClient} />
+      ) : null}
 
-          {rows.length > 0 && companies.length > 1 ? (
-            <ClientFilter options={clientOptions} value={client} total={rows.length} onChange={setClient} />
-          ) : null}
+      <ApprovalQueueList
+        rows={visible}
+        refreshing={reviews.refreshing}
+        showClient={client === 'all' && companies.length > 1}
+        emptyTitle={rows.length === 0 ? 'Nothing waiting on you' : 'Nothing waiting on you for this client'}
+        emptyDescription={rows.length === 0 ? 'When somebody submits a task for your review it appears here, oldest first, whichever client it belongs to.' : 'Pick another client, or All clients.'}
+        emptyAction={rows.length === 0 ? <ButtonLink to={appRoutes.myWork} variant="secondary" size="sm">Open my work</ButtonLink> : undefined}
+      />
 
-          <ApprovalQueueList
-            rows={visible}
-            refreshing={reviews.refreshing}
-            showClient={client === 'all' && companies.length > 1}
-            emptyTitle={rows.length === 0 ? 'Nothing waiting on you' : 'Nothing waiting on you for this client'}
-            emptyDescription={rows.length === 0 ? 'When somebody submits a task for your review it appears here, oldest first, whichever client it belongs to.' : 'Pick another client, or All clients.'}
-            emptyAction={rows.length === 0 ? <ButtonLink to={appRoutes.myWork} variant="secondary" size="sm">Open my work</ButtonLink> : undefined}
-          />
-        </>
-      )}
+      {rows.length < total ? (
+        <div className="notice-row">
+          <span className="muted">Showing the oldest {rows.length} of {total}.</span>
+          <Button variant="secondary" size="sm" loading={reviews.refreshing} onClick={() => setLimit((current) => current + PAGE_SIZE)}>
+            Show more
+          </Button>
+        </div>
+      ) : null}
     </>
   );
 }

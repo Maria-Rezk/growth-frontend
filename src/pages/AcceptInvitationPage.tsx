@@ -10,6 +10,7 @@ import { Field, Input } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
 import { appRoutes, unwrapInvitationToken } from '@/config/appRoutes';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { PASSWORD_MIN_LENGTH } from '@/types/domain';
 
 /*
   Contract: POST /auth/accept-invitation
@@ -29,7 +30,7 @@ const invitationSchema = z
   .object({
     token: z.string().trim().min(1, 'Invitation token is required.'),
     fullName: z.string().trim().optional(),
-    password: z.union([z.string().min(8, 'Password must be at least 8 characters.'), z.literal('')]).optional(),
+    password: z.union([z.string().min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`), z.literal('')]).optional(),
   })
   // Setting a password means creating an account, which needs a name too.
   .refine((values) => !values.password || (values.fullName?.trim().length ?? 0) >= 2, {
@@ -104,7 +105,7 @@ export function AcceptInvitationPage() {
           <Field
             label="Password"
             htmlFor="password"
-            hint="Leave blank if you already have an account."
+            hint={`At least ${PASSWORD_MIN_LENGTH} characters. Leave blank if you already have an account.`}
             error={form.formState.errors.password?.message}
           >
             <Input

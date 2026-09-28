@@ -4,24 +4,38 @@ import { http, unwrap } from '@/lib/http';
 import {
   demoContentPlans,
   demoDelay,
-  demoPostAssets,
   demoPostComments,
   demoPostLogs,
   demoPosts,
+  demoTasks,
   demoUser,
   filterList,
   makeId,
   pushNotification,
 } from '@/services/demoStore';
+import { attachmentsService } from '@/services/attachments';
+import { PostReviewErrorCode } from '@/types/domain';
 import type {
   ContentPlan,
   ContentPost,
   ListParams,
   PostApprovalLog,
-  PostAsset,
   PostComment,
+  PostStages,
   PostStatus,
 } from '@/types/domain';
+
+/** Demo-only: the stages object the API computes from sequenced tasks on the post. */
+function demoStages(postId: string): PostStages | undefined {
+  const staged = demoTasks.filter((task) => task.relatedEntityType === 'POST' && task.relatedEntityId === postId && typeof task.sequence === 'number');
+  if (!staged.length) return undefined;
+  const counted = staged.filter((task) => task.status !== 'CANCELED');
+  const open = counted
+    .filter((task) => task.status !== 'DONE')
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .map((task) => ({ taskId: task.id, title: task.title, sequence: task.sequence ?? 0, status: task.status }));
+  return { total: counted.length, done: counted.length - open.length, open };
+}
 
 function setDemoPostStatus(postId: string, status: PostStatus, action: string, note?: string) {
   const post = demoPosts.find((item) => item.id === postId);
@@ -143,13 +157,13 @@ export const contentService = {
     if (env.demoMode) {
       const post = demoPosts.find((item) => item.companyId === companyId && item.id === postId);
       if (!post) throw new Error('Post not found.');
-      return demoDelay(post);
+      return demoDelay({ ...post, stages: demoStages(postId) });
     }
     const response = await http.get(apiRoutes.posts.detail(companyId, postId));
     return unwrap<ContentPost>(response.data);
   },
 
-  async createPost(companyId: string, payload: Partial<ContentPost>): Promise<ContentPost> {
+  async createPost(companyId: string, payload: Partial<ContentPost> & { attachmentFileIds?: string[] }): Promise<ContentPost> {
     if (env.demoMode) {
       const post: ContentPost = {
         id: makeId('post'),
@@ -165,9 +179,16 @@ export const contentService = {
         updatedAt: new Date().toISOString(),
       };
       demoPosts.unshift(post);
+      for (const fileId of payload.attachmentFileIds ?? []) {
+        await attachmentsService.add(companyId, { entityType: 'POST', entityId: post.id }, fileId);
+      }
       return demoDelay(post);
     }
-    const response = await http.post(apiRoutes.posts.list(companyId), payload);
+    const { attachmentFileIds, ...rest } = payload;
+    const response = await http.post(apiRoutes.posts.list(companyId), {
+      ...rest,
+      attachmentFileIds: attachmentFileIds?.length ? attachmentFileIds : undefined,
+    });
     return unwrap<ContentPost>(response.data);
   },
 
@@ -231,8 +252,18 @@ export const contentService = {
 
   // All workflow transitions accept an optional { note } body (verified in API tests).
   // Always send a JSON object so strict DTO validation never receives an empty body.
+  // 409 STAGES_OPEN (with openTaskIds + stages) while any staged task on the post is open.
   async submitReview(companyId: string, postId: string, note?: string): Promise<ContentPost> {
     if (env.demoMode) {
+      const stages = demoStages(postId);
+      if (stages?.open.length) {
+        throw Object.assign(new Error(`${stages.open.length} stage${stages.open.length === 1 ? ' is' : 's are'} still open on this post.`), {
+          statusCode: 409,
+          code: PostReviewErrorCode.STAGES_OPEN,
+          openTaskIds: stages.open.map((stage) => stage.taskId),
+          stages,
+        });
+      }
       const post = setDemoPostStatus(postId, 'READY_FOR_CLIENT', 'SUBMITTED_TO_CLIENT', note);
       pushNotification({ type: 'POST_SUBMITTED_TO_CLIENT', title: 'Post submitted to client', message: post.title, readAt: null, relatedEntityType: 'POST', relatedEntityId: postId });
       return demoDelay(post);
@@ -291,29 +322,5 @@ export const contentService = {
     const response = await http.get(apiRoutes.posts.approvalLogs(companyId, postId));
     const raw = unwrap<RawApprovalLog[]>(response.data);
     return (Array.isArray(raw) ? raw : []).map(normalizeApprovalLog);
-  },
-
-  async assets(companyId: string, postId: string): Promise<PostAsset[]> {
-    if (env.demoMode) return demoDelay(demoPostAssets.filter((asset) => asset.postId === postId));
-    const response = await http.get(apiRoutes.posts.assets(companyId, postId));
-    return unwrap<PostAsset[]>(response.data);
-  },
-
-  async attachAsset(companyId: string, postId: string, fileId: string): Promise<PostAsset> {
-    if (env.demoMode) {
-      const asset: PostAsset = { id: makeId('asset'), postId, fileId, createdAt: new Date().toISOString() };
-      demoPostAssets.unshift(asset);
-      return demoDelay(asset);
-    }
-    const response = await http.post(apiRoutes.posts.assets(companyId, postId), {
-      fileId,
-      assetType: 'DESIGN',
-    });
-    return unwrap<PostAsset>(response.data);
-  },
-
-  async removeAsset(companyId: string, postId: string, assetId: string): Promise<void> {
-    if (env.demoMode) return demoDelay(undefined);
-    await http.delete(apiRoutes.posts.asset(companyId, postId, assetId));
   },
 };

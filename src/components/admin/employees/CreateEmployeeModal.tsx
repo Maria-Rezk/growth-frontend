@@ -11,14 +11,14 @@ import { useMutation } from '@/hooks/useAsync';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { ADMIN_DASHBOARD_KEY, queryKeys } from '@/lib/queryClient';
 import { usersService } from '@/services/users';
-import { PlatformRole, type Employee } from '@/types/domain';
+import { PASSWORD_MIN_LENGTH, PlatformRole, type Employee } from '@/types/domain';
 import { humanize } from '@/utils/format';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
 const createEmployeeSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name is required.'),
   email: z.string().trim().email('Enter a valid email address.'),
-  password: z.string().min(12, 'Password must be at least 12 characters.'),
+  password: z.string().min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`),
   platformRole: z.enum(['USER', 'AGENCY_ADMIN', 'SUPER_ADMIN']),
 });
 

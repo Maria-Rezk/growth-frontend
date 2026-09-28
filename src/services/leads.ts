@@ -12,7 +12,14 @@ import {
   moveLeadStatus,
   pushNotification,
 } from '@/services/demoStore';
-import type { Lead, LeadNote, LeadStatus, LeadStatusHistory, ListParams } from '@/types/domain';
+import { attachmentsService } from '@/services/attachments';
+import type { Lead, LeadNote, LeadStatus, LeadStatusHistory, ListParams, LostReason } from '@/types/domain';
+
+export interface LeadStatusOutcome {
+  note?: string;
+  lostReason?: LostReason | '';
+  dealValue?: number | null;
+}
 
 // ---------------------------------------------------------------------------
 // Backend response normalizers (verified against Step 11 API tests).
@@ -148,7 +155,7 @@ export const leadsService = {
     return unwrap<Lead>(response.data);
   },
 
-  async create(companyId: string, payload: Partial<Lead>): Promise<Lead> {
+  async create(companyId: string, payload: Partial<Lead> & { attachmentFileIds?: string[] }): Promise<Lead> {
     if (env.demoMode) {
       const lead: Lead = {
         id: makeId('lead'),
@@ -167,6 +174,9 @@ export const leadsService = {
         updatedAt: new Date().toISOString(),
       };
       demoLeads.unshift(lead);
+      for (const fileId of payload.attachmentFileIds ?? []) {
+        await attachmentsService.add(companyId, { entityType: 'LEAD', entityId: lead.id }, fileId);
+      }
       pushNotification({ type: 'LEAD_ASSIGNED', title: 'New lead created', message: lead.name, readAt: null, relatedEntityType: 'LEAD', relatedEntityId: lead.id });
       return demoDelay(lead);
     }
@@ -180,6 +190,7 @@ export const leadsService = {
       notes: payload.notes || undefined,
       nextFollowUpAt: payload.nextFollowUpAt || undefined,
       assignedToId: payload.assignedToId || undefined,
+      attachmentFileIds: payload.attachmentFileIds?.length ? payload.attachmentFileIds : undefined,
     };
     const response = await http.post(apiRoutes.leads.list(companyId), body);
     return unwrap<Lead>(response.data);
@@ -196,15 +207,27 @@ export const leadsService = {
     return unwrap<Lead>(response.data);
   },
 
-  // Verified backend contract: PATCH /status with { status, note }
-  // returns { lead, statusHistory } — extract the lead for callers.
-  async setStatus(companyId: string, leadId: string, status: LeadStatus, note?: string): Promise<Lead> {
+  /*
+    PATCH /status returns { lead, statusHistory } — extract the lead.
+    `lostReason` only with LOST and `dealValue` only with WON, otherwise 400;
+    both are dropped here for any other status so a stale form value can't trip it.
+  */
+  async setStatus(companyId: string, leadId: string, status: LeadStatus, outcome: LeadStatusOutcome = {}): Promise<Lead> {
+    const lostReason = status === 'LOST' ? outcome.lostReason || undefined : undefined;
+    const dealValue = status === 'WON' && typeof outcome.dealValue === 'number' ? outcome.dealValue : undefined;
     if (env.demoMode) {
       const lead = moveLeadStatus(leadId, status);
+      lead.lostReason = lostReason ?? null;
+      lead.dealValue = dealValue ?? null;
       pushNotification({ type: 'LEAD_STATUS_CHANGED', title: 'Lead status changed', message: `${lead.name} moved to ${status}`, readAt: null, relatedEntityType: 'LEAD', relatedEntityId: leadId });
       return demoDelay(lead);
     }
-    const response = await http.patch(apiRoutes.leads.status(companyId, leadId), { status, note: note || undefined });
+    const response = await http.patch(apiRoutes.leads.status(companyId, leadId), {
+      status,
+      note: outcome.note || undefined,
+      lostReason,
+      dealValue,
+    });
     const envelope = unwrap<Record<string, unknown>>(response.data);
     if (envelope && typeof envelope === 'object' && 'lead' in envelope && envelope.lead) {
       return envelope.lead as Lead;

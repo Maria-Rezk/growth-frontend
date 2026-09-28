@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ClockIcon } from '@/components/ui/icons';
 import { appRoutes } from '@/config/appRoutes';
@@ -14,6 +13,7 @@ import { hoursSince } from '@/utils/taskReview';
 /** A review is "late" after a day on the agency side, two on the client's. */
 const STAFF_HOURS = 24;
 const CLIENT_HOURS = 48;
+const BANNER_PAGE = 25;
 
 /**
  * The nudge: one line under the topbar when something has waited on the
@@ -33,21 +33,24 @@ export function WaitingBanner() {
 function StaffBanner() {
   const { companies } = useCompany();
   const location = useLocation();
-  const companyIds = useMemo(() => companies.map((company) => company.id), [companies]);
+  // Same key as the queue page's first page, so one request serves both.
   const reviews = useAsync(
-    () => myReviewsService.listAcrossClients(companies),
-    [companyIds.join('|')],
-    { queryKey: queryKeys.myReviews(companyIds), enabled: companies.length > 0 },
+    () => myReviewsService.list({ limit: BANNER_PAGE, offset: 0 }),
+    [],
+    { queryKey: queryKeys.meApprovalQueue({ limit: BANNER_PAGE }), enabled: companies.length > 0 },
   );
 
-  const late = (reviews.data?.tasks ?? []).filter((task) => (hoursSince(task.submittedForReviewAt) ?? 0) >= STAFF_HOURS);
+  const items = reviews.data?.items ?? [];
+  const late = items.filter((task) => (hoursSince(task.submittedForReviewAt) ?? 0) >= STAFF_HOURS);
   // The queue page is where they deal with it; nagging on it is noise.
   if (late.length === 0 || location.pathname === appRoutes.approvals) return null;
 
+  // Oldest first: if the whole page is late, more may be past it.
+  const moreBeyond = late.length === items.length && (reviews.data?.total ?? 0) > items.length;
   const oldest = Math.floor(Math.max(...late.map((task) => hoursSince(task.submittedForReviewAt) ?? 0)) / 24);
   return (
     <Banner to={appRoutes.approvals}>
-      <strong>{late.length === 1 ? 'A review has' : `${late.length} reviews have`}</strong> waited on you for over a day
+      <strong>{late.length === 1 && !moreBeyond ? 'A review has' : `${late.length}${moreBeyond ? '+' : ''} reviews have`}</strong> waited on you for over a day
       {oldest > 1 ? <> — the oldest for {oldest} days</> : null}. Open the queue →
     </Banner>
   );

@@ -9,6 +9,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { recoverFromChunkLoadError } from '@/lib/chunkReload';
+import { appRoutes } from '@/config/appRoutes';
 
 /*
   Every page behind the login is its own chunk.
@@ -66,6 +67,7 @@ const ClientsPage = pick(() => import('@/pages/ClientsPage'), 'ClientsPage');
 const AdminDashboardPage = pick(() => import('@/pages/admin/AdminDashboardPage'), 'AdminDashboardPage');
 const ClientHomePage = pick(() => import('@/pages/ClientHomePage'), 'ClientHomePage');
 const AdminActivityPage = pick(() => import('@/pages/admin/AdminActivityPage'), 'AdminActivityPage');
+const PublicReportPage = pick(() => import('@/pages/PublicReportPage'), 'PublicReportPage');
 
 /** One fallback for every chunk: same spinner the pages themselves use while their data loads, so a slow network never shows two kinds of "loading". */
 function PageFallback() {
@@ -82,6 +84,8 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        {/* Login-free report link. Must stay outside ProtectedRoute. */}
+        <Route path={appRoutes.publicReportPattern} element={<PublicReportPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>

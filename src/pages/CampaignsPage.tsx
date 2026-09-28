@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
+import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -161,9 +162,13 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
     onError: (error) => applyServerFieldErrors(form, error),
   });
 
+  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const close = () => {
     form.reset();
     create.reset();
+    setPendingFiles([]);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
@@ -185,6 +190,7 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
       currency: values.currency?.trim() || undefined,
       targetAudience: values.targetAudience?.trim() || undefined,
       notes: values.notes?.trim() || undefined,
+      attachmentFileIds: pendingFiles.map((file) => file.fileId),
     });
     if (result) {
       toast.success('Campaign created.');
@@ -199,7 +205,7 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
       open={open}
       onClose={cancel}
       title="Create campaign"
-      footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="campaign-form" loading={form.formState.isSubmitting || create.loading}>Create campaign</Button></>}
+      footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="campaign-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create campaign</Button></>}
     >
       <form id="campaign-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Name" htmlFor="campaign-name" error={form.formState.errors.name?.message}>
@@ -237,6 +243,7 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
         <Field label="Notes" htmlFor="campaign-notes">
           <Textarea id="campaign-notes" rows={2} {...form.register('notes')} />
         </Field>
+        <PendingAttachmentsField companyId={companyId} value={pendingFiles} onChange={setPendingFiles} onBusyChange={setUploading} disabled={create.loading} />
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>

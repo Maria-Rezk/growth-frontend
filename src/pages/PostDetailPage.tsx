@@ -1,15 +1,16 @@
 import { FormEvent, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { appRoutes } from '@/config/appRoutes';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
-import { ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { Badge } from '@/components/ui/Badge';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
-import { AttachmentList } from '@/components/domain/AttachmentList';
+import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { PostWorkPanel } from '@/components/domain/PostWorkPanel';
 import { PostContentEditor } from '@/components/domain/PostContentEditor';
 import { WorkflowStepper } from '@/components/domain/WorkflowStepper';
@@ -18,10 +19,10 @@ import { hasFormDraft, scopeDraftKey } from '@/hooks/useFormDraft';
 import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { contentService } from '@/services/content';
-import { filesService } from '@/services/files';
+import { errorCode } from '@/lib/http';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, fromInputDateTime, humanize } from '@/utils/format';
-import { CompanyMembershipRole, PostStatus } from '@/types/domain';
+import { CompanyMembershipRole, PostReviewErrorCode, PostStatus } from '@/types/domain';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 
 export function PostDetailPage() {
@@ -39,17 +40,20 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   const post = useAsync(() => contentService.getPost(companyId, postId), [companyId, postId], { queryKey: queryKeys.post(companyId, postId) });
   const comments = useAsync(() => contentService.comments(companyId, postId), [companyId, postId]);
   const logs = useAsync(() => contentService.approvalLogs(companyId, postId), [companyId, postId]);
-  const assets = useAsync(() => contentService.assets(companyId, postId), [companyId, postId]);
 
   // All mutations declared before any early return (rules of hooks).
-  const submitReview = useMutation(contentService.submitReview, { invalidateKeys: postsPrefix });
+  // 409 STAGES_OPEN is a gate, not a race: the refetch after the press brings the stages that are in the way.
+  const [blockedByStages, setBlockedByStages] = useState(false);
+  const submitReview = useMutation(contentService.submitReview, {
+    invalidateKeys: postsPrefix,
+    onSuccess: () => setBlockedByStages(false),
+    onError: (error) => setBlockedByStages(errorCode(error) === PostReviewErrorCode.STAGES_OPEN),
+  });
   const approve = useMutation(contentService.approve, { invalidateKeys: postsPrefix });
   const requestChanges = useMutation(contentService.requestChanges, { invalidateKeys: postsPrefix });
   const reject = useMutation(contentService.reject, { invalidateKeys: postsPrefix });
   const publish = useMutation(contentService.publish, { invalidateKeys: postsPrefix });
   const schedule = useMutation(contentService.updatePost, { invalidateKeys: postsPrefix });
-  const uploadAsset = useMutation(filesService.upload);
-  const attachAsset = useMutation(contentService.attachAsset);
 
   const [comment, setComment] = useState('');
   const [commentIsInternal, setCommentIsInternal] = useState(false);
@@ -63,12 +67,19 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   const [editing, setEditing] = useState(() => Boolean(draftKey && hasFormDraft(draftKey)));
 
   if (post.loading) return <DetailSkeleton />;
+  // Clients get 404 (never 403) for posts still in preparation.
+  if (post.errorStatus === 404 && isClient) {
+    return <EmptyState title="This post is not available" description="It may still be in preparation. Your agency will send it when it is ready for you." />;
+  }
   if (post.error || !post.data) return <ErrorState message={post.error ?? 'Post not found.'} onRetry={post.refetch} />;
+
+  const stages = post.data.stages ?? null;
+  const stagesOpen = (stages?.open.length ?? 0) > 0;
 
   // Internal comments are filtered out for client roles.
   const visibleComments = (comments.data ?? []).filter((item) => !item.isInternal || !isClient);
 
-  const reloadAll = async () => { await Promise.all([post.refetch(), comments.refetch(), logs.refetch(), assets.refetch()]); };
+  const reloadAll = async () => { await Promise.all([post.refetch(), comments.refetch(), logs.refetch()]); };
 
   const transition = async (action: 'submit' | 'approve' | 'changes' | 'reject' | 'publish') => {
     if (action === 'submit') await submitReview.mutate(companyId, postId);
@@ -100,15 +111,6 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
     setComment('');
     setCommentIsInternal(false);
     await comments.refetch();
-  };
-
-  const onFile = async (file?: File) => {
-    if (!file) return;
-    const stored = await uploadAsset.mutate(companyId, file);
-    if (stored) {
-      await attachAsset.mutate(companyId, postId, stored.id);
-      await assets.refetch();
-    }
   };
 
   return (
@@ -211,7 +213,22 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
             <CardHeader title="Approval actions" subtitle="Available actions depend on your role and the current workflow state." />
             <div className="content-card__body form-grid">
               <RoleGate permission="posts:submit" fallback={<p className="muted">You cannot submit posts from this role.</p>}>
-                <Button onClick={() => transition('submit')} loading={submitReview.loading}>Submit to client</Button>
+                <Button onClick={() => transition('submit')} loading={submitReview.loading} disabled={stagesOpen}>Submit to client</Button>
+                {stagesOpen && stages ? (
+                  <div className="blocker-note" role="status">
+                    <strong>Finish {stages.open.length === 1 ? 'this stage' : `these ${stages.open.length} stages`} first</strong>
+                    <ul>
+                      {stages.open.map((stage) => (
+                        <li key={stage.taskId}>
+                          <Link className="table-link" to={appRoutes.task(stage.taskId)}>
+                            {stage.sequence}. {stage.title}
+                          </Link>{' '}
+                          <span className="muted">— {humanize(stage.status).toLowerCase()}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </RoleGate>
               <RoleGate permission="posts:approve">
                 <Button variant="secondary" onClick={() => transition('approve')} loading={approve.loading}>Approve</Button>
@@ -235,9 +252,9 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
                 </Field>
                 <Button variant="secondary" onClick={schedulePost} loading={schedule.loading} disabled={!scheduleAt}>Save publish date</Button>
               </RoleGate>
-              {(submitReview.error || approve.error || requestChanges.error || reject.error || publish.error) ? (
+              {(!blockedByStages && submitReview.error) || approve.error || requestChanges.error || reject.error || publish.error ? (
                 <p className="error-box" role="alert">
-                  {submitReview.error || approve.error || requestChanges.error || reject.error || publish.error}
+                  {(!blockedByStages && submitReview.error) || approve.error || requestChanges.error || reject.error || publish.error}
                 </p>
               ) : null}
             </div>
@@ -246,22 +263,12 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
           {/* Staff only: the client sees the result, not the production line. */}
           {!isClient ? <PostWorkPanel companyId={companyId} post={post.data} /> : null}
 
-          <Card className="content-card">
-            <CardHeader title="Assets" subtitle="Attach creative files directly to this post." />
-            <div className="content-card__body stack-list">
-              <RoleGate permission="assets:upload" fallback={<p className="muted">Asset upload is not available for your role.</p>}>
-                <Input type="file" aria-label="Upload asset" onChange={(event) => onFile(event.target.files?.[0])} />
-              </RoleGate>
-              <AttachmentList
-                companyId={companyId}
-                loading={assets.loading}
-                error={assets.error}
-                data={assets.data}
-                onRetry={assets.refetch}
-                emptyText="No assets attached."
-              />
-            </div>
-          </Card>
+          <AttachmentsPanel
+            companyId={companyId}
+            parent={{ entityType: 'POST', entityId: postId }}
+            title="Assets"
+            subtitle={isClient ? 'Creative files for this post.' : 'Creative files for this post. The client can open these.'}
+          />
 
           <Card className="content-card">
             <CardHeader title="Approval log" />

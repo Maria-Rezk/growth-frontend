@@ -13,6 +13,7 @@ import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { appRoutes } from '@/config/appRoutes';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useTaskActor } from '@/hooks/useTaskActor';
@@ -21,16 +22,16 @@ import { companiesService } from '@/services/companies';
 import { tasksService } from '@/services/tasks';
 import { TaskModal, type TaskLink } from '@/pages/TasksPage';
 import { queryKeys } from '@/lib/queryClient';
-import { formatDateTime, fromInputDateTime, humanize, toInputDateTime } from '@/utils/format';
-import { LeadStatus, TaskStatus, TaskType, type LeadNote } from '@/types/domain';
+import { formatAmount, formatDateTime, fromInputDateTime, humanize, toInputDateTime } from '@/utils/format';
+import { LeadStatus, TaskStatus, TaskType, type LeadNote, type LostReason } from '@/types/domain';
 import {
   CLOSED_LEAD_STATUSES,
   LOST_REASONS,
+  LOST_REASON_LABELS,
   contactLinks,
   followUpBucket,
   isAdrift,
   suggestNextFollowUp,
-  type LostReason,
 } from '@/utils/leadFollowUp';
 import { formatWaiting, userLabel } from '@/utils/taskReview';
 
@@ -58,6 +59,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   const [statusNote, setStatusNote] = useState('');
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | ''>('');
   const [lostReason, setLostReason] = useState<LostReason | ''>('');
+  const [dealValue, setDealValue] = useState('');
   const [nextTouch, setNextTouch] = useState('');
   const [nextTouchTouched, setNextTouchTouched] = useState(false);
   const [editingFollowUp, setEditingFollowUp] = useState(false);
@@ -91,16 +93,23 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   const chooseStatus = (status: LeadStatus) => {
     setPendingStatus(status);
     setLostReason('');
+    setDealValue('');
     // Suggest the next touch for the new stage; keep whatever the person typed.
     if (!nextTouchTouched) setNextTouch(toInputDateTime(suggestNextFollowUp(status)));
   };
 
+  const parsedDealValue = dealValue.trim() === '' ? null : Number(dealValue);
+  const dealValueInvalid = parsedDealValue !== null && (!Number.isFinite(parsedDealValue) || parsedDealValue < 0);
+
   const applyStatus = async () => {
     if (!pendingStatus || pendingStatus === currentStatus) return;
-    const reasonPrefix = pendingStatus === LeadStatus.LOST && lostReason ? `[${lostReason}] ` : '';
-    const body = `${reasonPrefix}${statusNote.trim()}`.trim();
     if (noteRequired && !statusNote.trim()) return;
-    const result = await setStatus.mutate(companyId, leadId, pendingStatus, body || undefined);
+    if (dealValueInvalid) return;
+    const result = await setStatus.mutate(companyId, leadId, pendingStatus, {
+      note: statusNote.trim() || undefined,
+      lostReason: pendingStatus === LeadStatus.LOST ? lostReason : undefined,
+      dealValue: pendingStatus === LeadStatus.WON ? parsedDealValue : undefined,
+    });
     if (!result) return;
     let latest = result;
     // The next touch travels with the status change: one action, two facts.
@@ -113,6 +122,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
     setStatusNote('');
     setPendingStatus('');
     setLostReason('');
+    setDealValue('');
     setNextTouch('');
     setNextTouchTouched(false);
     toast.success(`Lead moved to ${humanize(result.status)}.`);
@@ -187,6 +197,12 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
               <div><span>Source</span><strong>{current.source ? humanize(current.source) : '—'}</strong></div>
               <div><span>Interested service</span><strong>{current.interestedService ?? '—'}</strong></div>
               <div><span>Assigned</span><strong>{resolveName(current.assignedToId)}</strong></div>
+              {currentStatus === LeadStatus.LOST ? (
+                <div><span>Lost because</span><strong>{current.lostReason ? LOST_REASON_LABELS[current.lostReason] : LOST_REASON_LABELS.UNSPECIFIED}</strong></div>
+              ) : null}
+              {currentStatus === LeadStatus.WON && current.dealValue !== null && current.dealValue !== undefined ? (
+                <div><span>Deal value</span><strong>{formatAmount(current.dealValue)}</strong></div>
+              ) : null}
               <div>
                 <span>Next follow-up</span>
                 <strong className={bucket === 'overdue' ? 'danger-text' : undefined}>
@@ -223,6 +239,12 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
               {addNoteMutation.error ? <p className="error-box" role="alert">{addNoteMutation.error}</p> : null}
             </div>
           </Card>
+
+          <AttachmentsPanel
+            companyId={companyId}
+            parent={{ entityType: 'LEAD', entityId: leadId }}
+            subtitle="What the lead sent you, proposals, signed quotes."
+          />
 
           <Card>
             <CardHeader
@@ -267,17 +289,47 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                   </Select>
                 </Field>
                 {pendingStatus === LeadStatus.LOST ? (
-                  <Field label="Why lost" htmlFor="lead-lost-reason" hint="Recorded with the note, so the monthly report can say why leads are lost.">
-                    <Select id="lead-lost-reason" value={lostReason} onChange={(event) => setLostReason(event.target.value as LostReason)}>
-                      <option value="">Pick a reason</option>
-                      {LOST_REASONS.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </Select>
+                  <fieldset className="field">
+                    <legend className="field__label">Why was it lost? <span className="muted">(required)</span></legend>
+                    <div className="choice-chips">
+                      {LOST_REASONS.map((item) => (
+                        <label key={item} className="choice-chip">
+                          <input
+                            type="radio"
+                            name="lead-lost-reason"
+                            value={item}
+                            checked={lostReason === item}
+                            onChange={() => setLostReason(item)}
+                          />
+                          <span>{LOST_REASON_LABELS[item]}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="field__hint">Counted in the monthly report, so you can see why deals slip.</p>
+                  </fieldset>
+                ) : null}
+                {pendingStatus === LeadStatus.WON ? (
+                  <Field
+                    label="Deal value (optional)"
+                    htmlFor="lead-deal-value"
+                    hint="Summed into the monthly report's won value."
+                    error={dealValueInvalid ? 'Enter a positive amount.' : undefined}
+                  >
+                    <Input
+                      id="lead-deal-value"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="0.01"
+                      value={dealValue}
+                      onChange={(event) => setDealValue(event.target.value)}
+                    />
                   </Field>
                 ) : null}
                 <Field
-                  label={noteRequired ? 'Status note' : 'Status note (optional)'}
+                  label={noteRequired ? 'Status note (required)' : 'Status note (optional)'}
                   htmlFor="lead-status-note"
-                  hint={noteRequired ? `Required when closing a lead — say what happened.` : 'Recorded with the status change.'}
+                  hint={noteRequired ? 'Say what happened — it stays in the status history.' : 'Recorded with the status change.'}
                 >
                   <Textarea id="lead-status-note" rows={2} value={statusNote} onChange={(e) => setStatusNote(e.target.value)} />
                 </Field>
@@ -291,7 +343,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                     size="sm"
                     onClick={applyStatus}
                     loading={setStatus.loading || update.loading}
-                    disabled={!pendingStatus || pendingStatus === currentStatus || (noteRequired && !statusNote.trim()) || (pendingStatus === LeadStatus.LOST && !lostReason)}
+                    disabled={!pendingStatus || pendingStatus === currentStatus || (noteRequired && !statusNote.trim()) || (pendingStatus === LeadStatus.LOST && !lostReason) || dealValueInvalid}
                   >
                     Update status
                   </Button>

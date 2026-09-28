@@ -1,5 +1,6 @@
 import type {
   AppNotification,
+  Attachment,
   BrandProfile,
   Company,
   ContentPlan,
@@ -12,8 +13,8 @@ import type {
   LeadStatusHistory,
   ListParams,
   Membership,
+  NotificationPreferences,
   PostApprovalLog,
-  PostAsset,
   PostComment,
   Report,
   ReportMetrics,
@@ -21,7 +22,6 @@ import type {
   StoredFile,
   Task,
   TaskActivityLog,
-  TaskAttachment,
   TaskComment,
   TaskStatus,
   User,
@@ -179,8 +179,17 @@ export let demoFiles: StoredFile[] = [
   { id: 'file-2', companyId: demoCompany.id, originalName: 'approval-flow-wireframe.pdf', filename: 'approval-flow-wireframe.pdf', mimeType: 'application/pdf', size: 512000, createdAt: iso(-2) },
 ];
 
-export let demoPostAssets: PostAsset[] = [
-  { id: 'asset-1', postId: 'post-1', fileId: 'file-1', file: demoFiles[0], createdAt: iso(-1) },
+export let demoAttachments: Attachment[] = [
+  {
+    id: 'attachment-1', entityType: 'POST', entityId: 'post-1', label: null,
+    uploadedById: 'demo-designer', uploadedBy: { id: 'demo-designer', fullName: 'Demo Designer' }, createdAt: iso(-1),
+    file: { id: 'file-1', originalName: 'launch-carousel-v1.png', mimeType: 'image/png', size: 248000 },
+  },
+  {
+    id: 'attachment-2', entityType: 'TASK', entityId: 'task-1', label: 'Wireframe',
+    uploadedById: 'demo-user', uploadedBy: { id: 'demo-user', fullName: 'Demo User' }, createdAt: iso(-1),
+    file: { id: 'file-2', originalName: 'approval-flow-wireframe.pdf', mimeType: 'application/pdf', size: 512000 },
+  },
 ];
 
 export let demoLeads: Lead[] = [
@@ -204,7 +213,7 @@ export function demoMemberUser(userId: string): User | null {
 }
 
 export let demoTasks: Task[] = [
-  { id: 'task-1', companyId: demoCompany.id, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_REVIEW', priority: 'HIGH', type: 'DESIGN', assignedToId: 'demo-designer', assignedTo: demoMemberships[1].user, approverId: demoUser.id, approver: demoUser, submittedForReviewAt: iso(-1), reviewedAt: null, reviewNote: null, relatedEntityType: 'POST', relatedEntityId: 'post-1', dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
+  { id: 'task-1', companyId: demoCompany.id, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_REVIEW', priority: 'HIGH', type: 'DESIGN', assignedToId: 'demo-designer', assignedTo: demoMemberships[1].user, approverId: demoUser.id, approver: demoUser, submittedForReviewAt: iso(-1), reviewedAt: null, reviewNote: null, relatedEntityType: 'POST', relatedEntityId: 'post-1', sequence: 1, dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
   { id: 'task-2', companyId: demoCompany.id, title: 'Follow up with Nour Clinic', description: 'Send proposal summary and confirm decision timeline.', status: 'IN_PROGRESS', priority: 'URGENT', type: 'FOLLOW_UP', assignedToId: 'demo-user', assignedTo: demoUser, approverId: 'demo-designer', approver: demoMemberships[1].user, submittedForReviewAt: null, reviewedAt: iso(-1), reviewNote: 'Add the pricing table before it goes out.', relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', dueDate: iso(2), createdAt: iso(-1), updatedAt: iso(-1) },
   { id: 'task-3', companyId: demoCompany.id, title: 'Prepare monthly report notes', description: 'Write recommendations based on content and lead conversion performance.', status: 'TODO', priority: 'MEDIUM', type: 'REPORTING', assignedToId: 'demo-user', assignedTo: demoUser, approverId: null, approver: null, submittedForReviewAt: null, reviewedAt: null, reviewNote: null, dueDate: iso(4), createdAt: iso(-3), updatedAt: iso(-3) },
 ];
@@ -216,10 +225,6 @@ export let demoTaskComments: TaskComment[] = [
 export let demoTaskLogs: TaskActivityLog[] = [
   { id: 'task-log-1', taskId: 'task-1', action: 'TASK_CREATED', createdAt: iso(-2) },
   { id: 'task-log-2', taskId: 'task-1', action: 'STATUS_CHANGED_TO_IN_PROGRESS', createdAt: iso(-1) },
-];
-
-export let demoTaskAttachments: TaskAttachment[] = [
-  { id: 'task-attachment-1', taskId: 'task-1', fileId: 'file-2', file: demoFiles[1], createdAt: iso(-1) },
 ];
 
 export let demoReports: Report[] = [
@@ -285,6 +290,11 @@ export let demoNotifications: AppNotification[] = [
   { id: 'notification-3', type: 'LEAD_STATUS_CHANGED', title: 'Lead updated', message: 'Nour Clinic moved to Interested.', readAt: iso(-1), relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', createdAt: iso(-3) },
 ];
 
+export const demoNotificationPreferences: NotificationPreferences = { mutedTypes: [], emailDigest: true };
+
+/** Demo share links, keyed by report id. The real API stores only a hash; demo keeps the token to serve /r/:token. */
+export const demoReportShares = new Map<string, { token: string; createdAt: string; expiresAt: string; viewCount: number; lastViewedAt: string | null }>();
+
 function countBy<T, K extends keyof T>(items: T[], key: K): Record<string, number> {
   return items.reduce<Record<string, number>>((acc, item) => {
     const value = String(item[key] ?? 'Unknown');
@@ -306,6 +316,8 @@ export function buildOverview(): ReportOverview {
     leadsByStatus: countBy(demoLeads, 'status'),
     leadsBySource: countBy(demoLeads, 'source'),
     conversionRate: demoLeads.length ? won / demoLeads.length : 0,
+    leadsByLostReason: buildMetrics().leads.byLostReason,
+    wonValue: buildMetrics().leads.wonValue,
     recommendations: [
       'Move approved posts into scheduled status before the weekly publishing review.',
       'Create automatic follow-up tasks for interested leads after 48 hours.',
@@ -352,6 +364,16 @@ export function buildMetrics(): ReportMetrics {
       conversionRate: demoLeads.length ? won / demoLeads.length : 0,
       byStatus: countBy(demoLeads, 'status'),
       bySource: countBy(demoLeads, 'source'),
+      byLostReason: demoLeads
+        .filter((lead) => lead.status === 'LOST')
+        .reduce<Record<string, number>>((acc, lead) => {
+          const key = lead.lostReason ?? 'UNSPECIFIED';
+          acc[key] = (acc[key] ?? 0) + 1;
+          return acc;
+        }, {}),
+      wonValue: demoLeads
+        .filter((lead) => lead.status === 'WON')
+        .reduce((sum, lead) => sum + (Number(lead.dealValue) || 0), 0),
     },
   };
 }

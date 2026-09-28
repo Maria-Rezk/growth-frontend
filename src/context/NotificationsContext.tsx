@@ -1,110 +1,109 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { createContext, useCallback, useContext, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notificationsService } from '@/services/notifications';
 import { useAuth } from '@/context/AuthContext';
+import { errorMessage } from '@/lib/http';
 import { queryKeys } from '@/lib/queryClient';
-import { readStored, writeStored } from '@/lib/storage';
-import type { AppNotification, NotificationType } from '@/types/domain';
+import type { NotificationPreferences, NotificationType } from '@/types/domain';
+
+const NOTHING_MUTED: ReadonlySet<NotificationType> = new Set();
 
 interface NotificationsContextValue {
+  /** From the server, which already leaves muted types out. */
   unreadCount: number;
   refreshUnreadCount: () => Promise<void>;
-  /** Types the person has switched off. Muted ones never reach the bell, the dropdown or the page. */
+  /** Types switched off on the account. */
   muted: ReadonlySet<NotificationType>;
   setMuted: (type: NotificationType, muted: boolean) => void;
-  /** `true` for a notification the person wants to see. */
-  isVisible: (notification: AppNotification) => boolean;
+  preferences: NotificationPreferences | null;
+  preferencesLoading: boolean;
+  preferencesError: string | null;
+  /** Replaces the whole preferences object. Optimistic; rolls back on failure. */
+  savePreferences: (next: NotificationPreferences) => Promise<boolean>;
+  saving: boolean;
+  saveError: string | null;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
-/*
-  Preferences are per device until the backend has a preferences endpoint:
-  the API has no field for them yet, and inventing a server shape here would
-  be a guess. When it lands, `readMuted` / `writeMuted` become one call each
-  and nothing above them changes.
-
-  Keyed by user id — a device-level preference is only correct for one device
-  used by one person. A shared browser signing a second person in must not
-  hand them the first person's mutes (or silence a notification type for
-  them without their say), so each account gets its own record.
-*/
-const MUTED_VERSION = 1;
-const mutedKeyFor = (userId: string) => `growth.notifications.muted.${userId}`;
-
-/** Exported for testing per-user isolation directly, without mounting the whole provider tree. */
-export function readMuted(userId: string | null): Set<NotificationType> {
-  if (!userId) return new Set();
-  const stored = readStored<unknown>('local', mutedKeyFor(userId), MUTED_VERSION);
-  const parsed = stored?.data;
-  return new Set(Array.isArray(parsed) ? (parsed.filter((item) => typeof item === 'string') as NotificationType[]) : []);
-}
-
-export function writeMuted(userId: string | null, muted: Set<NotificationType>): void {
-  if (!userId) return;
-  writeStored('local', mutedKeyFor(userId), MUTED_VERSION, [...muted]);
-}
-
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const userId = user?.id ?? null;
   const queryClient = useQueryClient();
-  // Re-reads whenever the signed-in user changes — this provider stays
-  // mounted across a same-tab account switch that doesn't unmount the shell.
-  const [muted, setMutedState] = useState<Set<NotificationType>>(() => readMuted(userId));
-
-  useEffect(() => {
-    setMutedState(readMuted(userId));
-  }, [userId]);
-
-  useEffect(() => {
-    if (userId) writeMuted(userId, muted);
-  }, [muted, userId]);
+  const signedIn = Boolean(user?.id);
 
   const { data: serverCount } = useQuery({
     queryKey: queryKeys.unreadNotifications,
     queryFn: () => notificationsService.unreadCount(),
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
+    enabled: signedIn,
   });
 
-  /*
-    The server's unread count knows nothing about mutes. Once anything is
-    muted the badge is counted from the list instead, so a muted type never
-    lights the bell for something the person will not see when they open it.
-  */
-  const { data: list } = useQuery({
-    queryKey: queryKeys.notifications,
-    queryFn: () => notificationsService.list(),
-    enabled: muted.size > 0,
-    refetchInterval: muted.size > 0 ? 60_000 : false,
+  const preferencesQuery = useQuery({
+    queryKey: queryKeys.notificationPreferences(user?.id ?? ''),
+    queryFn: () => notificationsService.getPreferences(),
+    enabled: signedIn,
+    staleTime: 5 * 60_000,
   });
 
-  const isVisible = useCallback((notification: AppNotification) => !muted.has(notification.type), [muted]);
-
-  const unreadCount = muted.size > 0 && list
-    ? list.filter((notification) => !notification.readAt && isVisible(notification)).length
-    : serverCount ?? 0;
+  const saveMutation = useMutation({
+    mutationFn: (next: NotificationPreferences) => notificationsService.updatePreferences(next),
+    onMutate: async (next) => {
+      const key = queryKeys.notificationPreferences(user?.id ?? '');
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<NotificationPreferences>(key);
+      queryClient.setQueryData(key, next);
+      return { previous };
+    },
+    onError: (_error, _next, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.notificationPreferences(user?.id ?? ''), context.previous);
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.notificationPreferences(user?.id ?? ''), saved);
+      // The list and the count both depend on what is muted.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+    },
+  });
 
   const refreshUnreadCount = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.unreadNotifications }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications }),
-    ]);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
   }, [queryClient]);
 
-  const setMuted = useCallback((type: NotificationType, value: boolean) => {
-    setMutedState((current) => {
-      const next = new Set(current);
-      if (value) next.add(type);
-      else next.delete(type);
-      return next;
-    });
-  }, []);
+  const { mutateAsync } = saveMutation;
+  const savePreferences = useCallback(async (next: NotificationPreferences) => {
+    try {
+      await mutateAsync(next);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [mutateAsync]);
 
-  const value = useMemo(
-    () => ({ unreadCount, refreshUnreadCount, muted, setMuted, isVisible }),
-    [isVisible, muted, refreshUnreadCount, setMuted, unreadCount],
+  const preferences = preferencesQuery.data ?? null;
+  const muted = useMemo(() => (preferences ? new Set(preferences.mutedTypes) : NOTHING_MUTED), [preferences]);
+
+  const setMuted = useCallback((type: NotificationType, value: boolean) => {
+    if (!preferences) return;
+    const next = new Set(preferences.mutedTypes);
+    if (value) next.add(type);
+    else next.delete(type);
+    void savePreferences({ ...preferences, mutedTypes: [...next] });
+  }, [preferences, savePreferences]);
+
+  const value = useMemo<NotificationsContextValue>(
+    () => ({
+      unreadCount: serverCount ?? 0,
+      refreshUnreadCount,
+      muted,
+      setMuted,
+      preferences,
+      preferencesLoading: preferencesQuery.isLoading,
+      preferencesError: preferencesQuery.error ? errorMessage(preferencesQuery.error) : null,
+      savePreferences,
+      saving: saveMutation.isPending,
+      saveError: saveMutation.error ? errorMessage(saveMutation.error) : null,
+    }),
+    [muted, preferences, preferencesQuery.error, preferencesQuery.isLoading, refreshUnreadCount, saveMutation.error, saveMutation.isPending, savePreferences, serverCount, setMuted],
   );
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }

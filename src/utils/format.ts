@@ -43,6 +43,13 @@ export function formatDateTime(value?: string | null): string {
   }).format(date);
 }
 
+/** A money amount without a currency — deal values carry none. Accepts the API's decimal strings. */
+export function formatAmount(value?: number | string | null): string {
+  const amount = typeof value === 'string' ? Number(value) : value;
+  if (amount === undefined || amount === null || !Number.isFinite(amount)) return '—';
+  return new Intl.NumberFormat(appLocale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
+}
+
 export function formatPercent(value?: number | null): string {
   if (value === undefined || value === null || Number.isNaN(value)) return '—';
   return `${Math.round(value * 100) / 100}%`;

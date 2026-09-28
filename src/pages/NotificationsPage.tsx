@@ -11,6 +11,7 @@ import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { notificationMessage, notificationTitle } from '@/components/notifications/notificationMeta';
 import { ListSkeleton } from '@/components/ui/Skeleton';
 import { NotificationPreferences } from '@/components/notifications/NotificationPreferences';
+import { EmailDigestPreference } from '@/components/notifications/EmailDigestPreference';
 import { useNotifications } from '@/context/NotificationsContext';
 
 const DEFAULT_FILTERS: NotificationFiltersValue = {
@@ -40,7 +41,13 @@ function matchesFilters(notification: AppNotification, filters: NotificationFilt
 const INVALIDATE_NOTIFICATIONS = [queryKeys.notifications, queryKeys.unreadNotifications];
 
 export function NotificationsPage() {
-  const notifications = useAsync(() => notificationsService.list(), [], { queryKey: queryKeys.notifications });
+  const [includeMuted, setIncludeMuted] = useState(false);
+  const notifications = useAsync(
+    () => notificationsService.list({ includeMuted }),
+    [includeMuted],
+    { queryKey: includeMuted ? queryKeys.notificationsIncludingMuted : queryKeys.notifications },
+  );
+  const { muted } = useNotifications();
   const markRead = useMutation(notificationsService.markRead, { invalidateKeys: INVALIDATE_NOTIFICATIONS });
   const markAll = useMutation(notificationsService.markAllRead, { invalidateKeys: INVALIDATE_NOTIFICATIONS });
   const [filters, setFilters] = useState<NotificationFiltersValue>(DEFAULT_FILTERS);
@@ -60,8 +67,7 @@ export function NotificationsPage() {
     return Array.from(types).sort();
   }, [notifications.data]);
 
-  const { isVisible } = useNotifications();
-  const visibleNotifications = useMemo(() => (notifications.data ?? []).filter(isVisible), [isVisible, notifications.data]);
+  const visibleNotifications = useMemo(() => notifications.data ?? [], [notifications.data]);
 
   const filteredNotifications = useMemo(
     () => visibleNotifications.filter((notification) => matchesFilters(notification, filters)),
@@ -107,6 +113,12 @@ export function NotificationsPage() {
       </div>
 
       <NotificationFilters value={filters} notificationTypes={notificationTypes} onChange={setFilters} />
+      {muted.size > 0 ? (
+        <label className="checkbox-row">
+          <input type="checkbox" checked={includeMuted} onChange={(event) => setIncludeMuted(event.target.checked)} />
+          <span>Show muted types too ({muted.size} muted)</span>
+        </label>
+      ) : null}
 
       <Card className="notifications-list-card">
         {notifications.loading ? <ListSkeleton rows={6} /> : null}
@@ -141,6 +153,7 @@ export function NotificationsPage() {
           />
         ))}
       </Card>
+      <EmailDigestPreference />
       <NotificationPreferences />
     </>
   );

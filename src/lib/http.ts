@@ -145,7 +145,7 @@ async function requestRefresh(): Promise<string | null> {
   Endpoints where a 401 is the answer, not a symptom. Retrying a rejected login
   after a refresh would be nonsense, and refreshing on a failed refresh recurses.
 */
-const NO_REFRESH_PATHS = [apiRoutes.auth.login, apiRoutes.auth.refresh, apiRoutes.auth.logout, apiRoutes.auth.acceptInvitation, apiRoutes.auth.forgotPassword, apiRoutes.auth.resetPassword];
+const NO_REFRESH_PATHS = [apiRoutes.auth.login, apiRoutes.auth.refresh, apiRoutes.auth.logout, apiRoutes.auth.acceptInvitation, apiRoutes.auth.forgotPassword, apiRoutes.auth.resetPassword, '/public/'];
 
 function skipsRefresh(url?: string): boolean {
   return Boolean(url && NO_REFRESH_PATHS.some((path) => url.includes(path)));
@@ -210,6 +210,8 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
         code?: string;
         from?: string;
         errors?: Record<string, string | string[]>;
+        openTaskIds?: unknown;
+        stages?: ApiErrorShape['stages'];
       }
     | undefined;
 
@@ -253,6 +255,8 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
     from: typeof data?.from === 'string' ? data.from : undefined,
     fieldErrors: Object.keys(fieldErrors).length ? fieldErrors : undefined,
     isApiResponse,
+    openTaskIds: Array.isArray(data?.openTaskIds) ? data.openTaskIds.filter((id): id is string => typeof id === 'string') : undefined,
+    stages: data?.stages && typeof data.stages === 'object' ? data.stages : undefined,
   };
 }
 

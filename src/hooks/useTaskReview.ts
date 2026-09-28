@@ -47,6 +47,11 @@ export function useTaskReview(options: Options = {}) {
   const handleError = useCallback(
     (error: unknown, companyId: string, taskId: string) => {
       const code = errorCode(error);
+      // A 409, but not a race: an earlier stage on the post must finish first. The message names it.
+      if (code === TaskReviewErrorCode.PREVIOUS_STAGE_OPEN) {
+        setLastError(`${errorMessage(error)}. Finish or cancel that stage, then submit this one.`);
+        return;
+      }
       if (isConflict(error) || code === TaskReviewErrorCode.INVALID_TRANSITION || code === TaskReviewErrorCode.REVIEW_ACTIONS_ONLY) {
         toast.error('Somebody already acted on this task. Refreshing…');
         invalidate(companyId);

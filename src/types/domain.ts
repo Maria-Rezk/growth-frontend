@@ -25,7 +25,14 @@ export interface ApiErrorShape {
    * and hides the fact that the backend is simply unreachable.
    */
   isApiResponse?: boolean;
+  /** On PREVIOUS_STAGE_OPEN / STAGES_OPEN: the stage tasks still in the way. */
+  openTaskIds?: string[];
+  /** On STAGES_OPEN: the post's full stages object. */
+  stages?: PostStages;
 }
+
+/** Same rule for creating a user, accepting an invitation and resetting a password. */
+export const PASSWORD_MIN_LENGTH = 12;
 
 export const PlatformRole = {
   USER: 'USER',
@@ -219,6 +226,8 @@ export interface ContentPost {
   publishedUrl?: string;
   /** Set when the post is attached to a campaign. */
   campaignId?: UUID | null;
+  /** Single-post read only. `done + open.length === total`; cancelled stages count in none. */
+  stages?: PostStages;
   createdAt?: ISODate;
   updatedAt?: ISODate;
 }
@@ -256,13 +265,52 @@ export interface StoredFile {
   createdAt?: ISODate;
 }
 
-export interface PostAsset {
+/** The five records that carry attachments. One endpoint shape serves all of them. */
+export const AttachmentEntityType = {
+  TASK: 'TASK',
+  POST: 'POST',
+  CAMPAIGN: 'CAMPAIGN',
+  LEAD: 'LEAD',
+  BRAND_PROFILE: 'BRAND_PROFILE',
+} as const;
+export type AttachmentEntityType = (typeof AttachmentEntityType)[keyof typeof AttachmentEntityType];
+
+/** Every attachment list item, on every parent. */
+export interface Attachment {
   id: UUID;
-  postId: UUID;
-  fileId: UUID;
-  file?: StoredFile;
+  entityType: AttachmentEntityType;
+  entityId: UUID;
+  label: string | null;
+  uploadedById: UUID;
+  uploadedBy?: { id: UUID; fullName?: string | null } | null;
   createdAt?: ISODate;
+  file: {
+    id: UUID;
+    originalName?: string;
+    mimeType?: string;
+    size?: number;
+  };
 }
+
+export const AttachmentErrorCode = {
+  FILE_TOO_LARGE: 'FILE_TOO_LARGE',
+  ATTACHMENT_LIMIT: 'ATTACHMENT_LIMIT',
+} as const;
+
+/** Mirrors the API: 25MB per file, 20 attachments per record, 20 ids on a create. */
+export const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
+export const ATTACHMENTS_PER_RECORD = 20;
+
+/** Post stages: tasks on the post with a `sequence`. Only on the single-post read. */
+export interface PostStages {
+  total: number;
+  done: number;
+  open: Array<{ taskId: UUID; title: string; sequence: number; status: TaskStatus }>;
+}
+
+export const PostReviewErrorCode = {
+  STAGES_OPEN: 'STAGES_OPEN',
+} as const;
 export const LeadSource = {
   INSTAGRAM: 'INSTAGRAM',
   FACEBOOK: 'FACEBOOK',
@@ -285,6 +333,17 @@ export const LeadStatus = {
 } as const;
 export type LeadStatus = (typeof LeadStatus)[keyof typeof LeadStatus];
 
+/** Why a lead was lost. Only accepted with `status: LOST`; cleared when the lead leaves LOST. */
+export const LostReason = {
+  PRICE: 'PRICE',
+  TIMING: 'TIMING',
+  WENT_ELSEWHERE: 'WENT_ELSEWHERE',
+  NO_RESPONSE: 'NO_RESPONSE',
+  NOT_A_FIT: 'NOT_A_FIT',
+  OTHER: 'OTHER',
+} as const;
+export type LostReason = (typeof LostReason)[keyof typeof LostReason];
+
 export interface Lead {
   id: UUID;
   companyId: UUID;
@@ -296,6 +355,10 @@ export interface Lead {
   notes?: string;
   nextFollowUpAt?: ISODate;
   status: LeadStatus;
+  /** Set only while the lead is LOST. */
+  lostReason?: LostReason | null;
+  /** Set only while the lead is WON. The API may send it as a decimal string. */
+  dealValue?: number | string | null;
   assignedToId?: UUID;
   assignedTo?: User;
   /** Set when the lead is attached to a campaign. */
@@ -379,6 +442,11 @@ export interface Task {
   reviewNote?: string | null;
   relatedEntityType?: string;
   relatedEntityId?: UUID;
+  /**
+   * Stage order on a post, 1–50. Only with `relatedEntityType: 'POST'`.
+   * Submitting is blocked while a lower stage on the same post is open.
+   */
+  sequence?: number | null;
   dueDate?: ISODate;
   campaignId?: UUID | null;
   completedAt?: ISODate | null;
@@ -399,6 +467,12 @@ export const TaskReviewErrorCode = {
   REVIEW_NOTE_REQUIRED: 'REVIEW_NOTE_REQUIRED',
   INVALID_TRANSITION: 'INVALID_TRANSITION',
   REVIEW_ACTIONS_ONLY: 'REVIEW_ACTIONS_ONLY',
+  /** 409 on submit: a lower-sequence stage on the same post is not DONE or CANCELED. Body carries `openTaskIds`. */
+  PREVIOUS_STAGE_OPEN: 'PREVIOUS_STAGE_OPEN',
+  /** 422 on create/update: `sequence` without `relatedEntityType: 'POST'`. */
+  SEQUENCE_NEEDS_POST: 'SEQUENCE_NEEDS_POST',
+  /** 409 on create/update: another task on the post holds that number. */
+  SEQUENCE_TAKEN: 'SEQUENCE_TAKEN',
 } as const;
 export type TaskReviewErrorCode = (typeof TaskReviewErrorCode)[keyof typeof TaskReviewErrorCode];
 
@@ -438,13 +512,6 @@ export interface TaskActivityLog {
   createdAt?: ISODate;
 }
 
-export interface TaskAttachment {
-  id: UUID;
-  taskId: UUID;
-  fileId: UUID;
-  file?: StoredFile;
-  createdAt?: ISODate;
-}
 export interface ReportMetrics {
   posts: {
     total: number;
@@ -464,6 +531,10 @@ export interface ReportMetrics {
     conversionRate: number;
     byStatus: Record<string, number>;
     bySource: Record<string, number>;
+    /** Keys are LostReason values plus UNSPECIFIED (lost before the field existed, or skipped). */
+    byLostReason?: Record<string, number>;
+    /** Sum of dealValue on won leads. */
+    wonValue?: number;
   };
 }
 export interface ReportOverview {
@@ -474,6 +545,10 @@ export interface ReportOverview {
   leadsTotal?: number;
   leadsByStatus?: Record<string, number>;
   leadsBySource?: Record<string, number>;
+  /** LostReason values plus UNSPECIFIED. */
+  leadsByLostReason?: Record<string, number>;
+  /** Sum of dealValue on won leads. */
+  wonValue?: number;
   conversionRate?: number;
   recommendations?: string[];
 }
@@ -494,6 +569,24 @@ export interface Report {
   createdById?: UUID;
   createdAt?: ISODate;
   updatedAt?: ISODate;
+}
+
+/** Answer to POST .../share. `url` is only ever present on the call that minted it. */
+export interface ReportShareResult {
+  url: string | null;
+  created: boolean;
+  expiresAt: ISODate;
+  createdAt: ISODate;
+}
+
+export type ReportShareStatus =
+  | { active: false }
+  | { active: true; expiresAt: ISODate; createdAt: ISODate; createdById?: UUID; lastViewedAt?: ISODate | null; viewCount: number };
+
+/** GET /public/reports/:token — no auth. Agency notes and author deliberately left out. */
+export interface PublicReport extends Omit<Report, 'notes' | 'createdById'> {
+  company: { name: string };
+  sharedUntil: ISODate;
 }
 export const CampaignObjective = {
   AWARENESS: 'AWARENESS',
@@ -647,6 +740,12 @@ export interface AppNotification {
   entityId?: UUID;
   metadata?: Record<string, unknown>;
   createdAt?: ISODate;
+}
+
+/** GET/PUT /me/notification-preferences. PUT replaces the whole object — a missing key means off. */
+export interface NotificationPreferences {
+  mutedTypes: NotificationType[];
+  emailDigest: boolean;
 }
 
 export interface ListParams {

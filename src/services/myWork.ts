@@ -1,6 +1,9 @@
-import { errorMessage, isRouteMissing } from '@/lib/http';
+import { env } from '@/config/env';
+import { apiRoutes } from '@/config/apiRoutes';
+import { errorMessage, http, isRouteMissing } from '@/lib/http';
+import { demoCompany, demoDelay, demoTasks, demoUser } from '@/services/demoStore';
 import { tasksService } from '@/services/tasks';
-import type { Company, ListParams, Task } from '@/types/domain';
+import type { Company, ListParams, Paginated, Task, TaskType } from '@/types/domain';
 
 /**
  * A task carrying the client it belongs to.
@@ -84,44 +87,42 @@ function describeFailure(rejection: unknown): string | undefined {
 /** A review waiting on me, carrying the client it belongs to. */
 export type MyReviewTask = MyWorkTask;
 
-export interface MyReviewsResult {
-  tasks: MyReviewTask[];
-  unavailableClients: string[];
-  failure?: string;
-}
+export type MyReviewsPage = Paginated<MyReviewTask>;
+
+type WireQueueTask = Task & { taskType?: TaskType; company?: { id: string; name: string } };
 
 /**
- * Cross-client approval queue.
+ * Cross-client approval queue: `GET /me/approval-queue`.
  *
- * `/companies/:id/tasks/approval-queue` is per client, and somebody who
- * approves on five clients should not tour five workspaces every morning.
- * Same fan-out as `listAcrossClients`: one request per membership, merged,
- * oldest submission first. When the backend ships a single
- * `/me/approval-queue`, this becomes one call and nothing above it changes.
+ * One request covering every client the caller is an active member of,
+ * oldest submission first, paged on the server. Each row carries its
+ * `company`; verdicts still go to that client's per-client endpoints.
  */
 export const myReviewsService = {
-  async listAcrossClients(companies: Company[]): Promise<MyReviewsResult> {
-    const settled = await Promise.allSettled(
-      companies.map((company) => tasksService.approvalQueue(company.id, { limit: 100, offset: 0 })),
-    );
-
-    const tasks: MyReviewTask[] = [];
-    const unavailableClients: string[] = [];
-    let firstRejection: unknown;
-
-    settled.forEach((result, index) => {
-      const company = companies[index];
-      if (result.status === 'rejected') {
-        unavailableClients.push(company.name);
-        if (firstRejection === undefined) firstRejection = result.reason;
-        return;
-      }
-      result.value.items.forEach((task) => {
-        tasks.push({ ...task, clientId: company.id, clientName: company.name });
-      });
-    });
-
-    tasks.sort((left, right) => (left.submittedForReviewAt ?? '').localeCompare(right.submittedForReviewAt ?? ''));
-    return { tasks, unavailableClients, failure: describeFailure(firstRejection) };
+  async list(params: { limit?: number; offset?: number } = {}): Promise<MyReviewsPage> {
+    const limit = params.limit ?? 25;
+    const offset = params.offset ?? 0;
+    if (env.demoMode) {
+      const all = demoTasks
+        .filter((task) => task.status === 'IN_REVIEW' && task.approverId === demoUser.id)
+        .sort((a, b) => (a.submittedForReviewAt ?? '').localeCompare(b.submittedForReviewAt ?? ''))
+        .map((task) => ({ ...task, clientId: task.companyId, clientName: demoCompany.name }));
+      return demoDelay({ items: all.slice(offset, offset + limit), total: all.length, limit, offset });
+    }
+    const response = await http.get(apiRoutes.me.approvalQueue, { params: { limit, offset } });
+    const data = (response.data ?? {}) as Partial<Paginated<WireQueueTask>> & { data?: Partial<Paginated<WireQueueTask>> };
+    const source = Array.isArray(data.items) ? data : (data.data ?? data);
+    const items = (Array.isArray(source.items) ? source.items : []).map((raw) => ({
+      ...raw,
+      type: raw.type ?? raw.taskType ?? 'GENERAL',
+      clientId: raw.company?.id ?? raw.companyId,
+      clientName: raw.company?.name ?? 'Unknown client',
+    }));
+    return {
+      items,
+      total: typeof source.total === 'number' ? source.total : items.length,
+      limit: typeof source.limit === 'number' ? source.limit : limit,
+      offset: typeof source.offset === 'number' ? source.offset : offset,
+    };
   },
 };

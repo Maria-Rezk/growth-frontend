@@ -10,6 +10,7 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
+import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
 import { Pagination } from '@/components/ui/Pagination';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
@@ -389,9 +390,13 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
 
   // Clear both the form and the mutation, otherwise a previous error is still
   // on screen the next time the modal opens.
+  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const close = () => {
     form.reset();
     create.reset();
+    setPendingFiles([]);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
@@ -399,6 +404,7 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
+      attachmentFileIds: pendingFiles.map((file) => file.fileId),
       name: values.name.trim(),
       email: values.email || undefined,
       phone: values.phone,
@@ -423,7 +429,7 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
       footer={
         <>
           <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
-          <Button type="submit" form="lead-form" loading={form.formState.isSubmitting || create.loading}>Create lead</Button>
+          <Button type="submit" form="lead-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create lead</Button>
         </>
       }
     >
@@ -475,6 +481,7 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
         <Field label="Notes" htmlFor="lead-notes">
           <Textarea id="lead-notes" rows={3} {...form.register('notes')} />
         </Field>
+        <PendingAttachmentsField companyId={companyId} value={pendingFiles} onChange={setPendingFiles} onBusyChange={setUploading} disabled={create.loading} />
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>

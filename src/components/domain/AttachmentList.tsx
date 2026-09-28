@@ -6,23 +6,17 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { ArrowUpRightIcon, CloseIcon } from '@/components/ui/icons';
 import { filesService } from '@/services/files';
 import { errorMessage } from '@/lib/http';
-import type { StoredFile } from '@/types/domain';
+import type { Attachment } from '@/types/domain';
 import { formatBytes, formatDateTime } from '@/utils/format';
 
-interface AttachmentLike {
-  id: string;
-  fileId: string;
-  file?: StoredFile;
-  createdAt?: string;
-}
-
 /**
- * Files attached to a task or a post, each one openable.
+ * Files attached to a record, each one openable.
  *
- * Files live behind a signed download URL that is minted per request, so
- * "Open" asks for one and then follows it. The tab is opened *before* the
- * request — a `window.open` after an await is what popup blockers exist to
- * stop — and pointed at the URL once it arrives.
+ * Files live behind a signed URL minted per request, asked for with
+ * `disposition=inline` so images and PDFs open in the tab instead of
+ * downloading. The tab is opened *before* the request — a `window.open` after
+ * an await is what popup blockers exist to stop — and pointed at the URL once
+ * it arrives.
  */
 export function AttachmentList({
   companyId,
@@ -31,23 +25,26 @@ export function AttachmentList({
   data,
   onRetry,
   onRemove,
+  canRemove,
   removing,
   emptyText = 'No attachments.',
 }: {
   companyId: string;
   loading: boolean;
   error: string | null;
-  data: AttachmentLike[] | null;
+  data: Attachment[] | null;
   onRetry: () => void;
   /** Absent means the list is read-only. */
-  onRemove?: (attachment: AttachmentLike) => void | Promise<void>;
+  onRemove?: (attachment: Attachment) => void | Promise<void>;
+  /** Per-row gate for the remove button. Defaults to every row when `onRemove` is set. */
+  canRemove?: (attachment: Attachment) => boolean;
   removing?: string | null;
   emptyText?: string;
 }) {
   const [opening, setOpening] = useState<string | null>(null);
   const confirm = useConfirm();
 
-  const open = async (attachment: AttachmentLike) => {
+  const open = async (attachment: Attachment) => {
     setOpening(attachment.id);
     /*
       Open the tab synchronously, inside the click, so popup blockers allow
@@ -59,7 +56,7 @@ export function AttachmentList({
     const tab = window.open('about:blank', '_blank');
     if (tab) tab.opener = null;
     try {
-      const url = await filesService.downloadUrl(companyId, attachment.fileId);
+      const url = await filesService.downloadUrl(companyId, attachment.file.id, 'inline');
       if (tab && !tab.closed) tab.location.href = url;
       else window.open(url, '_blank');
     } catch (cause) {
@@ -77,10 +74,16 @@ export function AttachmentList({
   return (
     <ul className="attachment-list">
       {data.map((attachment) => {
-        const name = attachment.file?.originalName ?? attachment.file?.filename ?? attachment.fileId;
-        const meta = [formatBytes(attachment.file?.size), attachment.file?.mimeType, attachment.createdAt ? formatDateTime(attachment.createdAt) : '']
+        const name = attachment.file.originalName ?? 'Untitled file';
+        const meta = [
+          attachment.label,
+          formatBytes(attachment.file.size),
+          attachment.uploadedBy?.fullName ? `by ${attachment.uploadedBy.fullName}` : '',
+          attachment.createdAt ? formatDateTime(attachment.createdAt) : '',
+        ]
           .filter(Boolean)
           .join(' · ');
+        const removable = Boolean(onRemove) && (canRemove ? canRemove(attachment) : true);
         return (
           <li key={attachment.id} className="attachment-row">
             <div className="attachment-row__main">
@@ -99,7 +102,7 @@ export function AttachmentList({
               <Button size="sm" variant="secondary" onClick={() => open(attachment)} loading={opening === attachment.id} aria-label={`Open ${name}`}>
                 <ArrowUpRightIcon size={14} /> Open
               </Button>
-              {onRemove ? (
+              {removable && onRemove ? (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -109,7 +112,7 @@ export function AttachmentList({
                   onClick={async () => {
                     const ok = await confirm({
                       title: 'Remove attachment',
-                      message: <>Remove <strong>{name}</strong>? The file stays in storage; only its link to this task is removed.</>,
+                      message: <>Remove <strong>{name}</strong> from this record? The file is kept while anything else still uses it.</>,
                       confirmLabel: 'Remove',
                       tone: 'danger',
                     });

@@ -1,4 +1,4 @@
-import { LeadStatus, type Lead } from '@/types/domain';
+import { LeadStatus, LostReason, type Lead } from '@/types/domain';
 
 /*
   The CRM's clock: when does this lead need touching next?
@@ -44,9 +44,18 @@ export function suggestNextFollowUp(status: LeadStatus, now: Date = new Date()):
   return next.toISOString();
 }
 
-/** Why a lead was lost. Stored as a prefix on the status note until the backend has a field. */
-export const LOST_REASONS = ['Price', 'Timing', 'Went elsewhere', 'No response', 'Not a fit', 'Other'] as const;
-export type LostReason = (typeof LOST_REASONS)[number];
+/** Why a lead was lost, in display order. Keys are the API's `lostReason` values. */
+export const LOST_REASON_LABELS: Record<LostReason | 'UNSPECIFIED', string> = {
+  PRICE: 'Price',
+  TIMING: 'Timing',
+  WENT_ELSEWHERE: 'Went elsewhere',
+  NO_RESPONSE: 'No response',
+  NOT_A_FIT: 'Not a fit',
+  OTHER: 'Other',
+  UNSPECIFIED: 'Not recorded',
+};
+
+export const LOST_REASONS = Object.values(LostReason);
 
 /** Tap-to-contact links. WhatsApp needs digits only; the rest are the standard schemes. */
 export function contactLinks(lead: Pick<Lead, 'email' | 'phone'>): { email?: string; phone?: string; whatsapp?: string } {

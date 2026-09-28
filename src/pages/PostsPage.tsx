@@ -10,6 +10,7 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
+import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
@@ -291,9 +292,13 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
     onError: (error) => applyServerFieldErrors(form, error),
   });
 
+  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const close = () => {
     form.reset();
     create.reset();
+    setPendingFiles([]);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
@@ -301,6 +306,7 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
+      attachmentFileIds: pendingFiles.map((file) => file.fileId),
       title: values.title.trim(),
       contentPlanId: values.contentPlanId || undefined,
       caption: values.caption,
@@ -317,7 +323,7 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
   });
 
   return (
-    <Modal open={open} onClose={cancel} title="Create content draft" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="post-form" loading={form.formState.isSubmitting || create.loading}>Create draft</Button></>}>
+    <Modal open={open} onClose={cancel} title="Create content draft" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="post-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create draft</Button></>}>
       <form id="post-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="post-title" error={form.formState.errors.title?.message}>
           <Input id="post-title" {...form.register('title')} />
@@ -349,6 +355,7 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
         <Field label="Schedule date" htmlFor="scheduledAt" error={form.formState.errors.scheduledAt?.message}>
           <Input id="scheduledAt" type="datetime-local" {...form.register('scheduledAt')} />
         </Field>
+        <PendingAttachmentsField companyId={companyId} value={pendingFiles} onChange={setPendingFiles} onBusyChange={setUploading} disabled={create.loading} />
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>

@@ -66,8 +66,6 @@ export const queryKeys = {
   myWork: (companyIds: readonly string[], filters?: Record<string, unknown>) =>
     ['my-work', [...companyIds].sort().join('|'), filters ?? {}] as const,
   task: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId] as const,
-  /** Cross-client reviews waiting on me. Under MY_WORK_KEY so every task mutation refreshes it. */
-  myReviews: (companyIds: readonly string[]) => ['my-work', 'reviews', [...companyIds].sort().join('|')] as const,
   /*
     Nested under 'tasks' on purpose: every task mutation already invalidates
     ['companies', id, 'tasks'], and a verdict must drop the task out of the
@@ -79,6 +77,9 @@ export const queryKeys = {
   resolveApprover: (companyId: string, taskType: string) =>
     ['companies', companyId, 'responsibilities', 'resolve-approver', taskType] as const,
   reports: (companyId: string) => ['companies', companyId, 'reports'] as const,
+  reportShare: (companyId: string, reportId: string) => ['companies', companyId, 'reports', reportId, 'share'] as const,
+  attachments: (companyId: string, entityType: string, entityId?: string) =>
+    ['companies', companyId, 'attachments', entityType, entityId ?? 'singleton'] as const,
   contentPlans: (companyId: string) => ['companies', companyId, 'content-plans'] as const,
   aiGenerations: (companyId: string) => ['companies', companyId, 'ai-generations'] as const,
   reportOverview: (companyId: string, period?: Record<string, unknown>) => ['companies', companyId, 'reports', 'overview', period ?? {}] as const,
@@ -94,6 +95,10 @@ export const queryKeys = {
   adminSystemHealth: ['admin', 'system', 'health'] as const,
   notifications: ['notifications'] as const,
   unreadNotifications: ['notifications', 'unread-count'] as const,
+  notificationsIncludingMuted: ['notifications', 'include-muted'] as const,
+  notificationPreferences: (userId: string) => ['notifications', 'preferences', userId] as const,
+  /** Cross-client approval queue. Under MY_WORK_KEY so every task mutation refreshes it. */
+  meApprovalQueue: (params?: Record<string, unknown>) => ['my-work', 'approval-queue', params ?? {}] as const,
   responsibilityMatrix: (companyId: string) => ['companies', companyId, 'responsibilities', 'matrix'] as const,
   responsibilityAreas: (companyId: string) => ['companies', companyId, 'responsibilities', 'areas'] as const,
 };

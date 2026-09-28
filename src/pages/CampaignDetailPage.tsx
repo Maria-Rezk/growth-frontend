@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { RoleGate } from '@/components/domain/RoleGate';
+import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
@@ -170,6 +171,12 @@ function CampaignDetailInner({ companyId, campaignId }: { companyId: string; cam
             {campaign.description ? <div className="content-card__body"><p className="pre-wrap">{campaign.description}</p></div> : null}
             {campaign.notes ? <div className="content-card__body"><p className="pre-wrap muted">{campaign.notes}</p></div> : null}
           </Card>
+
+          <AttachmentsPanel
+            companyId={companyId}
+            parent={{ entityType: 'CAMPAIGN', entityId: campaignId }}
+            subtitle="Briefs, media plans, creative references."
+          />
 
           <MetricBreakdown title="Posts by status" counts={metrics.posts.byStatus} />
           <MetricBreakdown title="Leads by stage" counts={metrics.leads.byStatus} />

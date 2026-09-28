@@ -12,7 +12,8 @@ import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useCompany } from '@/context/CompanyContext';
 import { reportsService } from '@/services/reports';
 import { queryKeys } from '@/lib/queryClient';
-import { formatDateTime, humanize, formatPercent } from '@/utils/format';
+import { formatAmount, formatDateTime, humanize, formatPercent } from '@/utils/format';
+import { LOST_REASON_LABELS } from '@/utils/leadFollowUp';
 import type { Report } from '@/types/domain';
 import { RoleGate } from '@/components/domain/RoleGate';
 
@@ -143,18 +144,30 @@ function ReportsInner({ companyId }: { companyId: string }) {
         <Card><ErrorState message={overview.error} onRetry={overview.refetch} /></Card>
       ) : null}
 
-      <div className="stat-grid stat-grid--3">
+      <div className="stat-grid">
         <MetricCard label="Posts" value={metric(overview.data?.postsTotal, overview.loading)} />
         <MetricCard label="Leads" value={metric(overview.data?.leadsTotal, overview.loading)} />
         <MetricCard
           label="Conversion"
           value={metric(overview.data ? formatPercent(overview.data.conversionRate) : undefined, overview.loading)}
         />
+        <MetricCard
+          label="Won value"
+          value={metric(typeof overview.data?.wonValue === 'number' ? formatAmount(overview.data.wonValue) : undefined, overview.loading)}
+        />
       </div>
 
       <div className="dashboard-grid">
         <Breakdown title="Posts by status" data={overview.data?.postsByStatus} loading={overview.loading} />
         <Breakdown title="Leads by status" data={overview.data?.leadsByStatus} loading={overview.loading} />
+        {overview.data?.leadsByLostReason ? (
+          <Breakdown
+            title="Why leads were lost"
+            data={overview.data.leadsByLostReason}
+            loading={overview.loading}
+            label={(key) => LOST_REASON_LABELS[key as keyof typeof LOST_REASON_LABELS] ?? humanize(key)}
+          />
+        ) : null}
       </div>
 
       <Card>
@@ -185,7 +198,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Breakdown({ title, data, loading }: { title: string; data?: Record<string, number>; loading: boolean }) {
+function Breakdown({ title, data, loading, label = humanize }: { title: string; data?: Record<string, number>; loading: boolean; label?: (key: string) => string }) {
   const entries = Object.entries(data ?? {});
   return (
     <Card>
@@ -195,7 +208,7 @@ function Breakdown({ title, data, loading }: { title: string; data?: Record<stri
         {!loading && entries.length === 0 ? <p className="muted">No data for this period.</p> : null}
         {!loading && entries.map(([key, value]) => (
           <div className="list-row" key={key}>
-            <span>{humanize(key)}</span>
+            <span>{label(key)}</span>
             <strong>{value}</strong>
           </div>
         ))}

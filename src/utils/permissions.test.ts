@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CompanyMembershipRole } from '@/types/domain';
-import { hasPermission, type Permission } from './permissions';
+import { CompanyMembershipRole, type AttachmentEntityType } from '@/types/domain';
+import { canAddAttachment, canRemoveAttachment, hasPermission, type Permission } from './permissions';
 
 /*
   The matrix as a table, so a change to who-may-do-what is a visible diff
@@ -17,7 +17,7 @@ const MATRIX: Record<Permission, string> = {
   'posts:submit':   '✓   ✓   .   .   .   .   .',
   'posts:approve':  '✓   .   .   .   ✓   ✓   .',
   'posts:publish':  '✓   ✓   .   .   .   .   .',
-  'assets:upload':  '✓   ✓   ✓   ✓   ✓   ✓   ✓',
+  'assets:upload':  '✓   ✓   ✓   ✓   .   .   ✓',
   'leads:manage':   '✓   .   .   .   .   .   ✓',
   'tasks:manage':   '✓   ✓   ✓   ✓   .   .   ✓',
   'tasks:approver': '✓   .   .   .   .   .   .',
@@ -42,6 +42,31 @@ describe('permission matrix', () => {
       expect(hasPermission([role], 'posts:create')).toBe(false);
       expect(hasPermission([role], 'members:manage')).toBe(false);
     });
+  });
+
+  it('attachment add rules follow the roles that edit each parent', () => {
+    const table: Record<AttachmentEntityType, string> = {
+      //               AM  SMM CW  DES CO  CR  SA
+      TASK:          '✓   ✓   ✓   ✓   .   .   ✓',
+      POST:          '✓   ✓   ✓   ✓   .   .   .',
+      LEAD:          '✓   .   .   .   .   .   ✓',
+      CAMPAIGN:      '✓   ✓   .   .   .   .   .',
+      BRAND_PROFILE: '✓   .   .   ✓   .   .   .',
+    };
+    (Object.entries(table) as Array<[AttachmentEntityType, string]>).forEach(([entityType, row]) => {
+      const cells = row.trim().split(/\s+/);
+      ROLES.forEach((role, index) => {
+        expect(canAddAttachment([role], entityType, false), `${role} → ${entityType}`).toBe(cells[index] === '✓');
+      });
+      expect(canAddAttachment([R.CLIENT_OWNER], entityType, true)).toBe(true);
+    });
+  });
+
+  it('removal: the uploader, an Account Manager, or an admin', () => {
+    expect(canRemoveAttachment([R.DESIGNER], 'u1', 'u1', false)).toBe(true);
+    expect(canRemoveAttachment([R.DESIGNER], 'u1', 'u2', false)).toBe(false);
+    expect(canRemoveAttachment([R.ACCOUNT_MANAGER], 'u1', 'u2', false)).toBe(true);
+    expect(canRemoveAttachment([], 'u1', 'u2', true)).toBe(true);
   });
 
   it('only the Account Manager re-routes an approver', () => {

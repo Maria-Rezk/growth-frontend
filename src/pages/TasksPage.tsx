@@ -14,6 +14,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { ApprovalQueue } from '@/components/domain/ApprovalQueue';
 import { ApproverPicker } from '@/components/domain/ApproverPicker';
+import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -30,7 +31,8 @@ import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
 import { formatWaiting, isInReview, isWaitingLong, needsApprover, userLabel } from '@/utils/taskReview';
-import { TaskPriority, TaskStatus, TaskType, type Membership, type Task } from '@/types/domain';
+import { TaskPriority, TaskReviewErrorCode, TaskStatus, TaskType, type Membership, type Task } from '@/types/domain';
+import { errorCode, errorMessage } from '@/lib/http';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 import { BoardSkeleton } from '@/components/ui/Skeleton';
@@ -48,6 +50,11 @@ const taskSchema = z.object({
   assignedToId: z.string().optional(),
   approverId: z.string().optional(),
   dueDate: z.string().optional(),
+  // Stage order on a post. Blank means "not a stage".
+  sequence: z
+    .string()
+    .optional()
+    .refine((value) => !value || (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 50), 'A whole number from 1 to 50.'),
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
@@ -370,6 +377,8 @@ export interface TaskLink {
   label?: string;
   /** Pre-selects the type, e.g. DESIGN for the design stage of a post. */
   type?: TaskType;
+  /** Pre-fills the stage number. Posts only. */
+  sequence?: number;
 }
 
 export function TaskModal({
@@ -390,9 +399,21 @@ export function TaskModal({
 }) {
   const form = useForm<TaskForm>({
     resolver: zodResolver(taskSchema),
-    defaultValues: { title: link?.label ? `${link.label} — ` : '', description: '', type: link?.type ?? TaskType.GENERAL, priority: TaskPriority.MEDIUM, assignedToId: '', approverId: '', dueDate: '' },
+    defaultValues: {
+      title: link?.label ? `${link.label} — ` : '',
+      description: '',
+      type: link?.type ?? TaskType.GENERAL,
+      priority: TaskPriority.MEDIUM,
+      assignedToId: '',
+      approverId: '',
+      dueDate: '',
+      sequence: link?.sequence ? String(link.sequence) : '',
+    },
     mode: 'onBlur',
   });
+  const onPost = link?.relatedEntityType === 'POST';
+  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   // Stable, so the picker's pre-fill effect does not re-run on every render.
   const setApprover = useCallback(
@@ -435,8 +456,15 @@ export function TaskModal({
   };
 
   const create = useMutation(tasksService.create, {
-    invalidateKeys: [['companies', companyId, 'tasks']],
-    onError: (error) => applyServerFieldErrors(form, error),
+    invalidateKeys: [['companies', companyId, 'tasks'], ['companies', companyId, 'posts']],
+    onError: (error) => {
+      const code = errorCode(error);
+      if (code === TaskReviewErrorCode.SEQUENCE_TAKEN || code === TaskReviewErrorCode.SEQUENCE_NEEDS_POST) {
+        form.setError('sequence', { message: errorMessage(error) });
+        return;
+      }
+      applyServerFieldErrors(form, error);
+    },
   });
 
   // Reset the mutation too, or a previous error is still on screen next open.
@@ -444,6 +472,7 @@ export function TaskModal({
     form.reset();
     create.reset();
     setAreaId('');
+    setPendingFiles([]);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
@@ -461,6 +490,8 @@ export function TaskModal({
       dueDate: fromInputDateTime(values.dueDate ?? ''),
       relatedEntityType: link?.relatedEntityType,
       relatedEntityId: link?.relatedEntityId,
+      sequence: onPost && values.sequence ? Number(values.sequence) : undefined,
+      attachmentFileIds: pendingFiles.map((file) => file.fileId),
     });
     if (result) {
       toast.success('Task created.');
@@ -470,7 +501,7 @@ export function TaskModal({
   });
 
   return (
-    <Modal open={open} onClose={cancel} title="Create task" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading}>Create task</Button></>}>
+    <Modal open={open} onClose={cancel} title="Create task" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create task</Button></>}>
       <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
           <Input id="task-title" {...form.register('title')} />
@@ -540,6 +571,23 @@ export function TaskModal({
             error={form.formState.errors.approverId?.message}
           />
         ) : null}
+        {onPost ? (
+          <Field
+            label="Stage on this post (optional)"
+            htmlFor="task-sequence"
+            hint="Stages run lowest number first; each waits for the ones before it. Leave blank if order doesn't matter."
+            error={form.formState.errors.sequence?.message}
+          >
+            <Input id="task-sequence" type="number" inputMode="numeric" min={1} max={50} step={1} {...form.register('sequence')} />
+          </Field>
+        ) : null}
+        <PendingAttachmentsField
+          companyId={companyId}
+          value={pendingFiles}
+          onChange={setPendingFiles}
+          onBusyChange={setUploading}
+          disabled={create.loading}
+        />
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
       </form>
     </Modal>

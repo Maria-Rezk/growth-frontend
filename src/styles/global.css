@@ -564,6 +564,10 @@ hr {
   margin: 0 auto;
   padding: var(--s-6) var(--s-8) var(--s-8);
   display: grid;
+  /* minmax(0, 1fr), not the implicit auto track: an auto track grows to its
+     widest child (a sideways-scrolling kanban, a wide table), which pushed the
+     whole page past the screen on tablets and phones. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-5);
   align-content: start;
 }
@@ -589,6 +593,8 @@ hr {
 .page-header__action,
 .button-row {
   flex-shrink: 0;
+  /* Without a cap, flex-shrink: 0 keeps the row one line wide and `wrap` never kicks in. */
+  max-width: 100%;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -597,9 +603,10 @@ hr {
 
 .section-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-end;
-  gap: var(--s-5);
+  gap: var(--s-3) var(--s-5);
   margin-bottom: var(--s-3);
 }
 
@@ -618,6 +625,7 @@ hr {
 
 .section-block {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-3);
 }
 
@@ -746,6 +754,16 @@ hr {
 .form-grid {
   display: grid;
   gap: var(--s-3);
+}
+
+/* Column containers must be allowed to shrink below their widest child —
+   an implicit `auto` track grows to it and pushes the card off a phone. */
+.detail-main,
+.detail-side,
+.stack-list,
+.form-grid {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
 }
 
 .form-grid {
@@ -1131,6 +1149,22 @@ select.input {
   grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px));
 }
 
+/* Tablets and small laptops: the fixed filter columns plus the view switcher
+   no longer fit one row, so the filters take the full width and reflow, and
+   the switcher wraps underneath instead of running off-screen. */
+@media (max-width: 1180px) {
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .toolbar__filters,
+  .toolbar__filters--wide {
+    flex: 1 1 100%;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+}
+
 .segmented {
   display: inline-flex;
   padding: 2px;
@@ -1138,6 +1172,19 @@ select.input {
   background: var(--n-100);
   border-radius: var(--r-md);
   border: 1px solid var(--line);
+  /* More options than the screen is wide: scroll the strip, not the page. */
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
+}
+
+.segmented > * {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .segmented__button {
@@ -2611,6 +2658,167 @@ a.list-row:hover strong {
   gap: var(--s-3);
 }
 
+/* Login-free report view: the report page's content without the app shell. */
+.public-report {
+  min-height: 100vh;
+  background: var(--canvas);
+  padding: var(--s-6) var(--s-4);
+  display: grid;
+  gap: var(--s-4);
+  align-content: start;
+  width: min(1080px, 100%);
+  margin: 0 auto;
+}
+
+.public-report .report-print {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.public-report__footer {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: var(--s-4) 0;
+}
+
+/* Post stage progress. The track must read as a bar at 0%, not as a divider. */
+.progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  overflow: hidden;
+  margin-bottom: var(--s-3);
+}
+
+/* File picker: themed button + drop target over a hidden native input. */
+.dropzone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  padding: var(--s-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.dropzone--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dropzone--disabled {
+  opacity: .6;
+}
+
+.dropzone__or {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.dropzone__hint {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* A picked file waiting for its label before it is attached. */
+.staged-file {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+}
+
+.staged-file__name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+fieldset.field {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+fieldset.field > legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+/* Single-choice chips (radio group), for short required picks. */
+.choice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.choice-chip {
+  position: relative;
+}
+
+.choice-chip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+
+.choice-chip span {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--ink-secondary);
+  background: var(--surface);
+}
+
+.choice-chip input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.choice-chip input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Blocking notice beside a disabled primary action: what is in the way, with links. */
+.blocker-note {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--warning-border);
+  border-inline-start-width: 3px;
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  font-size: 13px;
+}
+
+.blocker-note ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress__bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 200ms ease;
+}
+
 /* ------------------------------------------------------------- My work */
 /* Cross-client employee screen: the client is a tag on the row, and work is
    grouped by when it is due rather than by who it belongs to. */
@@ -2868,6 +3076,7 @@ a.list-row:hover strong {
 
 .work-row__tags {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2);
 }
@@ -3020,7 +3229,7 @@ a.list-row:hover strong {
   }
 
   .detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .workflow-stepper {
@@ -3114,6 +3323,8 @@ a.list-row:hover strong {
   .toolbar {
     align-items: stretch;
     flex-direction: column;
+    /* Stacked already; wrapping a column would start a second one off-screen. */
+    flex-wrap: nowrap;
   }
 
   .toolbar__filters,

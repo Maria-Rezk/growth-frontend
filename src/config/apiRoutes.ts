@@ -1,3 +1,21 @@
+import type { AttachmentEntityType } from '@/types/domain';
+
+export type AttachmentParent =
+  | { entityType: Exclude<AttachmentEntityType, 'BRAND_PROFILE'>; entityId: string }
+  | { entityType: 'BRAND_PROFILE'; entityId?: undefined };
+
+const ATTACHMENT_SEGMENT: Record<Exclude<AttachmentEntityType, 'BRAND_PROFILE'>, string> = {
+  TASK: 'tasks',
+  POST: 'posts',
+  CAMPAIGN: 'campaigns',
+  LEAD: 'leads',
+};
+
+function attachmentsBase(companyId: string, parent: AttachmentParent): string {
+  if (parent.entityType === 'BRAND_PROFILE') return `/companies/${companyId}/brand-profile/attachments`;
+  return `/companies/${companyId}/${ATTACHMENT_SEGMENT[parent.entityType]}/${parent.entityId}/attachments`;
+}
+
 export const apiRoutes = {
   auth: {
     login: '/auth/login',
@@ -13,13 +31,26 @@ export const apiRoutes = {
     */
     logout: '/auth/logout',
     acceptInvitation: '/auth/accept-invitation',
-    /*
-      Password reset. Both answer 200 whatever the email, so the form
-      cannot be used to discover accounts. Not shipped on the backend yet —
-      the page turns the route miss into a sentence.
-    */
+    // forgot-password answers 200 whatever the email, so it cannot be used to discover accounts.
     forgotPassword: '/auth/forgot-password',
     resetPassword: '/auth/reset-password',
+  },
+  me: {
+    /** Every IN_REVIEW task waiting on the caller, across all their clients, oldest first. Paged. */
+    approvalQueue: '/me/approval-queue',
+    notificationPreferences: '/me/notification-preferences',
+  },
+  /** No session. A wrong, revoked or expired token is 404. */
+  public: {
+    report: (token: string) => `/public/reports/${encodeURIComponent(token)}`,
+  },
+  /*
+    One shape, five parents. Brand profile is a singleton per client, so it
+    has no id segment.
+  */
+  attachments: {
+    list: (companyId: string, parent: AttachmentParent) => attachmentsBase(companyId, parent),
+    detail: (companyId: string, parent: AttachmentParent, attachmentId: string) => `${attachmentsBase(companyId, parent)}/${attachmentId}`,
   },
   users: {
     list: '/users',
@@ -75,8 +106,6 @@ export const apiRoutes = {
     list: (companyId: string) => `/companies/${companyId}/posts`,
     detail: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}`,
     comments: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/comments`,
-    assets: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/assets`,
-    asset: (companyId: string, postId: string, assetId: string) => `/companies/${companyId}/posts/${postId}/assets/${assetId}`,
     submitReview: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/submit-review`,
     approve: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/approve`,
     requestChanges: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/request-changes`,
@@ -101,14 +130,14 @@ export const apiRoutes = {
     monthly: (companyId: string) => `/companies/${companyId}/reports/monthly`,
     list: (companyId: string) => `/companies/${companyId}/reports`,
     detail: (companyId: string, reportId: string) => `/companies/${companyId}/reports/${reportId}`,
+    /** POST mints (?rotate=true replaces), GET reports usage, DELETE revokes. */
+    share: (companyId: string, reportId: string) => `/companies/${companyId}/reports/${reportId}/share`,
   },
   tasks: {
     list: (companyId: string) => `/companies/${companyId}/tasks`,
     detail: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}`,
     status: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/status`,
     comments: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/comments`,
-    attachments: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/attachments`,
-    attachment: (companyId: string, taskId: string, attachmentId: string) => `/companies/${companyId}/tasks/${taskId}/attachments/${attachmentId}`,
     activityLogs: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/activity-logs`,
     myTasks: (companyId: string) => `/companies/${companyId}/tasks/my`,
     /*

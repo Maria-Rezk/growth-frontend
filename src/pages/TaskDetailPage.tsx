@@ -4,13 +4,13 @@ import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
-import { Field, Select, Textarea, Input } from '@/components/ui/Fields';
+import { Field, Select, Textarea } from '@/components/ui/Fields';
 import { ErrorState } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
 import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskReviewPanel';
-import { AttachmentList } from '@/components/domain/AttachmentList';
+import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { Badge } from '@/components/ui/Badge';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -36,7 +36,6 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const task = useAsync(() => tasksService.get(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.task(companyId, taskId) });
   const comments = useAsync(() => tasksService.comments(companyId, taskId), [companyId, taskId]);
   const logs = useAsync(() => tasksService.activityLogs(companyId, taskId), [companyId, taskId]);
-  const attachments = useAsync(() => tasksService.attachments(companyId, taskId), [companyId, taskId]);
   const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
 
   const setStatus = useMutation(tasksService.setStatus, { invalidateKeys: tasksPrefix });
@@ -44,11 +43,6 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   // Was a bare service call — no pending state, errors swallowed, and a double
   // click filed the comment twice.
   const addCommentMutation = useMutation(tasksService.addComment);
-  // The service already pairs upload + attach; doing it manually here
-  // duplicated that logic and lost the error from whichever half failed.
-  const attachMutation = useMutation(tasksService.uploadAndAttach);
-  const detachMutation = useMutation(tasksService.removeAttachment);
-  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const [comment, setComment] = useState('');
   const { userId: actorId } = useTaskActor();
@@ -96,29 +90,6 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
     }
   };
 
-  const onFile = async (input: HTMLInputElement) => {
-    const file = input.files?.[0];
-    if (!file) return;
-    const result = await attachMutation.mutate(companyId, taskId, file);
-    // Clear the input either way, so re-picking the same file re-fires change.
-    input.value = '';
-    if (result) {
-      await attachments.refetch();
-    }
-  };
-
-  const removeAttachment = async (attachmentId: string) => {
-    setRemovingId(attachmentId);
-    try {
-      const result = await detachMutation.mutate(companyId, taskId, attachmentId);
-      if (result !== null) {
-        await attachments.refetch();
-      }
-    } finally {
-      setRemovingId(null);
-    }
-  };
-
   return (
     <>
       <PageHeader
@@ -138,6 +109,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
               <div className="key-values">
                 <div><span>Priority</span><strong><StatusBadge value={current.priority} /></strong></div>
                 <div><span>Type</span><strong>{humanize(current.type)}</strong></div>
+                {current.sequence ? <div><span>Stage on post</span><strong>{current.sequence}</strong></div> : null}
                 <div><span>Assigned</span><strong>{resolveName(current.assignedToId)}</strong></div>
                 <div>
                   <span>Approver</span>
@@ -264,33 +236,12 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
             </div>
           </Card>
 
-          <Card>
-            <CardHeader title="Attachments" subtitle="Briefs, drafts, exports — anyone on the task can add or open them." />
-            <div className="content-card__body stack-list">
-              {/* Every role holds `assets:upload`; the gate stays so a future narrowing is one line in permissions.ts. */}
-              <RoleGate permission="assets:upload" fallback={<p className="muted">Your role cannot upload attachments.</p>}>
-                <Input
-                  type="file"
-                  aria-label="Upload attachment"
-                  disabled={attachMutation.loading}
-                  onChange={(event) => onFile(event.target)}
-                />
-                {attachMutation.loading ? <p className="muted" aria-live="polite">Uploading…</p> : null}
-                {attachMutation.error ? <p className="error-box" role="alert">{attachMutation.error}</p> : null}
-              </RoleGate>
-
-              <AttachmentList
-                companyId={companyId}
-                loading={attachments.loading}
-                error={attachments.error}
-                data={attachments.data}
-                onRetry={attachments.refetch}
-                onRemove={(attachment) => removeAttachment(attachment.id)}
-                removing={removingId}
-              />
-              {detachMutation.error ? <p className="error-box" role="alert">{detachMutation.error}</p> : null}
-            </div>
-          </Card>
+          <AttachmentsPanel
+            companyId={companyId}
+            parent={{ entityType: 'TASK', entityId: taskId }}
+            subtitle="Briefs, drafts, exports — anyone on the task can add or open them."
+            onChanged={() => void logs.refetch()}
+          />
 
           <Card>
             <CardHeader title="Activity" />
@@ -331,6 +282,10 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
         title: 'Approver changed',
         body: `${typeof meta.from === 'string' ? resolveName(meta.from) : 'Nobody'} → ${typeof meta.to === 'string' ? resolveName(meta.to) : 'Nobody'}`,
       };
+    case 'ATTACHMENT_ADDED':
+      return { title: 'Attachment added', body: typeof meta.originalName === 'string' ? meta.originalName : undefined };
+    case 'ATTACHMENT_REMOVED':
+      return { title: 'Attachment removed', body: typeof meta.originalName === 'string' ? meta.originalName : undefined };
     case 'CREATED':
     case 'TASK_CREATED':
       return {

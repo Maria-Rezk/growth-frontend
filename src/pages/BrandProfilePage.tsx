@@ -4,6 +4,8 @@ import { useFieldArray, useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { RequireCompany } from '@/components/layout/RequireCompany';
+import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
+import { useClientView } from '@/hooks/useClientView';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
@@ -105,6 +107,7 @@ export function BrandProfilePage() {
 
 function BrandProfileInner({ companyId }: { companyId: string }) {
   const { user } = useAuth();
+  const clientView = useClientView();
   const profile = useAsync(
     () => brandProfilesService.get(companyId),
     [companyId],
@@ -334,6 +337,16 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
           </div>
         </Card>
       </form>
+
+      {/* Clients may list attachments on posts only — the API refuses the brand profile's. */}
+      {clientView.ready && !clientView.isClient ? (
+        <AttachmentsPanel
+          companyId={companyId}
+          parent={{ entityType: 'BRAND_PROFILE' }}
+          title="Brand files"
+          subtitle="Logos, guidelines, fonts, reference photography."
+        />
+      ) : null}
     </>
   );
 }

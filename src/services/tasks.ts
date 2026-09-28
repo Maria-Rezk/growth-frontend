@@ -3,9 +3,7 @@ import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
 import {
   demoDelay,
-  demoFiles,
   demoMemberUser,
-  demoTaskAttachments,
   demoTaskComments,
   demoTaskLogs,
   demoTasks,
@@ -15,19 +13,45 @@ import {
   moveTaskStatus,
   pushNotification,
 } from '@/services/demoStore';
-import { filesService } from '@/services/files';
+import { attachmentsService } from '@/services/attachments';
 import type {
   ApproverResolution,
   ListParams,
   Paginated,
   Task,
   TaskActivityLog,
-  TaskAttachment,
   TaskComment,
   TaskStatus,
   TaskType,
 } from '@/types/domain';
 import { TaskReviewErrorCode } from '@/types/domain';
+
+export type TaskCreatePayload = Partial<Task> & {
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  notes?: string;
+  /** Uploaded on selection, attached in the same transaction as the create. Max 20. */
+  attachmentFileIds?: string[];
+};
+
+/** Demo-only: the same sequence rules the API enforces on create and update. */
+function demoCheckSequence(companyId: string, taskId: string | null, relatedEntityType?: string, relatedEntityId?: string, sequence?: number | null) {
+  if (sequence === undefined || sequence === null) return;
+  if (relatedEntityType !== 'POST' || !relatedEntityId) {
+    throw demoReviewError(422, TaskReviewErrorCode.SEQUENCE_NEEDS_POST, 'A stage number only applies to a task on a post.');
+  }
+  const holder = demoTasks.find((task) => task.companyId === companyId && task.id !== taskId
+    && task.relatedEntityType === 'POST' && task.relatedEntityId === relatedEntityId && task.sequence === sequence);
+  if (holder) throw demoReviewError(409, TaskReviewErrorCode.SEQUENCE_TAKEN, `Stage ${sequence} on this post is already taken by "${holder.title}".`);
+}
+
+/** Demo-only: earlier stages on the same post still open. */
+function demoOpenEarlierStages(task: Task): Task[] {
+  if (task.relatedEntityType !== 'POST' || !task.sequence) return [];
+  return demoTasks.filter((other) => other.id !== task.id && other.relatedEntityType === 'POST'
+    && other.relatedEntityId === task.relatedEntityId && typeof other.sequence === 'number'
+    && other.sequence < (task.sequence ?? 0) && other.status !== 'DONE' && other.status !== 'CANCELED');
+}
 
 // The backend read model returns `taskType`, but the app reads `task.type`.
 // Normalize inbound so the wire difference stays isolated in this service.
@@ -107,8 +131,9 @@ export const tasksService = {
     const response = await http.get(apiRoutes.tasks.detail(companyId, taskId));
     return normalizeTask(unwrap<Task & { taskType?: TaskType }>(response.data));
   },
-  async create(companyId: string, payload: Partial<Task> & { relatedEntityType?: string; relatedEntityId?: string; notes?: string }): Promise<Task> {
+  async create(companyId: string, payload: TaskCreatePayload): Promise<Task> {
     if (env.demoMode) {
+      demoCheckSequence(companyId, null, payload.relatedEntityType, payload.relatedEntityId, payload.sequence);
       const task: Task = {
         id: makeId('task'),
         companyId,
@@ -126,11 +151,15 @@ export const tasksService = {
         reviewNote: null,
         relatedEntityType: payload.relatedEntityType,
         relatedEntityId: payload.relatedEntityId,
+        sequence: payload.sequence ?? null,
         dueDate: payload.dueDate,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       demoTasks.unshift(task);
+      for (const fileId of payload.attachmentFileIds ?? []) {
+        await attachmentsService.add(companyId, { entityType: 'TASK', entityId: task.id }, fileId);
+      }
       demoTaskLogs.unshift({ id: makeId('task-log'), taskId: task.id, action: 'TASK_CREATED', createdAt: new Date().toISOString() });
       pushNotification({ type: 'TASK_ASSIGNED', title: 'Task created', message: task.title, readAt: null, relatedEntityType: 'TASK', relatedEntityId: task.id });
       return demoDelay(task);
@@ -147,7 +176,10 @@ export const tasksService = {
       approverId: payload.approverId || undefined,
       relatedEntityType: payload.relatedEntityType,
       relatedEntityId: payload.relatedEntityId,
+      // 422 SEQUENCE_NEEDS_POST without a POST parent, so never send it otherwise.
+      sequence: payload.relatedEntityType === 'POST' && payload.sequence ? payload.sequence : undefined,
       notes: payload.notes,
+      attachmentFileIds: payload.attachmentFileIds?.length ? payload.attachmentFileIds : undefined,
       // no status — backend assigns the initial status
     };
 
@@ -158,6 +190,7 @@ export const tasksService = {
     if (env.demoMode) {
       const task = demoTasks.find((item) => item.companyId === companyId && item.id === taskId);
       if (!task) throw new Error('Task not found.');
+      if ('sequence' in payload) demoCheckSequence(companyId, taskId, task.relatedEntityType, task.relatedEntityId, payload.sequence);
       if ('approverId' in payload && payload.approverId !== task.approverId) {
         demoLog(taskId, 'TASK_APPROVER_CHANGED', { from: task.approverId ?? null, to: payload.approverId ?? null });
         task.approver = payload.approverId ? demoMemberUser(payload.approverId) : null;
@@ -194,6 +227,13 @@ export const tasksService = {
       if (!task.approverId) throw demoReviewError(422, TaskReviewErrorCode.APPROVER_REQUIRED, 'This task has no approver. Set one before submitting it for review.');
       if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS') {
         throw demoReviewError(409, TaskReviewErrorCode.INVALID_TRANSITION, `A task in ${task.status} cannot take the action submit-for-review`);
+      }
+      const earlier = demoOpenEarlierStages(task);
+      if (earlier.length) {
+        throw Object.assign(
+          demoReviewError(409, TaskReviewErrorCode.PREVIOUS_STAGE_OPEN, `An earlier stage on this post is still open: ${earlier[0].title}`),
+          { openTaskIds: earlier.map((item) => item.id) },
+        );
       }
       const from = task.status;
       moveTaskStatus(taskId, 'IN_REVIEW');
@@ -288,42 +328,10 @@ export const tasksService = {
     const response = await http.post(apiRoutes.tasks.comments(companyId, taskId), { comment: body });
     return normalizeTaskComment(unwrap<RawTaskComment>(response.data), taskId);
   },
-  async attachments(companyId: string, taskId: string): Promise<TaskAttachment[]> {
-    if (env.demoMode) return demoDelay(demoTaskAttachments.filter((attachment) => attachment.taskId === taskId));
-    const response = await http.get(apiRoutes.tasks.attachments(companyId, taskId));
-    return unwrap<TaskAttachment[]>(response.data);
-  },
-  async attachFile(companyId: string, taskId: string, fileId: string): Promise<TaskAttachment> {
-    if (env.demoMode) {
-      const attachment: TaskAttachment = { id: makeId('task-attachment'), taskId, fileId, file: demoFiles.find((item) => item.id === fileId), createdAt: new Date().toISOString() };
-      demoTaskAttachments.unshift(attachment);
-      return demoDelay(attachment);
-    }
-    const response = await http.post(apiRoutes.tasks.attachments(companyId, taskId), { fileId });
-    return unwrap<TaskAttachment>(response.data);
-  },
-  async removeAttachment(companyId: string, taskId: string, attachmentId: string): Promise<void> {
-    if (env.demoMode) {
-      const index = demoTaskAttachments.findIndex((item) => item.taskId === taskId && item.id === attachmentId);
-      if (index >= 0) demoTaskAttachments.splice(index, 1);
-      return demoDelay(undefined);
-    }
-    await http.delete(apiRoutes.tasks.attachment(companyId, taskId, attachmentId));
-  },
   async activityLogs(companyId: string, taskId: string): Promise<TaskActivityLog[]> {
     if (env.demoMode) return demoDelay(demoTaskLogs.filter((log) => log.taskId === taskId));
     const response = await http.get(apiRoutes.tasks.activityLogs(companyId, taskId));
     return unwrap<TaskActivityLog[]>(response.data);
-  },
-  /**
-   * Delegates to filesService rather than posting the multipart body itself.
-   * The inline version duplicated the upload logic and, more importantly,
-   * skipped filesService's demo-mode branch — so attaching a file in demo mode
-   * fired a real network request and failed.
-   */
-  async uploadAndAttach(companyId: string, taskId: string, file: File): Promise<TaskAttachment> {
-    const storedFile = await filesService.upload(companyId, file);
-    return tasksService.attachFile(companyId, taskId, storedFile.id);
   },
   async listMine(companyId: string, params?: ListParams): Promise<Task[]> {
     if (env.demoMode) {

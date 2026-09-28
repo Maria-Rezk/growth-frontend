@@ -10,7 +10,7 @@ import { useMutation } from '@/hooks/useAsync';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { ADMIN_DASHBOARD_KEY, queryKeys } from '@/lib/queryClient';
 import { usersService } from '@/services/users';
-import { type Employee } from '@/types/domain';
+import { PASSWORD_MIN_LENGTH, type Employee } from '@/types/domain';
 import { humanize } from '@/utils/format';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 import { HeldReviewsNotice } from '@/components/admin/employees/HeldReviewsNotice';
@@ -18,7 +18,7 @@ import { HeldReviewsNotice } from '@/components/admin/employees/HeldReviewsNotic
 const editEmployeeSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name is required.'),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']),
-  password: z.union([z.string().length(0), z.string().min(12, 'Password must be at least 12 characters.')]).optional(),
+  password: z.union([z.string().length(0), z.string().min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`)]).optional(),
 });
 
 type EditEmployeeForm = z.infer<typeof editEmployeeSchema>;

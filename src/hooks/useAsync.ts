@@ -1,12 +1,15 @@
 import { useCallback, useMemo } from 'react';
-import { useMutation as useReactQueryMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation as useReactQueryMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/http';
+import type { ApiErrorShape } from '@/types/domain';
 
 type AsyncResult<T> = {
   data: T | null;
   loading: boolean;
   refreshing: boolean;
   error: string | null;
+  /** HTTP status of the failure, when the API sent one. */
+  errorStatus: number | null;
   refetch: () => Promise<void>;
   setData: (value: T | ((current: T | null) => T | null)) => void;
 };
@@ -22,6 +25,8 @@ type AsyncOptions = {
    * a background tab must not keep hammering twelve endpoints.
    */
   refetchInterval?: number;
+  /** Keep showing the previous key's data while a new key loads (paging, "show more"). */
+  keepPreviousData?: boolean;
 };
 
 function stableDependencyKey(value: unknown): unknown {
@@ -49,6 +54,7 @@ export function useAsync<T>(
     queryFn: factory,
     enabled: options?.enabled ?? true,
     refetchInterval: options?.refetchInterval,
+    placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
   });
 
   const refetch = useCallback(async () => {
@@ -71,6 +77,7 @@ export function useAsync<T>(
     loading: query.isLoading,
     refreshing: query.isFetching && !query.isLoading,
     error: query.error ? errorMessage(query.error) : null,
+    errorStatus: (query.error as ApiErrorShape | null)?.statusCode ?? null,
     refetch,
     setData,
   };

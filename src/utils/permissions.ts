@@ -1,5 +1,5 @@
-import { CompanyMembershipRole, type Membership } from '@/types/domain';
-import { membershipRoles } from '@/utils/roles';
+import { CompanyMembershipRole, type AttachmentEntityType, type Membership } from '@/types/domain';
+import { CLIENT_SIDE_ROLES, membershipRoles } from '@/utils/roles';
 
 export type Permission =
   | 'posts:create'
@@ -41,17 +41,40 @@ const ROLE_PERMISSIONS: Record<CompanyMembershipRole, Permission[]> = {
     'reports:view',
   ],
   /*
-    `assets:upload` is held by every role, client-side ones included: a
-    reviewer sending back a marked-up screenshot, or a sales agent attaching a
-    signed proposal, is exactly what attachments are for. The API still
-    enforces its own rule and answers 403 if it disagrees.
+    `assets:upload` (the file upload itself) is every internal role. Client
+    roles read attachments on posts; they never add them. Which parent a file
+    may then be attached to is narrower — see `canAddAttachment`.
   */
   [CompanyMembershipRole.COPYWRITER]: ['posts:create', 'posts:edit', 'assets:upload', 'tasks:manage', 'reports:view'],
   [CompanyMembershipRole.DESIGNER]: ['posts:edit', 'assets:upload', 'tasks:manage', 'reports:view'],
-  [CompanyMembershipRole.CLIENT_OWNER]: ['posts:approve', 'assets:upload', 'reports:view'],
-  [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve', 'assets:upload', 'reports:view'],
+  [CompanyMembershipRole.CLIENT_OWNER]: ['posts:approve', 'reports:view'],
+  [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve', 'reports:view'],
   [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'assets:upload', 'tasks:manage', 'reports:view'],
 };
+
+const R = CompanyMembershipRole;
+
+/** The roles that edit each parent, which are the roles that may attach to it. */
+const ATTACH_ROLES: Record<AttachmentEntityType, CompanyMembershipRole[] | 'ANY_INTERNAL'> = {
+  TASK: 'ANY_INTERNAL',
+  POST: [R.ACCOUNT_MANAGER, R.SOCIAL_MEDIA_MANAGER, R.DESIGNER, R.COPYWRITER],
+  LEAD: [R.ACCOUNT_MANAGER, R.SALES_AGENT],
+  CAMPAIGN: [R.ACCOUNT_MANAGER, R.SOCIAL_MEDIA_MANAGER],
+  BRAND_PROFILE: [R.ACCOUNT_MANAGER, R.DESIGNER],
+};
+
+/** Mirrors the API's add rule. Platform admins may attach anywhere. */
+export function canAddAttachment(roles: CompanyMembershipRole[], entityType: AttachmentEntityType, isAdmin: boolean): boolean {
+  if (isAdmin) return true;
+  const allowed = ATTACH_ROLES[entityType];
+  if (allowed === 'ANY_INTERNAL') return roles.some((role) => !CLIENT_SIDE_ROLES.includes(role));
+  return roles.some((role) => allowed.includes(role));
+}
+
+/** Mirrors the API's delete rule: whoever attached it, an Account Manager on the client, or a platform admin. */
+export function canRemoveAttachment(roles: CompanyMembershipRole[], uploadedById: string, userId: string | null, isAdmin: boolean): boolean {
+  return isAdmin || (userId !== null && uploadedById === userId) || roles.includes(R.ACCOUNT_MANAGER);
+}
 
 /**
  * Any role wins: the check passes if at least one held role allows it, matching

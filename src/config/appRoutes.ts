@@ -17,6 +17,9 @@ export const appRoutes = {
   post: (postId: string) => `/posts/${postId}`,
   reports: '/reports',
   report: (reportId: string) => `/reports/${reportId}`,
+  /** Login-free report view. The backend mints the full URL; this is for routing and demo only. */
+  publicReportPattern: '/r/:token',
+  publicReport: (token: string) => `/r/${encodeURIComponent(token)}`,
   contentPlans: '/content-plans',
   contentPlan: (planId: string) => `/content-plans/${planId}`,
   brandProfile: '/brand-profile',

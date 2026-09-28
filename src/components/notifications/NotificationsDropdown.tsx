@@ -12,7 +12,7 @@ import { notificationLink } from './notificationMeta';
 
 export function NotificationsDropdown() {
   const navigate = useNavigate();
-  const { unreadCount, refreshUnreadCount, isVisible } = useNotifications();
+  const { unreadCount, refreshUnreadCount } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   /*
@@ -26,7 +26,7 @@ export function NotificationsDropdown() {
   const markRead = useMutation(notificationsService.markRead);
   const markAll = useMutation(notificationsService.markAllRead);
 
-  const recentItems = useMemo(() => (list.data ?? []).filter(isVisible).slice(0, 6), [isVisible, list.data]);
+  const recentItems = useMemo(() => (list.data ?? []).slice(0, 6), [list.data]);
 
   useEffect(() => {
     if (!open) return;
