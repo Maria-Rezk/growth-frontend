@@ -739,6 +739,8 @@ export interface AppNotification {
   entityType?: string;
   entityId?: UUID;
   metadata?: Record<string, unknown>;
+  /** The client the target belongs to, when the API sends it. Opening the target switches to it. */
+  companyId?: UUID;
   createdAt?: ISODate;
 }
 

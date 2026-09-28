@@ -8,7 +8,7 @@ import { queryKeys } from '@/lib/queryClient';
 import type { AppNotification } from '@/types/domain';
 import { BellIcon } from '@/components/ui/icons';
 import { NotificationItem } from './NotificationItem';
-import { notificationLink } from './notificationMeta';
+import { useOpenNotification } from './useOpenNotification';
 
 export function NotificationsDropdown() {
   const navigate = useNavigate();
@@ -23,7 +23,6 @@ export function NotificationsDropdown() {
     the old unread state until it happened to go stale on its own.
   */
   const list = useAsync(() => notificationsService.list(), [], { queryKey: queryKeys.notifications });
-  const markRead = useMutation(notificationsService.markRead);
   const markAll = useMutation(notificationsService.markAllRead);
 
   const recentItems = useMemo(() => (list.data ?? []).slice(0, 6), [list.data]);
@@ -48,14 +47,10 @@ export function NotificationsDropdown() {
     };
   }, [open]);
 
+  const openNotification = useOpenNotification();
   const handleSelect = async (notification: AppNotification) => {
-    if (!notification.readAt) {
-      await markRead.mutate(notification.id);
-      await refreshUnreadCount();
-    }
-
     setOpen(false);
-    navigate(notificationLink(notification) ?? '/notifications');
+    await openNotification(notification);
   };
 
   const handleMarkAll = async () => {

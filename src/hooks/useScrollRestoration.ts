@@ -4,6 +4,8 @@ import { clearStored, readStored, writeStored } from '@/lib/storage';
 
 const VERSION = 1;
 const SAVE_DEBOUNCE_MS = 120;
+/** How long to wait for a slow page to grow tall enough before restoring anyway. */
+const RESTORE_WAIT_MS = 4000;
 
 let manualRestorationSet = false;
 
@@ -41,10 +43,41 @@ export function useScrollRestoration(): void {
     const key = keyFor(location.pathname, location.search);
     const stored = readStored<number>('session', key, VERSION);
     const y = stored && Number.isFinite(stored.data) ? stored.data : 0;
-    // Wait a frame: the page below has just (re)mounted and may still be
-    // laying out its content, so scrolling immediately can land short.
-    const id = window.requestAnimationFrame(() => window.scrollTo(0, y));
-    return () => window.cancelAnimationFrame(id);
+
+    const fits = () => document.documentElement.scrollHeight - window.innerHeight >= y;
+
+    /*
+      After a refresh the page first renders a skeleton, and its data arrives
+      later. Scrolling to `y` on a page that short clamps to the top and the
+      position is lost. So when it does not fit yet, wait for the page to grow
+      (ResizeObserver), with a cap — and give up the moment the person scrolls
+      or types themselves, so restoring never fights them.
+    */
+    if (y === 0 || fits() || typeof ResizeObserver === 'undefined') {
+      const id = window.requestAnimationFrame(() => window.scrollTo(0, y));
+      return () => window.cancelAnimationFrame(id);
+    }
+
+    const USER_INPUT = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const;
+    let done = false;
+    const observer = new ResizeObserver(() => {
+      if (fits()) finish(true);
+    });
+    const timeout = window.setTimeout(() => finish(true), RESTORE_WAIT_MS);
+    const onUserInput = () => finish(false);
+
+    function finish(restore: boolean) {
+      if (done) return;
+      done = true;
+      observer.disconnect();
+      window.clearTimeout(timeout);
+      USER_INPUT.forEach((type) => window.removeEventListener(type, onUserInput));
+      if (restore) window.scrollTo(0, y);
+    }
+
+    observer.observe(document.body);
+    USER_INPUT.forEach((type) => window.addEventListener(type, onUserInput, { passive: true }));
+    return () => finish(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {

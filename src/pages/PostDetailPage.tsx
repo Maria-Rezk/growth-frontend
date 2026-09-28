@@ -54,6 +54,9 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   const reject = useMutation(contentService.reject, { invalidateKeys: postsPrefix });
   const publish = useMutation(contentService.publish, { invalidateKeys: postsPrefix });
   const schedule = useMutation(contentService.updatePost, { invalidateKeys: postsPrefix });
+  // A mutation, not a bare call: a failed send used to lose the comment silently,
+  // and a double-click posted it twice.
+  const postComment = useMutation(contentService.addComment);
 
   const [comment, setComment] = useState('');
   const [commentIsInternal, setCommentIsInternal] = useState(false);
@@ -107,7 +110,8 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
     event.preventDefault();
     if (!comment.trim()) return;
     // Client roles can only ever post client-visible comments.
-    await contentService.addComment(companyId, postId, comment.trim(), isClient ? false : commentIsInternal);
+    const created = await postComment.mutate(companyId, postId, comment.trim(), isClient ? false : commentIsInternal);
+    if (!created) return; // Keep the text so it can be sent again.
     setComment('');
     setCommentIsInternal(false);
     await comments.refetch();
@@ -184,7 +188,9 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
                   <time>{formatDateTime(item.createdAt)}</time>
                 </div>
               ))}
-              {visibleComments.length === 0 ? <p className="muted">No comments yet.</p> : null}
+              {comments.error ? <ErrorState message={`Comments could not be loaded. ${comments.error}`} onRetry={comments.refetch} /> : null}
+              {!comments.error && !comments.loading && visibleComments.length === 0 ? <p className="muted">No comments yet.</p> : null}
+              {comments.loading ? <p className="muted">Loading comments…</p> : null}
               <form className="inline-form" onSubmit={addComment}>
                 <Input
                   aria-label="Comment"
@@ -192,8 +198,9 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
                   onChange={(event) => setComment(event.target.value)}
                   placeholder="Add comment…"
                 />
-                <Button type="submit">Send</Button>
+                <Button type="submit" loading={postComment.loading} disabled={!comment.trim()}>Send</Button>
               </form>
+              {postComment.error ? <p className="error-box" role="alert">Not sent: {postComment.error}</p> : null}
               {!isClient ? (
                 <label className="checkbox-row">
                   <input
@@ -273,7 +280,9 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
           <Card className="content-card">
             <CardHeader title="Approval log" />
             <div className="content-card__body">
+              {logs.error ? <ErrorState message={logs.error} onRetry={logs.refetch} /> : (
               <Timeline
+                empty={logs.loading ? 'Loading…' : undefined}
                 items={(logs.data ?? []).map((log) => ({
                   id: log.id,
                   title: log.fromStatus && log.toStatus
@@ -283,6 +292,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
                   createdAt: log.createdAt,
                 }))}
               />
+              )}
             </div>
           </Card>
         </aside>

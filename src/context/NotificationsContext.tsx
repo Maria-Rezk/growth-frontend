@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type Query } from '@tanstack/react-query';
 import { notificationsService } from '@/services/notifications';
 import { useAuth } from '@/context/AuthContext';
 import { errorMessage } from '@/lib/http';
@@ -7,6 +7,8 @@ import { queryKeys } from '@/lib/queryClient';
 import type { NotificationPreferences, NotificationType } from '@/types/domain';
 
 const NOTHING_MUTED: ReadonlySet<NotificationType> = new Set();
+
+const isFeedQuery = (query: Query) => query.queryKey[1] !== 'preferences';
 
 interface NotificationsContextValue {
   /** From the server, which already leaves muted types out. */
@@ -61,12 +63,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.notificationPreferences(user?.id ?? ''), saved);
       // The list and the count both depend on what is muted.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications, predicate: isFeedQuery });
     },
   });
 
+  // The list and the count — not the preferences, which share the key prefix.
   const refreshUnreadCount = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.notifications, predicate: isFeedQuery });
   }, [queryClient]);
 
   const { mutateAsync } = saveMutation;

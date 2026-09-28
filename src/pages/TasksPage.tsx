@@ -157,17 +157,17 @@ function TasksInner({ companyId }: { companyId: string }) {
       <div className="task-alerts">
         <div className="task-alert card">
           <span>Overdue tasks</span>
-          <strong>{alertTasks.loading ? '—' : overdueCount}</strong>
+          <strong>{alertTasks.loading || alertTasks.error ? '—' : overdueCount}</strong>
           <p>Past their due date and not done or canceled.</p>
         </div>
         <div className="task-alert card">
           <span>High priority</span>
-          <strong>{alertTasks.loading ? '—' : highPriorityCount}</strong>
+          <strong>{alertTasks.loading || alertTasks.error ? '—' : highPriorityCount}</strong>
           <p>Urgent and high-priority items, ignoring the filters below.</p>
         </div>
         <div className={needsApproverCount > 0 ? 'task-alert task-alert--warning card' : 'task-alert card'}>
           <span>Needs an approver</span>
-          <strong>{alertTasks.loading ? '—' : needsApproverCount}</strong>
+          <strong>{alertTasks.loading || alertTasks.error ? '—' : needsApproverCount}</strong>
           <p>In review with nobody named to approve. They wait until somebody is.</p>
         </div>
       </div>

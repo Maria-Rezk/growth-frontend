@@ -50,7 +50,16 @@ export function NotificationItem({ notification, compact = false, onSelect, acti
         <time>{formatDateTime(notification.createdAt)}</time>
       </div>
 
-      {action ? <div className="notification-item__action" onClick={(event) => event.stopPropagation()}>{action}</div> : null}
+      {action ? (
+        <div
+          className="notification-item__action"
+          onClick={(event) => event.stopPropagation()}
+          // Enter/Space on the action button must not also open the notification.
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          {action}
+        </div>
+      ) : null}
     </article>
   );
 }

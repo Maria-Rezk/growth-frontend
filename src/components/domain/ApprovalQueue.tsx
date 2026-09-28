@@ -10,6 +10,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { ListSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { CheckIcon } from '@/components/ui/icons';
+import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
 import { useTaskReview } from '@/hooks/useTaskReview';
 import { queryKeys } from '@/lib/queryClient';
@@ -86,6 +87,7 @@ export function ApprovalQueueList({
   emptyAction?: ReactNode;
   pagination?: ReactNode;
 }) {
+  const { activeCompanyId, setActiveCompanyId } = useCompany();
   const [changesFor, setChangesFor] = useState<QueueTask | null>(null);
   const [actingOn, setActingOn] = useState<string | null>(null);
 
@@ -134,7 +136,15 @@ export function ApprovalQueueList({
                 </div>
 
                 <div className="queue-row__main">
-                  <Link className="queue-row__title" to={appRoutes.task(task.id)}>{task.title}</Link>
+                  <Link
+                    className="queue-row__title"
+                    to={appRoutes.task(task.id)}
+                    // Task detail is client-scoped: point the app at this row's client first,
+                    // or a task from another client opens as "Task not found".
+                    onClick={() => { if (task.clientId !== activeCompanyId) setActiveCompanyId(task.clientId); }}
+                  >
+                    {task.title}
+                  </Link>
                   <p className="queue-row__meta">
                     <span>{humanize(task.type)}</span>
                     <span aria-hidden="true">·</span>

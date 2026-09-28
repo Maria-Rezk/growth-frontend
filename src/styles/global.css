@@ -4287,6 +4287,39 @@ fieldset.field > legend {
   text-decoration: none;
 }
 
+/* Card that is clickable as a whole without being one big <a>: the name link's
+   ::after covers the card; real links inside (contact-row) sit above it. */
+.kanban-card--stretched {
+  position: relative;
+  cursor: pointer;
+}
+
+.kanban-card__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.kanban-card__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.kanban-card__link:focus-visible {
+  outline: none;
+}
+
+.kanban-card--stretched:has(.kanban-card__link:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.kanban-card--stretched .contact-row {
+  position: relative;
+  z-index: 1;
+}
+
 .contact-row a:hover {
   text-decoration: underline;
 }

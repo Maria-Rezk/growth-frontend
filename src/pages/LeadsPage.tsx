@@ -201,7 +201,8 @@ function LeadsInner({ companyId }: { companyId: string }) {
             aria-pressed={status === item}
           >
             <span>{humanize(item)}</span>
-            <strong>{counts.loading ? '—' : counts.data?.[item] ?? 0}</strong>
+            {/* "—" on failure too: a failed count must not read as "nobody in this stage". */}
+            <strong title={counts.error ? `Could not load: ${counts.error}` : undefined}>{counts.loading || counts.error ? '—' : counts.data?.[item] ?? 0}</strong>
           </button>
         ))}
       </div>
@@ -347,9 +348,11 @@ function PipelineView({
 
 function LeadBoardCard({ lead, assigneeName }: { lead: Lead; assigneeName: string }) {
   return (
-    <Link to={`/leads/${lead.id}`} className="kanban-card">
+    // A box, not a link: the contact links inside cannot live in an <a>. The
+    // name link stretches over the card (kanban-card__link) so it still opens on click.
+    <div className="kanban-card kanban-card--stretched">
       <div className="kanban-card__head">
-        <strong>{lead.name}</strong>
+        <Link to={`/leads/${lead.id}`} className="kanban-card__link"><strong>{lead.name}</strong></Link>
         <StatusBadge value={lead.status} />
       </div>
       <p>{lead.email ?? lead.phone ?? lead.interestedService ?? 'No contact details yet.'}</p>
@@ -361,7 +364,7 @@ function LeadBoardCard({ lead, assigneeName }: { lead: Lead; assigneeName: strin
       <div className="kanban-card__footer">
         <FollowUpCell lead={lead} compact />
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -521,16 +524,15 @@ function FollowUpCell({ lead, compact = false }: { lead: Lead; compact?: boolean
   );
 }
 
-/** Tap-to-contact on the card. Stops the click from opening the card. */
+/** Tap-to-contact on the card. Sits above the card's stretched link, so a tap here never opens the card. */
 function ContactRow({ lead }: { lead: Lead }) {
   const links = contactLinks(lead);
   if (!links.email && !links.phone && !links.whatsapp) return null;
-  const stop = (event: React.MouseEvent) => event.stopPropagation();
   return (
-    <div className="contact-row" onClick={stop}>
-      {links.whatsapp ? <a href={links.whatsapp} target="_blank" rel="noopener noreferrer" onClick={stop}>WhatsApp</a> : null}
-      {links.phone ? <a href={links.phone} onClick={stop}>Call</a> : null}
-      {links.email ? <a href={links.email} onClick={stop}>Email</a> : null}
+    <div className="contact-row">
+      {links.whatsapp ? <a href={links.whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp</a> : null}
+      {links.phone ? <a href={links.phone}>Call</a> : null}
+      {links.email ? <a href={links.email}>Email</a> : null}
     </div>
   );
 }

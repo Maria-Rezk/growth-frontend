@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { keepPreviousData, useMutation as useReactQueryMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/http';
 import type { ApiErrorShape } from '@/types/domain';
@@ -96,6 +96,23 @@ type MutationOptions<Args extends unknown[], Result> = {
   onError?: (error: unknown, args: Args) => void;
 };
 
+function isPlain(value: unknown): value is Record<string, unknown> | unknown[] {
+  if (value === null || typeof value !== 'object') return false;
+  const proto = Object.getPrototypeOf(value);
+  return Array.isArray(value) || proto === Object.prototype || proto === null;
+}
+
+/** Same primitive or instance — or two plain objects with the same content (a payload rebuilt per click). Files compare by identity. */
+function sameArgument(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (!isPlain(left) || !isPlain(right)) return false;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
 export function useMutation<Args extends unknown[], Result>(
   mutationFn: (...args: Args) => Promise<Result>,
   options?: MutationOptions<Args, Result>,
@@ -115,12 +132,28 @@ export function useMutation<Args extends unknown[], Result>(
     },
   });
 
+  /*
+    An exact repeat of a call that is still in flight is dropped. `loading`
+    only flips on the next render, so a double-click lands inside it and used
+    to send the comment, note or verdict twice. Compared argument by argument
+    (Object.is): two different files, or the same action on two different
+    records, still both go through.
+  */
+  const inFlight = useRef<Args[]>([]);
+
   const mutate = useCallback(
     async (...args: Args): Promise<Result | null> => {
+      const duplicate = inFlight.current.some(
+        (pending) => pending.length === args.length && pending.every((value, index) => sameArgument(value, args[index])),
+      );
+      if (duplicate) return null;
+      inFlight.current.push(args);
       try {
         return await mutation.mutateAsync(args);
       } catch {
         return null;
+      } finally {
+        inFlight.current = inFlight.current.filter((pending) => pending !== args);
       }
     },
     [mutation],

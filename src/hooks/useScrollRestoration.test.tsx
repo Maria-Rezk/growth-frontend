@@ -63,6 +63,49 @@ describe('useScrollRestoration', () => {
     expect(scrollTo).toHaveBeenCalledWith(0, 500);
   });
 
+  describe('when the page is still loading (too short to reach the saved position)', () => {
+    let resize: (() => void) | null = null;
+    let scrollHeight = 500;
+
+    beforeEach(() => {
+      resize = null;
+      scrollHeight = 500;
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(callback: () => void) { resize = callback; }
+        observe() {}
+        disconnect() {}
+      });
+      vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockImplementation(() => scrollHeight);
+      Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+    });
+
+    it('waits for the page to grow, then restores', () => {
+      writeStored('session', 'scroll:/tasks', 1, 900);
+      const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+      renderAt('/tasks');
+      expect(scrollTo).not.toHaveBeenCalled();
+
+      scrollHeight = 2000;
+      act(() => resize?.());
+      expect(scrollTo).toHaveBeenCalledWith(0, 900);
+    });
+
+    it('gives up if the person scrolls first, so it never yanks them back', () => {
+      writeStored('session', 'scroll:/tasks', 1, 900);
+      const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+      renderAt('/tasks');
+      act(() => {
+        window.dispatchEvent(new Event('wheel'));
+      });
+      scrollHeight = 2000;
+      act(() => resize?.());
+
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+  });
+
   it('saves the scroll position, debounced, as the page scrolls', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     vi.spyOn(window, 'scrollTo').mockImplementation(() => {});

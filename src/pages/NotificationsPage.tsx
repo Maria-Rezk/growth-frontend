@@ -8,7 +8,8 @@ import { queryKeys } from '@/lib/queryClient';
 import type { AppNotification, NotificationType } from '@/types/domain';
 import { NotificationFilters, type NotificationFiltersValue } from '@/components/notifications/NotificationFilters';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
-import { notificationMessage, notificationTitle } from '@/components/notifications/notificationMeta';
+import { notificationLink, notificationMessage, notificationTitle } from '@/components/notifications/notificationMeta';
+import { useOpenNotification } from '@/components/notifications/useOpenNotification';
 import { ListSkeleton } from '@/components/ui/Skeleton';
 import { NotificationPreferences } from '@/components/notifications/NotificationPreferences';
 import { EmailDigestPreference } from '@/components/notifications/EmailDigestPreference';
@@ -48,6 +49,7 @@ export function NotificationsPage() {
     { queryKey: includeMuted ? queryKeys.notificationsIncludingMuted : queryKeys.notifications },
   );
   const { muted } = useNotifications();
+  const openNotification = useOpenNotification();
   const markRead = useMutation(notificationsService.markRead, { invalidateKeys: INVALIDATE_NOTIFICATIONS });
   const markAll = useMutation(notificationsService.markAllRead, { invalidateKeys: INVALIDATE_NOTIFICATIONS });
   const [filters, setFilters] = useState<NotificationFiltersValue>(DEFAULT_FILTERS);
@@ -137,6 +139,7 @@ export function NotificationsPage() {
           <NotificationItem
             key={notification.id}
             notification={notification}
+            onSelect={notificationLink(notification) ? openNotification : undefined}
             action={!notification.readAt ? (
               <Button
                 variant="secondary"

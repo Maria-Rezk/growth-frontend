@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { companiesService } from '@/services/companies';
 import { useAuth } from '@/context/AuthContext';
 import { env } from '@/config/env';
@@ -64,6 +64,29 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(!env.demoMode);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+    Every member-list load goes through here. Switching client starts more than
+    one request (the switch itself, then the company refresh it triggers), and
+    responses can land out of order — without this, a slow answer for the
+    client just left overwrote the roles for the client just opened, so the
+    gates showed the wrong person's buttons.
+  */
+  const membershipsFor = useRef<string | null>(null);
+  const loadMemberships = useCallback(async (companyId: string | null) => {
+    membershipsFor.current = companyId;
+    if (!companyId) {
+      setMemberships([]);
+      return;
+    }
+    let next: Membership[];
+    try {
+      next = await companiesService.members(companyId);
+    } catch {
+      next = [];
+    }
+    if (membershipsFor.current === companyId) setMemberships(next);
+  }, []);
+
   const refreshCompanies = useCallback(async () => {
     if (env.demoMode) {
       setCompanies([demoCompany]);
@@ -91,22 +114,16 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       if (nextActiveId) {
         setActiveCompanyIdState(nextActiveId);
         writeActiveCompanyId(nextActiveId);
-        try {
-          setMemberships(await companiesService.members(nextActiveId));
-        } catch {
-          setMemberships([]);
-        }
-      } else {
-        setMemberships([]);
       }
+      await loadMemberships(nextActiveId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load companies.');
       setCompanies([]);
-      setMemberships([]);
+      await loadMemberships(null);
     } finally {
       setLoading(false);
     }
-  }, [activeCompanyId]);
+  }, [activeCompanyId, loadMemberships]);
 
   useEffect(() => {
     void refreshCompanies();
@@ -126,16 +143,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       setMemberships(demoMemberships);
       return;
     }
-    if (!activeCompanyId) {
-      setMemberships([]);
-      return;
-    }
-    try {
-      setMemberships(await companiesService.members(activeCompanyId));
-    } catch {
-      setMemberships([]);
-    }
-  }, [activeCompanyId]);
+    await loadMemberships(activeCompanyId);
+  }, [activeCompanyId, loadMemberships]);
 
   const setActiveCompanyId = useCallback((companyId: string) => {
     setActiveCompanyIdState(companyId);
@@ -146,8 +155,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }
 
     writeActiveCompanyId(companyId);
-    void companiesService.members(companyId).then(setMemberships).catch(() => setMemberships([]));
-  }, []);
+    void loadMemberships(companyId);
+  }, [loadMemberships]);
 
   /*
     Switching the active client in one tab (the sidebar switcher) is a change
