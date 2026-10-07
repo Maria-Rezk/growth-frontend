@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import type { Company, CompanyMembershipRole, Membership, PlatformRole } from '@/types/domain';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Company, CompanyMembershipRole, PlatformRole, SessionMembership } from '@/types/domain';
 
 /*
   The role matrix, end to end through the real chain:
@@ -20,19 +21,37 @@ import type { Company, CompanyMembershipRole, Membership, PlatformRole } from '@
   it proves what the UI offers each role, not what the API will accept.
 */
 
-type AuthState = {
-  user: { id: string; platformRole: PlatformRole } | null;
-  sessionMemberships: Membership[] | null;
-  reloadUser: () => Promise<void>;
-};
+type AuthState = { user: { id: string; platformRole: PlatformRole } | null };
 let auth: AuthState;
+/** What GET /me/memberships answers for the person under test; an Error is a read that failed. */
+let myMemberships: SessionMembership[] | Error = [];
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => auth }));
+vi.mock('@/services/memberships', () => ({
+  membershipsService: {
+    mine: async () => {
+      if (myMemberships instanceof Error) throw myMemberships;
+      return myMemberships;
+    },
+  },
+}));
 vi.mock('@/context/NotificationsContext', () => ({ useNotifications: () => ({ unreadCount: 0 }) }));
 vi.mock('@/context/LocaleContext', () => ({ useLocale: () => ({ t: (key: string) => key }) }));
 
 const everyClient: Company[] = [{ id: 'A', name: 'Alpha' } as Company, { id: 'B', name: 'Beta' } as Company];
+// What GET /companies answers: every client for a platform admin, only the ACTIVE memberships' clients for anybody else.
 vi.mock('@/services/companies', () => ({
-  companiesService: { list: async () => everyClient, members: async () => [] },
+  companiesService: {
+    list: async () => {
+      const admin = auth.user?.platformRole === 'SUPER_ADMIN' || auth.user?.platformRole === 'AGENCY_ADMIN';
+      if (admin) return everyClient;
+      const held = Array.isArray(myMemberships) ? myMemberships : [];
+      const reachable = new Set(held.filter((item) => item.status === 'ACTIVE').map((item) => item.companyId));
+      return everyClient.filter((item) => reachable.has(item.id));
+    },
+    members: async () => {
+      throw new Error('the member directory must never be read to learn the current user\'s roles');
+    },
+  },
 }));
 
 import { CompanyProvider, useCompany } from '@/context/CompanyContext';
@@ -42,9 +61,8 @@ import { useCan } from '@/hooks/usePermission';
 import { useClientView } from '@/hooks/useClientView';
 import type { Permission } from '@/utils/permissions';
 
-const company = (id: string) => everyClient.find((item) => item.id === id) as Company;
-const member = (companyId: string, roles: CompanyMembershipRole[], status: Membership['status'] = 'ACTIVE'): Membership =>
-  ({ id: `m-${companyId}`, companyId, userId: 'u1', roles, role: roles[0], status, company: company(companyId) }) as Membership;
+const member = (companyId: string, roles: CompanyMembershipRole[], status: SessionMembership['status'] = 'ACTIVE'): SessionMembership =>
+  ({ id: `m-${companyId}`, companyId, roles, status });
 
 let companyApi: ReturnType<typeof useCompany>;
 let can: ReturnType<typeof useCan>;
@@ -65,22 +83,25 @@ function sidebarLinks(): string[] {
   return [...document.querySelectorAll('.sidebar__nav a')].map((anchor) => anchor.getAttribute('href') ?? '');
 }
 
-async function renderFor(user: AuthState['user'], memberships: Membership[] | null, extra: ReactNode = null) {
-  auth = { user, sessionMemberships: memberships, reloadUser: async () => undefined };
+async function renderFor(user: AuthState['user'], memberships: SessionMembership[] | Error, extra: ReactNode = null) {
+  auth = { user };
+  myMemberships = memberships;
   const view = render(
-    <MemoryRouter>
-      <CompanyProvider>
-        <Probe />
-        <Sidebar open={false} onClose={() => undefined} />
-        {extra}
-      </CompanyProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <CompanyProvider>
+          <Probe />
+          <Sidebar open={false} onClose={() => undefined} />
+          {extra}
+        </CompanyProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
   await waitFor(() => expect(companyApi.loading).toBe(false));
   return view;
 }
 
-const asUser = (roles: CompanyMembershipRole[], status: Membership['status'] = 'ACTIVE', extra: ReactNode = null) =>
+const asUser = (roles: CompanyMembershipRole[], status: SessionMembership['status'] = 'ACTIVE', extra: ReactNode = null) =>
   renderFor({ id: 'u1', platformRole: 'USER' }, [member('A', roles, status)], extra);
 
 beforeEach(() => {
@@ -157,6 +178,48 @@ describe('different roles on different clients', () => {
     expect(clientView.isClient).toBe(true);
     expect(sidebarLinks()).toContain('/home');
     expect(sidebarLinks()).not.toContain('/automations');
+  });
+});
+
+describe('the member directory is not how roles are learned', () => {
+  it('REGRESSION: A = DESIGNER, B = SALES_AGENT. Switching to B shows Sales navigation and permissions, and nothing of the Designer', async () => {
+    await renderFor({ id: 'u1', platformRole: 'USER' }, [member('A', ['DESIGNER']), member('B', ['SALES_AGENT'])]);
+    expect(can('postAssets:manage')).toBe(true);
+    expect(can('leads:manage')).toBe(false);
+    expect(sidebarLinks()).not.toContain('/leads');
+
+    act(() => companyApi.setActiveCompanyId('B'));
+
+    expect(companyApi.activeCompanyId).toBe('B');
+    expect(can('leads:manage')).toBe(true);
+    expect(can('postAssets:manage')).toBe(false);
+    expect(sidebarLinks()).toContain('/leads');
+    expect(clientView.isClient).toBe(false);
+  });
+
+  it('a client the person has no membership for cannot be selected, so its roles are never in play', async () => {
+    await renderFor({ id: 'u1', platformRole: 'USER' }, [member('A', ['ACCOUNT_MANAGER'])]);
+    expect(companyApi.companies.map((item) => item.id)).toEqual(['A']);
+
+    act(() => companyApi.setActiveCompanyId('B'));
+
+    // B is not in their list, so the selection falls back to a client they do belong to.
+    expect(companyApi.activeCompanyId).toBe('A');
+    expect(companyApi.currentMembership?.companyId).toBe('A');
+  });
+
+  it('memberships that cannot be read fail closed for a normal user, and the directory is never asked', async () => {
+    await renderFor({ id: 'u1', platformRole: 'USER' }, new Error('down'));
+    expect(companyApi.rolesUnavailable).toBe(true);
+    expect(can('posts:approve')).toBe(false);
+    expect(can('tasks:manage')).toBe(false);
+    AM_ONLY.forEach((href) => expect(sidebarLinks()).not.toContain(href));
+  });
+
+  it('memberships that cannot be read do not lock out a platform admin', async () => {
+    await renderFor({ id: 'u1', platformRole: 'SUPER_ADMIN' }, new Error('down'));
+    expect(companyApi.rolesUnavailable).toBe(false);
+    expect(can('automations:manage')).toBe(true);
   });
 });
 

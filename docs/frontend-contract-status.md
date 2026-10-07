@@ -6,33 +6,45 @@
 
 ## Where current-company roles come from
 
+Authentication and company authorization are separate concerns, and separate endpoints:
+
 ```
-/auth/me  ->  sessionMemberships  ->  selected client  ->  roles on that client  ->  can(permission)
+GET  /auth/me           ->  who is signed in (the user only; AuthContext)
+POST /auth/refresh      ->  user + accessToken
+GET  /companies         ->  which clients to list
+GET  /me/memberships    ->  this person's roles, per client (CompanyContext)
+
+selected client + this person's membership for it  ->  roles  ->  can(permission)
+GET  /companies/:id/members  ->  managing people only (Members page); never used to learn the current person's roles
 ```
 
-- `AuthContext` reads `/auth/me` and keeps its `memberships` apart from the user (`sessionMemberships`).
-- `CompanyContext` derives, for a non-admin: the client list (ACTIVE memberships only) and the roles on the selected client. This is synchronous, so a client switch can never inherit the previous client's roles.
-- Platform admins bypass company checks in the API, so their gates do not read roles (`useCan`, `usePermission`).
-- **Fallback, only if `/auth/me` carries no memberships:** `GET /companies/:id/members`. That endpoint is **Account Manager / admin only** (reference §5; `Frontend-Multiple-Roles.md`), so every other role is refused. Then roles are unknown and the UI **fails closed** (no permissions) and says so (`rolesUnavailable`).
-
-### REAL BACKEND CONTRACT GAP (blocker for non-AM, non-admin users unless confirmed)
-
-The reference says `GET /auth/me` returns "the current user". It does not say it includes memberships. The project README lists "confirm `/auth/me` returns the user and memberships" as an open item. `GET /companies` is also listed as admin-only, so a non-admin has no documented way to learn which clients they belong to either.
-
-**Needed from the backend:** `GET /auth/me` returns, alongside the user, the caller's own memberships:
+**Contract the frontend consumes** (deployment depends on `/me/memberships` existing):
 
 ```jsonc
+// GET /api/me/memberships   (any authenticated user; the caller's own ACTIVE memberships)
 {
-  "id": "uuid", "email": "…", "fullName": "…", "platformRole": "USER",
   "memberships": [
-    { "id": "uuid", "companyId": "uuid", "userId": "uuid",
-      "roles": ["DESIGNER", "COPYWRITER"], "status": "ACTIVE",
-      "company": { "id": "uuid", "name": "…" } }
+    { "id": "uuid", "companyId": "uuid", "roles": ["DESIGNER", "COPYWRITER"], "status": "ACTIVE" }
   ]
 }
 ```
 
-If it already does, nothing else is required and the fallback can be deleted. If it does not, only Account Managers and admins can use the app correctly.
+- ACTIVE only (suspended and invited are absent); `roles` is the effective multi-role array. A platform admin may have `[]` and still passes every company check. Company roles are not in the JWT.
+- `GET /api/companies` is open to every signed-in user: all clients for a platform admin, the person's ACTIVE clients otherwise.
+
+How the frontend uses it:
+
+- `AuthContext` is unchanged by this: login, refresh, logout, 401 handling and the `/auth/me` read all behave as before, and the user has no membership field. `/auth/me` is read as the user, bare or wrapped as `{ user }`.
+- `CompanyContext` loads the client list from `GET /companies` and the memberships from `GET /me/memberships` (`membershipsService`), cached under `['me', 'memberships', userId]`. The whole query cache is dropped when the signed-in identity changes, so one person's roles are never served to the next.
+- The roles for the selected client are the roles on its membership, derived synchronously, so a client switch can never inherit the previous client's roles. No membership for the client means no roles. The memberships are read once, not per client.
+- Platform admins bypass company checks in the API, so their gates do not read roles (`useCan`, `usePermission`), and no membership is invented for them. A failed membership read never blocks an admin.
+- **Fail closed:** for anyone else, roles that are not loaded and not being loaded are *unknown* (a failed or malformed `/me/memberships`, a paused retry). They get no permissions and a notice with a retry (`rolesUnavailable`). A body that is not `{ memberships: [...] }` is an error, never an empty list. Nothing falls back to the member directory.
+- Until the memberships are known, a non-admin is not "ready" (`loading`), so a client-only person never sees the agency app flash by.
+
+## Status codes and refresh
+
+- **401**: refresh the session once and retry the original request once. A second 401, or a failed refresh, signs the person out. Concurrent 401s share one refresh.
+- **403**: never refreshes the token and never replays the request. The app quietly re-reads the user (`/auth/me`) and marks the memberships stale so they refetch (single-flight, at most once a minute), so a role changed elsewhere reaches the UI.
 
 ## Automations — **UNVERIFIED** (`src/services/automations.ts`)
 
@@ -80,12 +92,6 @@ Files are opened through `GET …/files/:fileId/download-url` (signed, 15 minute
 | AI generation | any member | Account Manager, Social Media Manager, Copywriter (`ai:generate`) |
 
 Both live in one place, `src/utils/permissions.ts`, with a comment. Viewing the brand profile is open to every member, and the form is read-only for everyone who cannot save it.
-
-## Status codes and refresh
-
-- **401** → refresh the session once and retry the original request once. A second 401, or a failed refresh, signs the person out. Concurrent 401s share one refresh.
-- **403** → never refreshes. It is an authorization answer. The app quietly re-reads `/auth/me` (throttled to once a minute) so a role changed elsewhere reaches the UI.
-- **UNVERIFIED:** whether the access token carries the role. If it does, a changed role only reaches the API when the 15-minute access token next refreshes; the UI is corrected sooner either way.
 
 ## Pagination
 

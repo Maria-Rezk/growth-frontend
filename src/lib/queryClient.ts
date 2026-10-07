@@ -45,7 +45,12 @@ export const MY_WORK_KEY = ['my-work'] as const;
  */
 export const ADMIN_DASHBOARD_KEY = ['admin', 'dashboard'] as const;
 
+/** Prefix for the signed-in person's own memberships, whichever person. Invalidate with this; read with `queryKeys.myMemberships(userId)`. */
+export const MY_MEMBERSHIPS_KEY = ['me', 'memberships'] as const;
+
 export const queryKeys = {
+  /** Scoped to the person, so one person's roles can never be served to the next. */
+  myMemberships: (userId: string | null) => [...MY_MEMBERSHIPS_KEY, userId ?? 'signed-out'] as const,
   companies: ['companies'] as const,
   employees: ['employees'] as const,
   companyMembers: (companyId: string) => ['companies', companyId, 'members'] as const,

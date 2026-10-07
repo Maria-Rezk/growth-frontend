@@ -1,4 +1,4 @@
-import { CompanyMembershipRole, type AttachmentEntityType, type Membership } from '@/types/domain';
+import { CompanyMembershipRole, type AttachmentEntityType, type SessionMembership } from '@/types/domain';
 import { CLIENT_SIDE_ROLES, membershipRoles } from '@/utils/roles';
 
 export type Permission =
@@ -21,6 +21,12 @@ export type Permission =
   /** Name or change who approves a task. Account Manager and Social Media Manager. */
   | 'tasks:approver'
   | 'members:manage'
+  /**
+   * Change somebody's roles or suspend them. Platform admins only: granted to no
+   * company role, so only the admin bypass passes it. An Account Manager removes
+   * a member instead (`members:manage`).
+   */
+  | 'members:administer'
   /** The responsibility matrix and its areas. Account Manager only. */
   | 'responsibilities:manage'
   /** Edit a content plan. Account Manager and Social Media Manager. */
@@ -136,8 +142,8 @@ export function hasPermission(roles: CompanyMembershipRole[] | undefined, permis
   return roles.some((role) => ROLE_PERMISSIONS[role]?.includes(permission) ?? false);
 }
 
-/** Every role the signed-in user holds on `companyId`, via their membership. */
-export function getActiveRoles(memberships: Membership[] | undefined, companyId: string | null): CompanyMembershipRole[] {
+/** Every role the signed-in user holds on `companyId`, via their ACTIVE membership. None when they have no membership there. */
+export function getActiveRoles(memberships: readonly SessionMembership[] | undefined, companyId: string | null): CompanyMembershipRole[] {
   if (!companyId) return [];
   const membership = memberships?.find((item) => item.companyId === companyId && item.status === 'ACTIVE');
   return membershipRoles(membership);

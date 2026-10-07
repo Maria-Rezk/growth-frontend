@@ -1,24 +1,22 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
-import type { Company, Membership, PlatformRole } from '@/types/domain';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import type { Company, CompanyMembershipRole, PlatformRole, SessionMembership } from '@/types/domain';
 
-type AuthState = {
-  user: { id: string; platformRole?: PlatformRole } | null;
-  sessionMemberships: Membership[] | null;
-  reloadUser: ReturnType<typeof vi.fn>;
-};
+type AuthState = { user: { id: string; platformRole: PlatformRole } | null };
 let auth: AuthState;
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => auth }));
 
-const members = vi.fn();
 const list = vi.fn();
+const members = vi.fn();
 vi.mock('@/services/companies', () => ({
-  companiesService: {
-    list: () => list(),
-    members: (companyId: string) => members(companyId),
-  },
+  companiesService: { list: () => list(), members: (id: string) => members(id) },
 }));
+
+const mine = vi.fn();
+vi.mock('@/services/memberships', () => ({ membershipsService: { mine: () => mine() } }));
 
 import { CompanyProvider, useCompany } from './CompanyContext';
 
@@ -28,20 +26,21 @@ const ALL: Company[] = [
   { id: 'C', name: 'Gamma' } as Company,
 ];
 
-const membership = (
-  companyId: string,
-  roles: Membership['roles'],
-  extra: Partial<Membership> = {},
-): Membership => ({ id: `m-${companyId}`, companyId, userId: 'u1', roles, role: roles[0], status: 'ACTIVE', ...extra }) as Membership;
+const membership = (companyId: string, roles: CompanyMembershipRole[], status: SessionMembership['status'] = 'ACTIVE'): SessionMembership =>
+  ({ id: `m-${companyId}`, companyId, roles, status });
 
 let context: ReturnType<typeof useCompany>;
 function Probe() {
   context = useCompany();
   return null;
 }
-const mount = () => render(<CompanyProvider><Probe /></CompanyProvider>);
 
-/** A promise the test resolves by hand, to control the order responses land in. */
+let client: QueryClient;
+const wrap = (children: ReactNode) => <QueryClientProvider client={client}><CompanyProvider>{children}</CompanyProvider></QueryClientProvider>;
+const mount = () => render(wrap(<Probe />));
+const ready = () => waitFor(() => expect(context.loading).toBe(false));
+
+/** A promise the test resolves by hand. */
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((r) => { resolve = r; });
@@ -51,190 +50,271 @@ function deferred<T>() {
 beforeEach(() => {
   window.localStorage.clear();
   window.localStorage.setItem('growth.activeCompanyId', 'A');
-  members.mockReset();
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   list.mockReset();
+  members.mockReset();
+  mine.mockReset();
   list.mockResolvedValue(ALL);
-  auth = { user: { id: 'u1', platformRole: 'USER' }, sessionMemberships: null, reloadUser: vi.fn(async () => undefined) };
+  mine.mockResolvedValue([]);
+  auth = { user: { id: 'u1', platformRole: 'USER' } };
 });
 
 afterEach(cleanup);
 
-describe('roles from the session (/auth/me memberships)', () => {
-  it('give a Designer her roles without ever touching the member directory', async () => {
-    auth.sessionMemberships = [membership('A', ['DESIGNER'], { company: ALL[0] })];
+describe('roles come from GET /me/memberships', () => {
+  it('gives a person with one membership their roles on that client, and never reads the member directory', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
     mount();
+    await ready();
 
-    await waitFor(() => expect(context.loading).toBe(false));
     expect(context.hasRole('DESIGNER')).toBe(true);
     expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
-    // The directory is Account Manager / admin only: asking for it is exactly the 403 this design avoids.
+    expect(context.rolesUnavailable).toBe(false);
     expect(members).not.toHaveBeenCalled();
   });
 
-  it('are per client: switching never carries one client\'s roles into another', async () => {
-    auth.sessionMemberships = [
-      membership('A', ['ACCOUNT_MANAGER'], { company: ALL[0] }),
-      membership('B', ['CLIENT_REVIEWER'], { company: ALL[1] }),
-    ];
+  it('REGRESSION: A = DESIGNER, B = SALES_AGENT. Switching to B never exposes the Designer role there', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER']), membership('B', ['SALES_AGENT'])]);
     mount();
-    await waitFor(() => expect(context.activeCompanyId).toBe('A'));
-    expect(context.hasRole('ACCOUNT_MANAGER')).toBe(true);
+    await ready();
+    expect(context.activeCompanyId).toBe('A');
+    expect(context.hasRole('DESIGNER')).toBe(true);
+    expect(context.hasRole('SALES_AGENT')).toBe(false);
 
-    // Read in the very render the switch lands in: there is no in-between state to inherit from.
     act(() => context.setActiveCompanyId('B'));
+
+    // The very render the switch lands in: B's roles, with nothing of A's left over.
     expect(context.activeCompanyId).toBe('B');
-    expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
-    expect(context.hasRole('CLIENT_REVIEWER')).toBe(true);
+    expect(context.hasRole('SALES_AGENT')).toBe(true);
+    expect(context.hasRole('DESIGNER')).toBe(false);
+    expect(context.currentMembership?.companyId).toBe('B');
+
+    act(() => context.setActiveCompanyId('A'));
+    expect(context.hasRole('DESIGNER')).toBe(true);
+    expect(context.hasRole('SALES_AGENT')).toBe(false);
   });
 
-  it('treat several roles on one membership as a union', async () => {
-    auth.sessionMemberships = [membership('A', ['DESIGNER', 'COPYWRITER'], { company: ALL[0] })];
+  it('is read once for every client: switching client does not request it again', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER']), membership('B', ['SALES_AGENT'])]);
     mount();
-    await waitFor(() => expect(context.loading).toBe(false));
+    await ready();
+
+    act(() => context.setActiveCompanyId('B'));
+    act(() => context.setActiveCompanyId('A'));
+
+    expect(mine).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats several roles on one membership as a union', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER', 'COPYWRITER'])]);
+    mount();
+    await ready();
+
     expect(context.hasRole('COPYWRITER')).toBe(true);
     expect(context.hasRole('DESIGNER', 'SALES_AGENT')).toBe(true);
     expect(context.hasRole('SALES_AGENT')).toBe(false);
   });
 
-  it('list only the clients the person is ACTIVE on, and give nothing for a suspended one', async () => {
-    auth.sessionMemberships = [
-      membership('A', ['DESIGNER'], { company: ALL[0] }),
-      membership('B', ['ACCOUNT_MANAGER'], { company: ALL[1], status: 'SUSPENDED' }),
-    ];
-    window.localStorage.setItem('growth.activeCompanyId', 'B');
+  it('gives no roles on a client the person has no membership for, rather than reusing another client\'s', async () => {
+    mine.mockResolvedValue([membership('A', ['ACCOUNT_MANAGER'])]);
     mount();
+    await ready();
+    expect(context.hasRole('ACCOUNT_MANAGER')).toBe(true);
 
-    await waitFor(() => expect(context.loading).toBe(false));
-    expect(context.companies.map((company) => company.id)).toEqual(['A']);
-    // The stored choice (B) is no longer reachable, so the first reachable client wins.
-    expect(context.activeCompanyId).toBe('A');
+    act(() => context.setActiveCompanyId('B')); // B is listed but they hold nothing there
+
+    expect(context.activeCompanyId).toBe('B');
+    expect(context.currentMembership).toBeNull();
     expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
-    expect(list).not.toHaveBeenCalled();
   });
 
-  it('read the client details only when the memberships do not embed them, and keep just the person\'s own', async () => {
-    auth.sessionMemberships = [membership('B', ['SALES_AGENT'])];
+  it('has no roles, and is not "unknown", for a person who belongs to nothing', async () => {
+    mine.mockResolvedValue([]);
+    list.mockResolvedValue([]);
     mount();
+    await ready();
 
-    await waitFor(() => expect(context.loading).toBe(false));
-    expect(list).toHaveBeenCalledTimes(1);
-    expect(context.companies.map((company) => company.id)).toEqual(['B']);
-  });
-
-  it('are unknown, not empty-and-trusted, when the memberships say nothing about the client', async () => {
-    auth.sessionMemberships = [];
-    mount();
-    await waitFor(() => expect(context.loading).toBe(false));
-    expect(context.companies).toEqual([]);
     expect(context.activeCompanyId).toBeNull();
     expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
+    expect(context.rolesUnavailable).toBe(false);
   });
 
-  it('are re-read from the session, not the directory, when roles change', async () => {
-    auth.sessionMemberships = [membership('A', ['DESIGNER'], { company: ALL[0] })];
+  it('ignores any membership that is not ACTIVE, even if one slips through', async () => {
+    mine.mockResolvedValue([membership('A', ['ACCOUNT_MANAGER'], 'SUSPENDED'), membership('B', ['DESIGNER'], 'INVITED')]);
     mount();
-    await waitFor(() => expect(context.loading).toBe(false));
+    await ready();
 
-    await act(async () => { await context.refreshMemberships(); });
-
-    expect(auth.reloadUser).toHaveBeenCalledWith({ silent: true });
-    expect(members).not.toHaveBeenCalled();
+    expect(context.memberships).toEqual([]);
+    expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
   });
-});
 
-describe('platform admins', () => {
-  it('see every client with no membership, and the directory is not needed for their roles', async () => {
-    auth.user = { id: 'admin', platformRole: 'AGENCY_ADMIN' };
-    auth.sessionMemberships = [];
+  it('is not "ready" while the roles are still on the way, so a client-only person never flashes the agency app', async () => {
+    const pending = deferred<SessionMembership[]>();
+    mine.mockReturnValue(pending.promise);
     mount();
 
-    await waitFor(() => expect(context.loading).toBe(false));
-    expect(context.companies.map((company) => company.id)).toEqual(['A', 'B', 'C']);
-    expect(context.currentMembership).toBeNull();
-    expect(members).not.toHaveBeenCalled();
-  });
-});
-
-describe('one person\'s data is never shown to the next', () => {
-  it('drops the previous person\'s clients the moment the identity changes', async () => {
-    auth.sessionMemberships = [membership('A', ['DESIGNER'], { company: ALL[0] })];
-    const view = mount();
-    await waitFor(() => expect(context.companies.map((company) => company.id)).toEqual(['A']));
-
-    // Somebody else signs in on this tab (another tab did it): their memberships have not arrived with the new identity.
-    auth = { ...auth, user: { id: 'u2', platformRole: 'USER' }, sessionMemberships: null };
-    members.mockImplementation(() => new Promise(() => undefined));
-    view.rerender(<CompanyProvider><Probe /></CompanyProvider>);
-
-    expect(context.companies).toEqual([]);
-    expect(context.hasRole('DESIGNER')).toBe(false);
+    await waitFor(() => expect(list).toHaveBeenCalled());
     expect(context.loading).toBe(true);
+
+    await act(async () => { pending.resolve([membership('A', ['CLIENT_REVIEWER'])]); });
+    await ready();
+    expect(context.hasRole('CLIENT_REVIEWER')).toBe(true);
   });
 });
 
-describe('without memberships on the session (fallback to the directory)', () => {
-  const refused = Object.assign(new Error('Forbidden'), { statusCode: 403 });
+describe('when /me/memberships cannot be read', () => {
+  const failure = Object.assign(new Error('Server error'), { statusCode: 500 });
 
-  it('reads the Account Manager\'s own row from the directory', async () => {
-    members.mockResolvedValue([membership('A', ['ACCOUNT_MANAGER']), { ...membership('A', ['DESIGNER']), id: 'other', userId: 'someone-else' }]);
-    mount();
-
-    await waitFor(() => expect(context.hasRole('ACCOUNT_MANAGER')).toBe(true));
-    // Somebody else's row never counts as mine.
-    expect(context.hasRole('DESIGNER')).toBe(false);
-  });
-
-  it('fails closed, and says so, when the directory refuses the person', async () => {
-    members.mockRejectedValue(refused);
+  it('fails closed and says the roles are unknown, instead of guessing or asking the directory', async () => {
+    mine.mockRejectedValue(failure);
     mount();
 
     await waitFor(() => expect(context.rolesUnavailable).toBe(true));
+    expect(context.loading).toBe(false);
     expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
     expect(context.hasRole('DESIGNER')).toBe(false);
-    expect(context.loading).toBe(false);
+    expect(members).not.toHaveBeenCalled();
   });
 
-  it('clears the notice once the directory can be read again', async () => {
-    members.mockRejectedValueOnce(refused);
+  it('clears the notice when the person retries and it works', async () => {
+    mine.mockRejectedValueOnce(failure);
     mount();
     await waitFor(() => expect(context.rolesUnavailable).toBe(true));
 
-    members.mockResolvedValue([membership('A', ['DESIGNER'])]);
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
     await act(async () => { await context.refreshMemberships(); });
 
     await waitFor(() => expect(context.rolesUnavailable).toBe(false));
     expect(context.hasRole('DESIGNER')).toBe(true);
   });
 
-  it('ignores a slow answer for the client just left', async () => {
-    const forA = deferred<Membership[]>();
-    const forB = deferred<Membership[]>();
-    members.mockImplementation((id: string) => (id === 'A' ? forA.promise : forB.promise));
-
+  it('does not treat a body that is not a membership list as an empty one', async () => {
+    mine.mockRejectedValue(new Error('Unexpected response from the memberships endpoint.'));
     mount();
-    await waitFor(() => expect(members).toHaveBeenCalledWith('A'));
 
-    act(() => context.setActiveCompanyId('B'));
+    await waitFor(() => expect(context.rolesUnavailable).toBe(true));
+  });
+});
 
-    // B answers first, then the stale answer for A arrives.
-    await act(async () => { forB.resolve([membership('B', ['DESIGNER'])]); });
-    await act(async () => { forA.resolve([membership('A', ['ACCOUNT_MANAGER'])]); });
+describe('platform admins', () => {
+  it('see every client with no membership, pass without roles, and are not flagged as unknown', async () => {
+    auth.user = { id: 'admin', platformRole: 'AGENCY_ADMIN' };
+    mine.mockResolvedValue([]);
+    mount();
+    await ready();
 
-    await waitFor(() => expect(context.activeCompanyId).toBe('B'));
-    expect(context.hasRole('DESIGNER')).toBe(true);
-    expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
+    expect(context.companies.map((company) => company.id)).toEqual(['A', 'B', 'C']);
+    expect(context.currentMembership).toBeNull();
+    expect(context.memberships).toEqual([]);
+    expect(context.rolesUnavailable).toBe(false);
+    expect(members).not.toHaveBeenCalled();
   });
 
-  it('does not report the person as ready while their roles on the new client are still unknown', async () => {
-    const forB = deferred<Membership[]>();
-    members.mockImplementation((id: string) => (id === 'A' ? Promise.resolve([membership('A', ['ACCOUNT_MANAGER'])]) : forB.promise));
-
+  it('are not locked out, nor flagged, if their membership read fails', async () => {
+    auth.user = { id: 'admin', platformRole: 'SUPER_ADMIN' };
+    mine.mockRejectedValue(new Error('down'));
     mount();
-    await waitFor(() => expect(context.hasRole('ACCOUNT_MANAGER')).toBe(true));
+    await ready();
 
-    act(() => context.setActiveCompanyId('B'));
-    // A client-only person must not flash the agency app while the answer is in flight.
+    expect(context.companies).toHaveLength(3);
+    expect(context.rolesUnavailable).toBe(false);
+  });
+});
+
+describe('the client list is GET /companies', () => {
+  it('is read for a normal user too', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
+    list.mockResolvedValue([ALL[0]]);
+    mount();
+    await ready();
+
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(context.companies.map((company) => company.id)).toEqual(['A']);
+  });
+
+  it('is sorted by name', async () => {
+    auth.user = { id: 'admin', platformRole: 'SUPER_ADMIN' };
+    list.mockResolvedValue([ALL[2], ALL[0], ALL[1]]);
+    mount();
+    await ready();
+
+    expect(context.companies.map((company) => company.name)).toEqual(['Alpha', 'Beta', 'Gamma']);
+  });
+
+  it('falls to the first reachable client when the stored one is no longer listed', async () => {
+    mine.mockResolvedValue([membership('B', ['DESIGNER'])]);
+    list.mockResolvedValue([ALL[1]]);
+    window.localStorage.setItem('growth.activeCompanyId', 'A');
+    mount();
+    await ready();
+
+    expect(context.activeCompanyId).toBe('B');
+  });
+
+  it('reports a list that could not be loaded as an error, not as an empty workspace', async () => {
+    list.mockRejectedValue(new Error('Could not reach the server'));
+    mount();
+
+    await waitFor(() => expect(context.error).toBe('Could not reach the server'));
+    expect(context.companies).toEqual([]);
+  });
+
+  it('is not refetched when only the person\'s roles change', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
+    mount();
+    await ready();
+    expect(list).toHaveBeenCalledTimes(1);
+
+    mine.mockResolvedValue([membership('A', ['DESIGNER', 'COPYWRITER'])]);
+    await act(async () => { await context.refreshMemberships(); });
+
+    await waitFor(() => expect(context.hasRole('COPYWRITER')).toBe(true));
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  it('is refetched when the person gains a client', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
+    mount();
+    await ready();
+
+    mine.mockResolvedValue([membership('A', ['DESIGNER']), membership('B', ['SALES_AGENT'])]);
+    await act(async () => { await context.refreshMemberships(); });
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('one person\'s data is never shown to the next', () => {
+  it('drops the previous person\'s clients and roles the moment the identity changes', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
+    const view = mount();
+    await waitFor(() => expect(context.hasRole('DESIGNER')).toBe(true));
+    expect(context.companies).toHaveLength(3);
+
+    // Somebody else's session takes over this tab; neither their clients nor their roles have arrived.
+    list.mockImplementation(() => new Promise(() => undefined));
+    mine.mockImplementation(() => new Promise(() => undefined));
+    auth = { user: { id: 'u2', platformRole: 'USER' } };
+    view.rerender(wrap(<Probe />));
+
+    expect(context.companies).toEqual([]);
     expect(context.loading).toBe(true);
-    expect(context.hasRole('ACCOUNT_MANAGER')).toBe(false);
+    expect(context.memberships).toEqual([]);
+    expect(context.hasRole('DESIGNER')).toBe(false);
+  });
+
+  it('keeps each person\'s memberships under their own cache entry', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
+    const view = mount();
+    await waitFor(() => expect(context.hasRole('DESIGNER')).toBe(true));
+
+    mine.mockResolvedValue([membership('A', ['SALES_AGENT'])]);
+    auth = { user: { id: 'u2', platformRole: 'USER' } };
+    view.rerender(wrap(<Probe />));
+    await waitFor(() => expect(context.hasRole('SALES_AGENT')).toBe(true));
+
+    expect(context.hasRole('DESIGNER')).toBe(false);
+    expect(client.getQueryData(['me', 'memberships', 'u1'])).toEqual([membership('A', ['DESIGNER'])]);
+    expect(client.getQueryData(['me', 'memberships', 'u2'])).toEqual([membership('A', ['SALES_AGENT'])]);
   });
 });

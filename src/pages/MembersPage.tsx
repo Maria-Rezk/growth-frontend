@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { useCompany } from '@/context/CompanyContext';
 import { usePermission } from '@/hooks/usePermission';
-import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -25,7 +24,6 @@ import { queryKeys } from '@/lib/queryClient';
 import {
   CompanyMembershipRole,
   INVITABLE_ROLES,
-  isPlatformAdmin,
   type InvitableRole,
   type Invitation,
   type InvitationCreateResult,
@@ -53,12 +51,11 @@ export function MembersPage() {
 
 function MembersInner({ companyId }: { companyId: string }) {
   const { refreshMemberships } = useCompany();
-  const { user } = useAuth();
   const confirm = useConfirm();
   // Inviting and removing: Account Manager, or a platform admin (who passes every company check).
   const canManage = usePermission('members:manage');
   // PATCH /members (roles, suspend) is admin-only; an Account Manager can invite and remove.
-  const isAdmin = isPlatformAdmin(user?.platformRole);
+  const isAdmin = usePermission('members:administer');
   const members = useAsync(
     () => companiesService.members(companyId),
     [companyId],

@@ -10,16 +10,23 @@ import type {
   User,
 } from '@/types/domain';
 
+/** `/auth/me` is the user, either bare or wrapped as `{ user }`. Both read the same; nothing else about the body is interpreted. */
+function userFrom(body: User | { user: User }): User {
+  const wrapped = (body as { user?: User } | null)?.user;
+  return wrapped && typeof wrapped === 'object' ? wrapped : (body as User);
+}
+
 export const authService = {
   async login(payload: LoginRequest): Promise<AuthResponse> {
     if (env.demoMode) return demoDelay({ accessToken: 'demo-token', user: { ...demoUser, email: payload.email } });
     const response = await http.post(apiRoutes.auth.login, payload);
     return unwrap<AuthResponse>(response.data);
   },
-  async me(): Promise<User & { memberships?: Membership[] }> {
+  /** The signed-in user. Nothing about companies: memberships have their own endpoint (see membershipsService). */
+  async me(): Promise<User> {
     if (env.demoMode) return demoDelay(demoUser);
     const response = await http.get(apiRoutes.auth.me);
-    return unwrap<User & { memberships?: Membership[] }>(response.data);
+    return userFrom(unwrap<User | { user: User }>(response.data));
   },
   /**
    * Revokes the refresh cookie server-side. Best-effort and fire-and-forget

@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import type { Membership, PlatformRole } from '@/types/domain';
+import type { PlatformRole, SessionMembership } from '@/types/domain';
 
 let platformRole: PlatformRole = 'USER';
-let memberships: Membership[] = [];
+let memberships: SessionMembership[] = [];
 
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1', platformRole } }) }));
 vi.mock('@/context/CompanyContext', () => ({ useCompany: () => ({ activeCompanyId: 'A', memberships }) }));
 
 import { useCan } from './usePermission';
 
-const member = (roles: Membership['roles'], status: Membership['status'] = 'ACTIVE'): Membership =>
-  ({ id: 'm', companyId: 'A', userId: 'u1', roles, role: roles[0], status }) as Membership;
+const member = (roles: SessionMembership['roles'], status: SessionMembership['status'] = 'ACTIVE'): SessionMembership =>
+  ({ id: 'm', companyId: 'A', roles, status });
 
 const can = (permission: Parameters<ReturnType<typeof useCan>>[0]) => renderHook(() => useCan()).result.current(permission);
 

@@ -1,33 +1,37 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { companiesService } from '@/services/companies';
+import { membershipsService } from '@/services/memberships';
 import { useAuth } from '@/context/AuthContext';
 import { env } from '@/config/env';
+import { useAsync } from '@/hooks/useAsync';
 import { useStorageSync } from '@/hooks/useStorageSync';
+import { queryKeys } from '@/lib/queryClient';
 import { demoCompany, demoMemberships } from '@/services/demoStore';
-import { isPlatformAdmin, type Company, type CompanyMembershipRole, type Membership } from '@/types/domain';
+import { isPlatformAdmin, type Company, type CompanyMembershipRole, type SessionMembership } from '@/types/domain';
 import { sortByName } from '@/utils/sort';
 import { membershipRoles } from '@/utils/roles';
 
 interface CompanyContextValue {
+  /** The clients this person can reach: everything for a platform admin, their ACTIVE memberships otherwise. */
   companies: Company[];
-  /** The signed-in person's own memberships (every status). Never somebody else's. */
-  memberships: Membership[];
+  /** The signed-in person's own ACTIVE memberships. Never anybody else's. */
+  memberships: SessionMembership[];
   activeCompany: Company | null;
   activeCompanyId: string | null;
-  /** True until both the client list and the person's roles on the active client are known. */
+  /** True until the client list, and (for anyone but a platform admin) the person's memberships, are known. */
   loading: boolean;
   error: string | null;
   setActiveCompanyId: (companyId: string) => void;
   refreshCompanies: () => Promise<void>;
+  /** Re-reads the person's memberships (`GET /me/memberships`), the only place roles come from. */
   refreshMemberships: () => Promise<void>;
   /**
-   * True when this person's roles on the active client could not be determined,
-   * so every role-gated control is hidden. Distinct from "has no roles": the
-   * screens say so instead of looking empty. Only possible when the session
-   * carries no memberships (see below).
+   * True when the memberships could not be read, so this person's roles are
+   * unknown and every role-gated control is hidden. Not the same as having no
+   * roles: a platform admin legitimately has none and still passes every check.
    */
   rolesUnavailable: boolean;
-  currentMembership: Membership | null;
+  currentMembership: SessionMembership | null;
   hasRole: (...roles: CompanyMembershipRole[]) => boolean;
 }
 
@@ -53,84 +57,89 @@ function writeActiveCompanyId(companyId: string): void {
 }
 
 const DEMO_COMPANY_DATA = { list: [demoCompany], error: null as string | null };
-
-/** Which person a loaded list belongs to, so one person's data is never shown to the next. */
-type Loaded<T> = { userId: string | null; value: T };
+const DEMO_MEMBERSHIPS: SessionMembership[] = demoMemberships.map((membership) => ({
+  id: membership.id,
+  companyId: membership.companyId,
+  roles: membershipRoles(membership),
+  status: membership.status,
+}));
 
 /*
-  Where company roles come from — the architecture in one place.
+  Where a person's roles on a client come from — the architecture in one place.
 
-  1. SESSION MEMBERSHIPS (preferred). `/auth/me` returns the signed-in person's
-     own memberships, and every member may call it. From those:
-       - a client's roles are the roles on the ACTIVE membership for that client;
-       - a non-admin's client list is exactly their ACTIVE memberships (a
-         suspended one does not appear);
-     and both are derived synchronously from the selected client, so switching
-     client can never briefly inherit the previous client's roles.
+    /auth/me          ->  who is signed in (AuthContext; knows nothing about clients)
+    /companies        ->  which clients to list
+    /me/memberships   ->  this person's roles, per client
 
-  2. MEMBER DIRECTORY (fallback, only if `/auth/me` carries no memberships).
-     `GET /companies/:id/members` is Account Manager / admin only in the API,
-     so any other role is refused. That is a gap in the contract, not something
-     to paper over: the roles are then unknown, and unknown means NO
-     permissions (`rolesUnavailable`), never a guess.
+    selected client + this person's membership for it  ->  roles  ->  can(permission)
 
-  Platform admins bypass company checks in the API, so their gates do not read
-  roles at all (see usePermission); they still get a client list from
-  `GET /companies`, which admins may call.
+  `/me/memberships` returns the signed-in person's own ACTIVE memberships
+  (suspended and invited ones are absent) with their effective roles, and every
+  authenticated user may call it. The roles for a client are the roles on the
+  membership for that client, derived synchronously from the selected client, so
+  switching client can never briefly carry the previous client's roles. No
+  membership for the selected client means no roles.
+
+  The memberships are cached under a key that includes the person, and the
+  whole cache is dropped when the signed-in identity changes (see AuthContext).
+  The member directory (`GET /companies/:id/members`) is for managing people;
+  nothing here reads it.
+
+  Platform admins pass company checks in the API without belonging to the
+  client, so their gates do not read roles at all (see usePermission) and no
+  membership is invented for them.
 */
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
-  const { user, sessionMemberships: sessionFromAuth, reloadUser } = useAuth();
+  const { user } = useAuth();
   const userId = user?.id ?? null;
   const admin = isPlatformAdmin(user?.platformRole);
-  const sessionMemberships = sessionFromAuth ?? null;
-  const sessionMode = !env.demoMode && sessionMemberships !== null;
+
+  // The person's own roles. Keyed by person; a different person is a different query, never the previous one's data.
+  const membershipsQuery = useAsync(
+    () => membershipsService.mine(),
+    [userId],
+    { queryKey: queryKeys.myMemberships(userId), enabled: !env.demoMode && Boolean(userId) },
+  );
+  const loadedMemberships = membershipsQuery.data;
 
   const [storedActiveId, setStoredActiveId] = useState<string | null>(() =>
     env.demoMode ? demoCompany.id : readActiveCompanyId(),
   );
 
   // ---- the client list ---------------------------------------------------------------------
-  const [companyState, setCompanyState] = useState<Loaded<{ list: Company[]; error: string | null }> | null>(null);
+  /** Tagged with the person it was loaded for, so one person's clients are never shown to the next. */
+  const [loaded, setLoaded] = useState<{ userId: string; list: Company[]; error: string | null } | null>(null);
 
-  /*
-    The list depends on WHICH clients the person is active on, not on the identity of the memberships
-    array: `/auth/me` is re-read after a role change or a 403, and a new array with the same clients
-    must not refetch the client list. A ref carries the latest rows; the key decides when to reload.
-  */
-  const membershipsRef = useRef(sessionMemberships);
-  membershipsRef.current = sessionMemberships;
-  const reachableKey = sessionMode && !admin
-    ? (sessionMemberships ?? []).filter((membership) => membership.status === 'ACTIVE').map((membership) => membership.companyId).sort().join(',')
-    : '';
-
-  const loadCompanyList = useCallback(async (): Promise<Company[]> => {
-    if (sessionMode && !admin) {
-      const active = (membershipsRef.current ?? []).filter((membership) => membership.status === 'ACTIVE');
-      const embedded = active.flatMap((membership) => (membership.company ? [membership.company] : []));
-      if (embedded.length === active.length) return embedded;
-      // The memberships name the clients but not the clients' details: read them, keep only the person's own.
-      const ids = new Set(active.map((membership) => membership.companyId));
-      return (await companiesService.list()).filter((company) => ids.has(company.id));
-    }
-    return companiesService.list();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `reachableKey` is the dependency for the memberships read through the ref
-  }, [admin, reachableKey, sessionMode]);
 
   const refreshCompanies = useCallback(async () => {
     if (env.demoMode || !userId) return;
     try {
-      const list = sortByName(await loadCompanyList(), (company) => company.name);
-      setCompanyState({ userId, value: { list, error: null } });
+      const list = sortByName(await companiesService.list(), (company) => company.name);
+      setLoaded({ userId, list, error: null });
     } catch (err) {
-      setCompanyState({ userId, value: { list: [], error: err instanceof Error ? err.message : 'Could not load clients.' } });
+      setLoaded({ userId, list: [], error: err instanceof Error ? err.message : 'Could not load clients.' });
     }
-  }, [loadCompanyList, userId]);
+  }, [userId]);
 
   useEffect(() => {
     void refreshCompanies();
   }, [refreshCompanies]);
 
-  const companyData = env.demoMode ? DEMO_COMPANY_DATA : companyState?.userId === userId ? companyState.value : null;
+  /*
+    Reload the list when the set of clients the person is active on changes after it was first
+    known (access gained or removed), not whenever the memberships are re-read: the same clients
+    with different roles must not refetch. A platform admin's list does not depend on memberships.
+  */
+  const reachableKey = admin || !loadedMemberships ? null : loadedMemberships.map((membership) => membership.companyId).sort().join(',');
+  const seenReachable = useRef<{ userId: string | null; key: string } | null>(null);
+  useEffect(() => {
+    if (reachableKey === null) return;
+    const seen = seenReachable.current;
+    if (seen && seen.userId === userId && seen.key !== reachableKey) void refreshCompanies();
+    seenReachable.current = { userId, key: reachableKey };
+  }, [reachableKey, refreshCompanies, userId]);
+
+  const companyData = env.demoMode ? DEMO_COMPANY_DATA : loaded?.userId === userId ? loaded : null;
   const companies = useMemo(() => companyData?.list ?? [], [companyData]);
 
   // The active client is the stored choice if this person can still reach it, otherwise their first.
@@ -162,58 +171,32 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }, []),
   );
 
-  // ---- roles: fallback path (no memberships on the session) ---------------------------------
-  const [directory, setDirectory] = useState<Loaded<{ companyId: string; rows: Membership[]; unavailable: boolean }> | null>(null);
-  const [directoryTick, setDirectoryTick] = useState(0);
-  const useDirectory = !env.demoMode && !sessionMode;
+  // ---- roles -------------------------------------------------------------------------------
+  // The backend returns ACTIVE memberships only; anything else is ignored rather than trusted.
+  const memberships = useMemo<SessionMembership[]>(
+    () => (env.demoMode ? DEMO_MEMBERSHIPS : (loadedMemberships ?? []).filter((membership) => membership.status === 'ACTIVE')),
+    [loadedMemberships],
+  );
 
-  useEffect(() => {
-    if (!useDirectory || !userId || !activeCompanyId) return;
-    let cancelled = false;
-    void (async () => {
-      let rows: Membership[] = [];
-      let unavailable = false;
-      try {
-        rows = await companiesService.members(activeCompanyId);
-      } catch {
-        unavailable = true;
-      }
-      // A slow answer for a client the person has since left must not overwrite the one they are on.
-      if (!cancelled) setDirectory({ userId, value: { companyId: activeCompanyId, rows, unavailable } });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeCompanyId, directoryTick, useDirectory, userId]);
-
-  const directoryForActive = directory?.userId === userId && directory.value.companyId === activeCompanyId ? directory.value : null;
-
-  const memberships = useMemo<Membership[]>(() => {
-    const own = (rows: Membership[]) => rows.filter((membership) => membership.userId === userId);
-    if (env.demoMode) return own(demoMemberships);
-    if (sessionMode) return own(sessionMemberships ?? []);
-    return own(directoryForActive?.rows ?? []);
-  }, [directoryForActive, sessionMemberships, sessionMode, userId]);
-
-  const rolesUnavailable = useDirectory && !admin && Boolean(directoryForActive?.unavailable);
+  /*
+    Roles that are not loaded, and not being loaded, are unknown, not empty: no permissions and a notice
+    with a retry. Keyed on "not loaded and not loading" rather than on an error, so it also holds while a
+    retry is paused (a hidden tab, being offline) and before the first failure has been reported.
+  */
+  const rolesUnavailable = !env.demoMode && !admin && Boolean(userId) && loadedMemberships === null && !membershipsQuery.loading;
+  const { refetch: refetchMemberships } = membershipsQuery;
 
   const refreshMemberships = useCallback(async () => {
-    if (env.demoMode) return;
-    if (sessionMode) {
-      await reloadUser({ silent: true });
-      return;
-    }
-    setDirectoryTick((tick) => tick + 1);
-  }, [reloadUser, sessionMode]);
+    if (!env.demoMode) await refetchMemberships();
+  }, [refetchMemberships]);
 
-  // ---- derived -------------------------------------------------------------------------------
   const activeCompany = useMemo(
     () => companies.find((company) => company.id === activeCompanyId) ?? null,
     [activeCompanyId, companies],
   );
 
   const currentMembership = useMemo(
-    () => memberships.find((membership) => membership.companyId === activeCompanyId && membership.status === 'ACTIVE') ?? null,
+    () => (activeCompanyId ? memberships.find((membership) => membership.companyId === activeCompanyId) ?? null : null),
     [activeCompanyId, memberships],
   );
 
@@ -226,9 +209,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     [currentMembership],
   );
 
-  const clientsLoading = !env.demoMode && companyData === null;
-  const rolesLoading = useDirectory && Boolean(activeCompanyId) && directoryForActive === null;
-  const loading = clientsLoading || rolesLoading;
+  // A client-only person must not see the agency app while their roles are still on the way, so everyone but an admin waits.
+  const rolesLoading = !env.demoMode && !admin && Boolean(userId) && membershipsQuery.loading;
+  const loading = (!env.demoMode && companyData === null) || rolesLoading;
 
   const value = useMemo<CompanyContextValue>(
     () => ({

@@ -38,6 +38,8 @@ export const apiRoutes = {
   me: {
     /** Every IN_REVIEW task waiting on the caller, across all their clients, oldest first. Paged. */
     approvalQueue: '/me/approval-queue',
+    /** The signed-in person's own ACTIVE memberships and roles. Every authenticated user may call it. */
+    memberships: '/me/memberships',
     notificationPreferences: '/me/notification-preferences',
   },
   /** No session. A wrong, revoked or expired token is 404. */

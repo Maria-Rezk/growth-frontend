@@ -138,6 +138,20 @@ export interface Membership {
   company?: Company;
 }
 
+/**
+ * One of the signed-in person's own memberships, as `GET /me/memberships`
+ * returns it: ACTIVE ones only (suspended and invited are absent), with the
+ * effective set of roles. The members directory's richer `Membership` is for
+ * managing people and is never used to decide what the current person may do.
+ * Authentication (`/auth/me`) knows nothing about these.
+ */
+export type SessionMembership = Pick<Membership, 'id' | 'companyId' | 'roles' | 'status'>;
+
+/** `GET /me/memberships`. Empty for a person who belongs to no client, such as a platform admin. */
+export interface MyMembershipsResponse {
+  memberships: SessionMembership[];
+}
+
 export interface BrandColor {
   name: string;
   hex: string;

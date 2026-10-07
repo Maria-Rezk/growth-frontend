@@ -1,19 +1,29 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { Company, Membership } from '@/types/domain';
+import type { Company, SessionMembership } from '@/types/domain';
 
+let platformRole = 'USER';
 vi.mock('@/context/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'u1', platformRole: 'USER' }, sessionMemberships, reloadUser: async () => undefined }),
+  useAuth: () => ({ user: { id: 'u1', platformRole } }),
 }));
-vi.mock('@/services/companies', () => ({ companiesService: { list: async () => [], members: async () => [] } }));
 
 const A = { id: 'A', name: 'Alpha' } as Company;
 const B = { id: 'B', name: 'Beta' } as Company;
-const mine = (company: Company): Membership =>
-  ({ id: `m-${company.id}`, companyId: company.id, userId: 'u1', roles: ['ACCOUNT_MANAGER'], role: 'ACCOUNT_MANAGER', status: 'ACTIVE', company }) as Membership;
-let sessionMemberships: Membership[] = [];
+vi.mock('@/services/companies', () => ({ companiesService: { list: async () => [A, B], members: async () => [] } }));
+
+const held = (company: Company): SessionMembership => ({ id: `m-${company.id}`, companyId: company.id, roles: ['ACCOUNT_MANAGER'], status: 'ACTIVE' });
+let myMemberships: SessionMembership[] | Error = [];
+vi.mock('@/services/memberships', () => ({
+  membershipsService: {
+    mine: async () => {
+      if (myMemberships instanceof Error) throw myMemberships;
+      return myMemberships;
+    },
+  },
+}));
 
 import { CompanyProvider, useCompany } from '@/context/CompanyContext';
 import { RequireCompany } from './RequireCompany';
@@ -35,18 +45,54 @@ function Switcher() {
   return null;
 }
 
-afterEach(cleanup);
+const page = () => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <CompanyProvider>
+      <Switcher />
+      <RequireCompany>{(companyId) => <Page companyId={companyId} />}</RequireCompany>
+    </CompanyProvider>
+  </QueryClientProvider>
+);
+
+beforeEach(() => {
+  window.localStorage.setItem('growth.activeCompanyId', 'A');
+  myMemberships = [];
+});
+
+afterEach(() => {
+  cleanup();
+  platformRole = 'USER';
+});
 
 describe('RequireCompany', () => {
+  it('says the roles are unknown, with a retry, when the memberships could not be read', async () => {
+    myMemberships = new Error('down');
+    render(page());
+
+    await waitFor(() => expect(screen.getByText(/could not confirm your role/i)).not.toBeNull());
+    expect(screen.getByRole('button', { name: /try again/i })).not.toBeNull();
+  });
+
+  it('does not say so to a platform admin, who needs no role', async () => {
+    myMemberships = new Error('down');
+    platformRole = 'SUPER_ADMIN';
+    render(page());
+
+    await waitFor(() => expect(screen.getByTestId('client').textContent).toBe('A'));
+    expect(screen.queryByText(/could not confirm your role/i)).toBeNull();
+  });
+
+  it('says nothing when the memberships were read and are simply empty', async () => {
+    myMemberships = [];
+    render(page());
+
+    await waitFor(() => expect(screen.getByTestId('client').textContent).toBe('A'));
+    expect(screen.queryByText(/could not confirm your role/i)).toBeNull();
+  });
+
   it('drops what a page was holding when the person switches client', async () => {
-    window.localStorage.setItem('growth.activeCompanyId', 'A');
-    sessionMemberships = [mine(A), mine(B)];
-    render(
-      <CompanyProvider>
-        <Switcher />
-        <RequireCompany>{(companyId) => <Page companyId={companyId} />}</RequireCompany>
-      </CompanyProvider>,
-    );
+    myMemberships = [held(A), held(B)];
+    render(page());
 
     await waitFor(() => expect(screen.getByTestId('client').textContent).toBe('A'));
     fireEvent.change(screen.getByLabelText('draft'), { target: { value: 'secret plan for Alpha' } });

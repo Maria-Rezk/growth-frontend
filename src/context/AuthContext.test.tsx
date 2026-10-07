@@ -230,58 +230,89 @@ describe('cached server data belongs to one person', () => {
   });
 });
 
-describe('memberships carried by the session', () => {
-  const memberships = [{ id: 'm1', companyId: 'A', userId: 'u1', roles: ['DESIGNER'], status: 'ACTIVE' }];
+describe('authentication stays separate from company roles', () => {
   const routes = {
     'POST /auth/refresh': () => [200, { accessToken: 't1', user: { id: 'u1', email: 'a@b.com' } }] as [number, unknown],
-    'GET /auth/me': () => [200, { id: 'u1', email: 'a@b.com', memberships }] as [number, unknown],
+    'GET /auth/me': () => [200, { id: 'u1', email: 'a@b.com', platformRole: 'USER' }] as [number, unknown],
     'GET /boom': () => [403, { message: 'Forbidden' }] as [number, unknown],
   };
+  const membershipsKey = ['me', 'memberships', 'u1'];
 
-  it('come from /auth/me and are kept apart from the user', async () => {
-    const { AuthProvider, useAuth } = await boot(routes);
+  it('is just the user: no membership field on it, and no membership request during boot', async () => {
+    const { AuthProvider, useAuth, calls } = await boot(routes);
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
     await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
 
-    expect(result.current.sessionMemberships).toEqual(memberships);
-    expect(result.current.user).not.toHaveProperty('memberships');
+    expect(result.current.user).toEqual({ id: 'u1', email: 'a@b.com', platformRole: 'USER' });
+    expect(result.current).not.toHaveProperty('sessionMemberships');
+    expect(calls).toEqual(['POST /auth/refresh', 'GET /auth/me']);
   });
 
-  it('are null, not an empty list, when /auth/me sends none — so callers can tell "unknown" from "member of nothing"', async () => {
-    const { AuthProvider, useAuth } = await boot({ ...routes, 'GET /auth/me': () => [200, { id: 'u1', email: 'a@b.com' }] });
+  it('reads /auth/me whether the user is bare or wrapped as { user }', async () => {
+    const { AuthProvider, useAuth } = await boot({ ...routes, 'GET /auth/me': () => [200, { user: { id: 'u1', email: 'a@b.com' } }] });
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
     await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
 
-    expect(result.current.sessionMemberships).toBeNull();
+    expect(result.current.user?.id).toBe('u1');
   });
 
-  it('survive a silent token refresh, which carries a user but no memberships', async () => {
-    const { AuthProvider, useAuth } = await boot(routes);
-    const { refreshSession } = await import('@/lib/http');
+  it('signs the person out, with an error, when /auth/me fails after a good refresh', async () => {
+    const { AuthProvider, useAuth } = await boot({ ...routes, 'GET /auth/me': () => [500, { message: 'boom' }] });
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.error).not.toBeNull();
+  });
+
+  it('drops the previous person\'s memberships from the cache when somebody else signs in', async () => {
+    const { AuthProvider, useAuth } = await boot({
+      ...routes,
+      'POST /auth/login': () => [200, { accessToken: 't2', user: { id: 'u2', email: 'c@d.com' } }],
+    });
+    const { queryClient } = await import('@/lib/queryClient');
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
     await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    queryClient.setQueryData(membershipsKey, [{ id: 'm1', companyId: 'A', roles: ['DESIGNER'], status: 'ACTIVE' }]);
 
-    await act(async () => { await refreshSession(); });
+    await act(async () => { await result.current.login({ email: 'c@d.com', password: 'x'.repeat(12) }); });
 
-    expect(result.current.sessionMemberships).toEqual(memberships);
+    expect(result.current.user?.id).toBe('u2');
+    expect(queryClient.getQueryData(membershipsKey)).toBeUndefined();
   });
 
-  it('are cleared on logout', async () => {
+  it('drops the memberships from the cache on logout', async () => {
     const { AuthProvider, useAuth } = await boot({ ...routes, 'POST /auth/logout': () => [204, null] });
+    const { queryClient } = await import('@/lib/queryClient');
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    await waitFor(() => expect(result.current.sessionMemberships).not.toBeNull());
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    queryClient.setQueryData(membershipsKey, [{ id: 'm1', companyId: 'A', roles: ['DESIGNER'], status: 'ACTIVE' }]);
 
     act(() => result.current.logout());
 
-    expect(result.current.sessionMemberships).toBeNull();
-    expect(result.current.isAuthenticated).toBe(false);
+    expect(queryClient.getQueryData(membershipsKey)).toBeUndefined();
   });
 
-  it('are re-read after a 403 without touching the refresh cookie', async () => {
-    const { AuthProvider, useAuth, calls } = await boot(routes);
-    const { http } = await import('@/lib/http');
+  it('keeps the memberships when the same person is simply re-checked', async () => {
+    const { AuthProvider, useAuth } = await boot(routes);
+    const { queryClient } = await import('@/lib/queryClient');
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
     await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    queryClient.setQueryData(membershipsKey, [{ id: 'm1', companyId: 'A', roles: ['DESIGNER'], status: 'ACTIVE' }]);
+
+    await act(async () => { await result.current.reloadUser({ silent: true }); });
+
+    expect(queryClient.getQueryData(membershipsKey)).toHaveLength(1);
+  });
+
+  it('on a 403 re-reads the user and marks the memberships stale, without refreshing the token or replaying the request', async () => {
+    const { AuthProvider, useAuth, calls } = await boot(routes);
+    const { http } = await import('@/lib/http');
+    const { queryClient } = await import('@/lib/queryClient');
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    queryClient.setQueryData(membershipsKey, [{ id: 'm1', companyId: 'A', roles: ['DESIGNER'], status: 'ACTIVE' }]);
     const refreshesAtBoot = calls.filter((call) => call === 'POST /auth/refresh').length;
     const meAtBoot = calls.filter((call) => call === 'GET /auth/me').length;
 
@@ -289,7 +320,8 @@ describe('memberships carried by the session', () => {
     await expect(http.get('/boom')).rejects.toMatchObject({ statusCode: 403 });
     await waitFor(() => expect(calls.filter((call) => call === 'GET /auth/me').length).toBe(meAtBoot + 1));
 
-    // Re-read who I am once (throttled), and never rotate the cookie because of a 403.
+    expect(queryClient.getQueryState(membershipsKey)?.isInvalidated).toBe(true);
     expect(calls.filter((call) => call === 'POST /auth/refresh').length).toBe(refreshesAtBoot);
+    expect(calls.filter((call) => call === 'GET /boom').length).toBe(2);
   });
 });

@@ -25,6 +25,7 @@ const MATRIX: Record<Permission, string> = {
   'tasks:edit':     '✓   ✓   .   .   .   .   .',
   'campaigns:manage': '✓   ✓   .   .   .   .   .',
   'members:manage': '✓   .   .   .   .   .   .',
+  'members:administer': '.   .   .   .   .   .   .',
   'responsibilities:manage': '✓   .   .   .   .   .   .',
   'plans:manage':   '✓   ✓   .   .   .   .   .',
   'postAssets:manage': '✓   ✓   .   ✓   .   .   .',

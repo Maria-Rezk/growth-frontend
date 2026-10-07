@@ -1,12 +1,9 @@
 import { Fragment } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { Button } from '@/components/ui/Button';
-import { isPlatformAdmin } from '@/types/domain';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 
 export function RequireCompany({ children }: { children: (companyId: string) => React.ReactNode }) {
-  const { user } = useAuth();
   const { activeCompanyId, companies, loading, error, refreshCompanies, refreshMemberships, rolesUnavailable } = useCompany();
 
   if (loading) return <LoadingState label="Loading clients…" />;
@@ -26,7 +23,7 @@ export function RequireCompany({ children }: { children: (companyId: string) => 
   return (
     <>
       {/* Without the person's roles every role-gated control is hidden. Say so, rather than leave a page that looks empty. */}
-      {rolesUnavailable && !isPlatformAdmin(user?.platformRole) ? (
+      {rolesUnavailable ? (
         <div className="review-note notice-row" role="status">
           <span>We could not confirm your role on this client, so some actions are hidden.</span>
           <Button size="sm" variant="secondary" onClick={() => void refreshMemberships()}>Try again</Button>
