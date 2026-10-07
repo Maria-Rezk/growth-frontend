@@ -2,6 +2,7 @@ import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { appRoutes } from '@/config/appRoutes';
 import { http, unwrap } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import { buildMetrics, demoCompany, demoDelay, demoReportShares, demoReports, makeId } from '@/services/demoStore';
 import type { PublicReport, Report, ReportOverview, ReportShareResult, ReportShareStatus } from '@/types/domain';
 
@@ -73,8 +74,7 @@ export const reportsService = {
   },
   async list(companyId: string): Promise<Report[]> {
     if (env.demoMode) return demoDelay(demoReports.filter((report) => report.companyId === companyId));
-    const response = await http.get(apiRoutes.reports.list(companyId));
-    return unwrap<Report[]>(response.data);
+    return getAllItems<Report>(apiRoutes.reports.list(companyId));
   },
   async get(companyId: string, reportId: string): Promise<Report> {
     if (env.demoMode) {

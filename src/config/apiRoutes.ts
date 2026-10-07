@@ -101,6 +101,15 @@ export const apiRoutes = {
   contentPlans: {
     list: (companyId: string) => `/companies/${companyId}/content-plans`,
     create: (companyId: string) => `/companies/${companyId}/content-plans`,
+    /** GET one, PATCH to edit. */
+    detail: (companyId: string, planId: string) => `/companies/${companyId}/content-plans/${planId}`,
+  },
+  /** Triggers → actions per client. Account Manager only. */
+  automations: {
+    rules: (companyId: string) => `/companies/${companyId}/automation-rules`,
+    rule: (companyId: string, ruleId: string) => `/companies/${companyId}/automation-rules/${ruleId}`,
+    runs: (companyId: string) => `/companies/${companyId}/automation-runs`,
+    run: (companyId: string, runId: string) => `/companies/${companyId}/automation-runs/${runId}`,
   },
   posts: {
     list: (companyId: string) => `/companies/${companyId}/posts`,
@@ -112,6 +121,9 @@ export const apiRoutes = {
     reject: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/reject`,
     publish: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/publish`,
     approvalLogs: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/approval-logs`,
+    /** The deliverable files: POST adds, GET lists, DELETE on `asset` removes. AM, Designer, SMM. */
+    assets: (companyId: string, postId: string) => `/companies/${companyId}/posts/${postId}/assets`,
+    asset: (companyId: string, postId: string, assetId: string) => `/companies/${companyId}/posts/${postId}/assets/${assetId}`,
   },
   files: {
     upload: (companyId: string) => `/companies/${companyId}/files/upload`,

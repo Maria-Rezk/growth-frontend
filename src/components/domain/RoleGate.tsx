@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { useCompany } from '@/context/CompanyContext';
-import { getActiveRoles, hasPermission, type Permission } from '@/utils/permissions';
+import { usePermission } from '@/hooks/usePermission';
+import type { Permission } from '@/utils/permissions';
 
+/** Renders `children` when the signed-in person may do `permission` on this client (platform admins always may). */
 export function RoleGate({
   permission,
   children,
@@ -11,7 +12,5 @@ export function RoleGate({
   children: ReactNode;
   fallback?: ReactNode;
 }) {
-  const { activeCompanyId, memberships } = useCompany();
-  const roles = getActiveRoles(memberships, activeCompanyId);
-  return hasPermission(roles, permission) ? <>{children}</> : <>{fallback}</>;
+  return usePermission(permission) ? <>{children}</> : <>{fallback}</>;
 }

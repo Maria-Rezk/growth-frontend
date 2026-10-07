@@ -50,10 +50,11 @@ let forbiddenHandler: ((requestPath: string) => void) | null = null;
 /**
  * Called on every 403, with the request path that produced it.
  *
- * A role change does not reach an already–signed-in user until their token is
- * re-issued, so the UI can offer an action the API now refuses. Centralising
- * the reaction here means no screen has to special-case it: AuthContext
- * refreshes the session, and the guards re-render from the true role.
+ * A 403 is an authorization answer — signed in, not allowed — so nothing in
+ * this module refreshes a token because of one (only a 401 does, below). The
+ * handler exists so AuthContext can quietly re-read who the person is: a role
+ * changed elsewhere then reaches the UI, and the controls it no longer allows
+ * disappear. It is the handler's job to throttle; this fires on every 403.
  */
 export function setForbiddenHandler(handler: ((requestPath: string) => void) | null): void {
   forbiddenHandler = handler;

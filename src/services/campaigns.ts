@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import {
   buildCampaignMetrics,
   demoCampaigns,
@@ -56,8 +57,7 @@ export const campaignsService = {
       }
       return demoDelay(items);
     }
-    const response = await http.get(apiRoutes.campaigns.list(companyId), { params });
-    return unwrap<Campaign[]>(response.data);
+    return getAllItems<Campaign>(apiRoutes.campaigns.list(companyId), params as Record<string, unknown>);
   },
 
   async get(companyId: string, campaignId: string): Promise<Campaign> {

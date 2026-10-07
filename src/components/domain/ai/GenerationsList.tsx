@@ -27,7 +27,7 @@ export function GenerationsList({
   if (!data?.length) {
     return (
       <Card>
-        <EmptyState title="No AI drafts yet" description="Generate a content plan, captions or post ideas above." />
+        <EmptyState title="No AI suggestions yet" description="Generate a content plan, captions or post ideas above." />
       </Card>
     );
   }

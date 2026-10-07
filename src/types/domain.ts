@@ -212,6 +212,74 @@ export interface ContentPlan {
   status?: string;
 }
 
+/** `PATCH /content-plans/:id` takes the same fields as create, all optional. */
+export type ContentPlanInput = Partial<Pick<ContentPlan, 'title' | 'month' | 'year' | 'goal'>>;
+
+/** The deliverable files on a post — a different table from the generic attachments. */
+export const PostAssetType = {
+  DESIGN: 'DESIGN',
+  REFERENCE: 'REFERENCE',
+  VIDEO: 'VIDEO',
+  THUMBNAIL: 'THUMBNAIL',
+  DOCUMENT: 'DOCUMENT',
+} as const;
+export type PostAssetType = (typeof PostAssetType)[keyof typeof PostAssetType];
+
+export interface PostAsset {
+  id: UUID;
+  postId: UUID;
+  assetType: PostAssetType;
+  label: string | null;
+  uploadedById?: UUID;
+  uploadedBy?: { id: UUID; fullName?: string | null } | null;
+  createdAt?: ISODate;
+  file: { id: UUID; originalName?: string; mimeType?: string; size?: number };
+}
+
+/** A rule is "when X happens on this client, do Y". Both sets are closed: the API refuses anything else. */
+export const AutomationTriggerType = {
+  POST_CHANGES_REQUESTED: 'POST_CHANGES_REQUESTED',
+  LEAD_BECAME_INTERESTED: 'LEAD_BECAME_INTERESTED',
+} as const;
+export type AutomationTriggerType = (typeof AutomationTriggerType)[keyof typeof AutomationTriggerType];
+
+export const AutomationActionType = {
+  CREATE_POST_CHANGES_TASKS: 'CREATE_POST_CHANGES_TASKS',
+  CREATE_LEAD_FOLLOW_UP_TASK: 'CREATE_LEAD_FOLLOW_UP_TASK',
+} as const;
+export type AutomationActionType = (typeof AutomationActionType)[keyof typeof AutomationActionType];
+
+export interface AutomationRule {
+  id: UUID;
+  companyId: UUID;
+  name: string;
+  triggerType: AutomationTriggerType;
+  actionType: AutomationActionType;
+  isActive: boolean;
+  createdAt?: ISODate;
+  updatedAt?: ISODate;
+}
+
+export type AutomationRuleInput = Partial<Pick<AutomationRule, 'name' | 'triggerType' | 'actionType' | 'isActive'>>;
+
+export type AutomationRunStatus = 'SUCCESS' | 'FAILED' | 'SKIPPED' | (string & {});
+
+/** One firing of a rule: what triggered it, and whether it worked. */
+export interface AutomationRun {
+  id: UUID;
+  companyId: UUID;
+  ruleId: UUID;
+  ruleName?: string;
+  status: AutomationRunStatus;
+  triggerType?: string;
+  actionType?: string;
+  /** The record that fired it — a post or a lead. */
+  entityType?: string;
+  entityId?: UUID;
+  error?: string | null;
+  createdAt?: ISODate;
+}
+
 export interface ContentPost {
   id: UUID;
   companyId: UUID;
@@ -317,6 +385,8 @@ export const LeadSource = {
   TIKTOK: 'TIKTOK',
   WHATSAPP: 'WHATSAPP',
   WEBSITE: 'WEBSITE',
+  LINKEDIN: 'LINKEDIN',
+  MANUAL: 'MANUAL',
   REFERRAL: 'REFERRAL',
   OTHER: 'OTHER',
 } as const;
@@ -723,6 +793,7 @@ export type NotificationType =
   | 'POST_REJECTED'
   | 'LEAD_ASSIGNED'
   | 'LEAD_STATUS_CHANGED'
+  | 'LEAD_NOTE_ADDED'
   | 'INVITATION_CREATED'
   | 'INVITATION_ACCEPTED'
   | 'REPORT_CREATED';

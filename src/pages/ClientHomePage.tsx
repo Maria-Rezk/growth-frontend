@@ -8,6 +8,8 @@ import { ButtonLink } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { ListSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/State';
+import { useCan } from '@/hooks/usePermission';
+import { visibleToViewer } from '@/utils/workflow';
 import { appRoutes } from '@/config/appRoutes';
 import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
@@ -37,10 +39,12 @@ const CLIENT_WAIT_HOURS = 48;
 function ClientHomeInner({ companyId }: { companyId: string }) {
   const { activeCompany } = useCompany();
   const posts = useAsync(() => contentService.listPosts(companyId), [companyId], { queryKey: queryKeys.posts(companyId) });
-  const reports = useAsync(() => reportsService.list(companyId), [companyId], { queryKey: queryKeys.reports(companyId) });
+  // The report list is Account Manager only in the API. A client is given each report as a link, so the in-app list is not requested for them.
+  const canListReports = useCan()('reports:list');
+  const reports = useAsync(() => reportsService.list(companyId), [companyId], { queryKey: queryKeys.reports(companyId), enabled: canListReports });
 
   const now = useMemo(() => Date.now(), [posts.data]);
-  const summary = useMemo(() => summarise(posts.data ?? [], now), [now, posts.data]);
+  const summary = useMemo(() => summarise(visibleToViewer(posts.data ?? [], true), now), [now, posts.data]);
   const latestReport = useMemo(() => latest(reports.data ?? []), [reports.data]);
 
   return (
@@ -130,10 +134,11 @@ function ClientHomeInner({ companyId }: { companyId: string }) {
 
         <Card>
           <CardHeader
-            title="Latest report"
-            action={<ButtonLink to={appRoutes.reports} variant="secondary" size="sm">All reports</ButtonLink>}
+            title={canListReports ? 'Latest report' : 'Monthly reports'}
+            action={<ButtonLink to={appRoutes.reports} variant="secondary" size="sm">{canListReports ? 'All reports' : 'Live overview'}</ButtonLink>}
           />
           <div className="content-card__body">
+            {!canListReports ? <p className="muted">Your Account Manager shares each monthly report with you as a link.</p> : null}
             {reports.loading ? <ListSkeleton rows={2} /> : null}
             {reports.error ? <ErrorState message={reports.error} onRetry={reports.refetch} /> : null}
             {reports.data && !latestReport ? (

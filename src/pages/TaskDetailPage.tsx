@@ -16,8 +16,8 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useTaskActor } from '@/hooks/useTaskActor';
 import { tasksService } from '@/services/tasks';
-import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
+import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
@@ -36,7 +36,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const task = useAsync(() => tasksService.get(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.task(companyId, taskId) });
   const comments = useAsync(() => tasksService.comments(companyId, taskId), [companyId, taskId]);
   const logs = useAsync(() => tasksService.activityLogs(companyId, taskId), [companyId, taskId]);
-  const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
+  const members = useAssignableMembers(companyId);
 
   const setStatus = useMutation(tasksService.setStatus, { invalidateKeys: tasksPrefix });
   const update = useMutation(tasksService.update, { invalidateKeys: tasksPrefix });
@@ -217,7 +217,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
             <CardHeader title="Assignment" />
             <div className="content-card__body">
               <RoleGate
-                permission="tasks:manage"
+                permission="tasks:edit"
                 fallback={<p className="muted">Assigned to {resolveName(current.assignedToId)}.</p>}
               >
                 <Field label="Assigned to" htmlFor="task-assignee">

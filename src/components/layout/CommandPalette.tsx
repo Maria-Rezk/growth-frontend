@@ -8,6 +8,8 @@ import { appRoutes } from '@/config/appRoutes';
 import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
 import { useClientView } from '@/hooks/useClientView';
+import { useCan } from '@/hooks/usePermission';
+import { visibleToViewer } from '@/utils/workflow';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { contentService } from '@/services/content';
@@ -72,6 +74,7 @@ function Palette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { companies, activeCompanyId, setActiveCompanyId } = useCompany();
   const { isClient } = useClientView();
+  const canSeeLeads = useCan()('leads:manage');
   const [query, setQuery] = useState('');
   const debounced = useDebouncedValue(query.trim());
   const [active, setActive] = useState(0);
@@ -84,7 +87,7 @@ function Palette({ onClose }: { onClose: () => void }) {
 
   const posts = useAsync(() => contentService.listPosts(companyId, { search: debounced }), [companyId, debounced], { queryKey: ['search', companyId, 'posts', debounced], enabled });
   const tasks = useAsync(() => tasksService.list(companyId, { search: debounced }), [companyId, debounced], { queryKey: ['search', companyId, 'tasks', debounced], enabled: enabled && !isClient });
-  const leads = useAsync(() => leadsService.list(companyId, { search: debounced }), [companyId, debounced], { queryKey: ['search', companyId, 'leads', debounced], enabled: enabled && !isClient });
+  const leads = useAsync(() => leadsService.list(companyId, { search: debounced }), [companyId, debounced], { queryKey: ['search', companyId, 'leads', debounced], enabled: enabled && !isClient && canSeeLeads });
   // Plans and campaigns are short lists with no search param: fetched once, matched locally.
   const plans = useAsync(() => contentService.listPlans(companyId), [companyId], { queryKey: ['companies', companyId, 'content-plans'], enabled });
   const campaigns = useAsync(() => campaignsService.list(companyId), [companyId], { queryKey: ['companies', companyId, 'campaigns', {}], enabled: enabled && !isClient });
@@ -99,7 +102,7 @@ function Palette({ onClose }: { onClose: () => void }) {
         .slice(0, MAX_PER_KIND)
         .forEach((company) => list.push({ kind: 'client', id: company.id, title: company.name, meta: company.id === activeCompanyId ? 'Current client' : 'Switch to this client', companyId: company.id }));
     }
-    (posts.data ?? []).slice(0, MAX_PER_KIND).forEach((post) => list.push({ kind: 'post', id: post.id, title: post.title, meta: [post.platform, post.contentType].filter(Boolean).map((v) => humanize(v)).join(' · '), status: post.status, to: appRoutes.post(post.id) }));
+    visibleToViewer(posts.data ?? [], isClient).slice(0, MAX_PER_KIND).forEach((post) => list.push({ kind: 'post', id: post.id, title: post.title, meta: [post.platform, post.contentType].filter(Boolean).map((v) => humanize(v)).join(' · '), status: post.status, to: appRoutes.post(post.id) }));
     (tasks.data ?? []).slice(0, MAX_PER_KIND).forEach((task) => list.push({ kind: 'task', id: task.id, title: task.title, meta: humanize(task.type), status: task.status, to: appRoutes.task(task.id) }));
     (leads.data ?? []).slice(0, MAX_PER_KIND).forEach((lead) => list.push({ kind: 'lead', id: lead.id, title: lead.name, meta: [lead.source, lead.email].filter(Boolean).join(' · '), status: lead.status, to: `/leads/${lead.id}` }));
     (plans.data ?? []).filter((plan) => plan.title.toLowerCase().includes(needle)).slice(0, MAX_PER_KIND).forEach((plan) => list.push({ kind: 'plan', id: plan.id, title: plan.title, meta: plan.month && plan.year ? `${plan.month}/${plan.year}` : undefined, to: `/content-plans/${plan.id}` }));

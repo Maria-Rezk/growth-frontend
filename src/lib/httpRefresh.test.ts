@@ -138,4 +138,25 @@ describe('401 → refresh → retry', () => {
     await expect(http.delete('/companies/1')).rejects.toMatchObject({ statusCode: 403 });
     expect(forbidden).toHaveBeenCalledWith('/companies/1');
   });
+
+  it('never refreshes the session on a 403 — that is an authorization answer, not an expired token', async () => {
+    const { http, calls } = await boot({
+      'DELETE /companies/1': () => [403, { message: 'Forbidden' }],
+    });
+
+    await expect(http.delete('/companies/1')).rejects.toMatchObject({ statusCode: 403 });
+
+    expect(calls).toEqual(['DELETE /companies/1']);
+  });
+
+  it('refreshes once on a 401 and retries the original request exactly once', async () => {
+    let attempts = 0;
+    const { http, calls } = await boot({
+      'GET /tasks': () => (++attempts === 1 ? [401, { message: 'expired' }] : [200, []]),
+      'POST /auth/refresh': () => [200, { accessToken: 'fresh', user: { id: 'u1', email: 'a@b.com' } }],
+    });
+
+    await expect(http.get('/tasks')).resolves.toMatchObject({ status: 200 });
+    expect(calls).toEqual(['GET /tasks', 'POST /auth/refresh', 'GET /tasks']);
+  });
 });

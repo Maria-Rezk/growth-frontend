@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, isRouteMissing, notShippedError, unwrap } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import { demoCompany, demoDelay, demoEmployees, demoMemberships, makeId } from '@/services/demoStore';
 import type {
   ApiErrorShape,
@@ -50,8 +51,7 @@ export const companiesService = {
   /** Clients A→Z by name — the API returns them in insertion order. */
   async list(): Promise<Company[]> {
     if (env.demoMode) return demoDelay([demoCompany]);
-    const response = await http.get(apiRoutes.companies.list);
-    return sortByName(unwrap<Company[]>(response.data), (company) => company.name);
+    return sortByName(await getAllItems<Company>(apiRoutes.companies.list), (company) => company.name);
   },
   async create(payload: CreateCompanyPayload): Promise<Company> {
     if (env.demoMode) return demoDelay({ id: makeId('company'), name: payload.name, createdAt: new Date().toISOString() });
@@ -118,8 +118,7 @@ export const companiesService = {
   },
   async members(companyId: string): Promise<Membership[]> {
     if (env.demoMode) return demoDelay(demoMemberships.filter((membership) => membership.companyId === companyId));
-    const response = await http.get(apiRoutes.companies.members(companyId));
-    return unwrap<Membership[]>(response.data);
+    return getAllItems<Membership>(apiRoutes.companies.members(companyId));
   },
   /**
    * Change what somebody does on a client.

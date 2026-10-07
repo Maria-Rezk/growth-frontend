@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
 import { FormErrorSummary } from '@/components/ui/FormErrorSummary';
 import { LoadingState, ErrorState } from '@/components/ui/State';
-import { RoleGate } from '@/components/domain/RoleGate';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { scopeDraftKey, useFormDraft } from '@/hooks/useFormDraft';
+import { usePermission } from '@/hooks/usePermission';
 import { useUnsavedChangesWarning } from '@/hooks/useUnsavedChangesWarning';
 import { useAuth } from '@/context/AuthContext';
 import { applyServerFieldErrors } from '@/lib/forms';
@@ -152,6 +152,9 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
     { enabled: Boolean(profile.data), serverUpdatedAt: profile.data?.updatedAt },
   );
 
+  // Everybody on the client can read the brand profile; who may change it is `brand:edit` (a product policy, see permissions.ts).
+  const canEdit = usePermission('brand:edit');
+
   const submit = form.handleSubmit(async (values) => {
     const result = await save.mutate(companyId, toPayload(values), Boolean(profile.data));
     if (result) {
@@ -173,7 +176,11 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
         action={<BrandFreshness updatedAt={profile.data?.updatedAt} />}
       />
 
+      {!canEdit ? <p className="review-note" role="status">View only. The Account Manager edits the brand profile.</p> : null}
+
       <form className="form-grid" onSubmit={submit} noValidate>
+        {/* A disabled fieldset makes every field read-only at once, so nobody types changes that cannot be saved. */}
+        <fieldset className="form-fieldset" disabled={!canEdit}>
         <Card>
           <CardHeader title="Identity" subtitle="How the brand describes itself." />
           <div className="form-card form-grid">
@@ -328,14 +335,15 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
                   )
                   : <span className="muted">All changes saved.</span>}
               </span>
-              <RoleGate permission="brand:edit" fallback={<span className="muted">Your role cannot edit the brand profile.</span>}>
+              {canEdit ? (
                 <Button type="submit" loading={form.formState.isSubmitting || save.loading} disabled={!isDirty}>
                   Save brand profile
                 </Button>
-              </RoleGate>
+              ) : null}
             </div>
           </div>
         </Card>
+        </fieldset>
       </form>
 
       {/* Clients may list attachments on posts only — the API refuses the brand profile's. */}

@@ -49,6 +49,8 @@ export const queryKeys = {
   companies: ['companies'] as const,
   employees: ['employees'] as const,
   companyMembers: (companyId: string) => ['companies', companyId, 'members'] as const,
+  /** Active staff as the responsibility matrix lists them: readable by every member, unlike the directory above. */
+  companyStaff: (companyId: string) => ['companies', companyId, 'staff'] as const,
   brandProfile: (companyId: string) => ['companies', companyId, 'brand-profile'] as const,
   posts: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'posts', filters ?? {}] as const,
   post: (companyId: string, postId: string) => ['companies', companyId, 'posts', postId] as const,
@@ -81,6 +83,10 @@ export const queryKeys = {
   attachments: (companyId: string, entityType: string, entityId?: string) =>
     ['companies', companyId, 'attachments', entityType, entityId ?? 'singleton'] as const,
   contentPlans: (companyId: string) => ['companies', companyId, 'content-plans'] as const,
+  contentPlan: (companyId: string, planId: string) => ['companies', companyId, 'content-plans', planId] as const,
+  postAssets: (companyId: string, postId: string) => ['companies', companyId, 'posts', postId, 'assets'] as const,
+  automationRules: (companyId: string) => ['companies', companyId, 'automations', 'rules'] as const,
+  automationRuns: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'automations', 'runs', filters ?? {}] as const,
   aiGenerations: (companyId: string) => ['companies', companyId, 'ai-generations'] as const,
   reportOverview: (companyId: string, period?: Record<string, unknown>) => ['companies', companyId, 'reports', 'overview', period ?? {}] as const,
   invitations: (companyId: string) => ['companies', companyId, 'invitations'] as const,

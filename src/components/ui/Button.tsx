@@ -2,7 +2,8 @@ import clsx from 'clsx';
 import { Link, type LinkProps } from 'react-router-dom';
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/** `danger-quiet`: a destructive action that must not compete with the primary one beside it. */
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-quiet';
 export type ButtonSize = 'sm' | 'md';
 
 interface ButtonStyleProps {

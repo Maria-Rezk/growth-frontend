@@ -1,10 +1,10 @@
 import clsx from 'clsx';
 import type { PostStatus } from '@/types/domain';
 import { CheckIcon } from '@/components/ui/icons';
-import { POST_WORKFLOW } from '@/utils/workflow';
+import { POST_WORKFLOW, postWorkflowStatus } from '@/utils/workflow';
 
 export function WorkflowStepper({ status }: { status: PostStatus }) {
-  const activeIndex = POST_WORKFLOW.findIndex((step) => step.status === status);
+  const activeIndex = POST_WORKFLOW.findIndex((step) => step.status === postWorkflowStatus(status));
   const special = status === 'CHANGES_REQUESTED' || status === 'CANCELED';
 
   return (
@@ -12,9 +12,10 @@ export function WorkflowStepper({ status }: { status: PostStatus }) {
       <div className="workflow-card__header">
         <div>
           <h2>Approval workflow</h2>
-          <p className="muted">Move content from draft to published without losing context.</p>
+          <p className="muted">From draft to client approval to published. Publishing is recorded by a person; nothing posts automatically.</p>
         </div>
         {special ? <span className="workflow-alert">{status === 'CHANGES_REQUESTED' ? 'Changes requested' : 'Canceled'}</span> : null}
+        {status === 'SCHEDULED' ? <span className="workflow-alert workflow-alert--info">Scheduled</span> : null}
       </div>
       <ol className="workflow-stepper">
         {POST_WORKFLOW.map((step, index) => {

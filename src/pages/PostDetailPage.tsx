@@ -7,22 +7,26 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { Badge } from '@/components/ui/Badge';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
+import { PostAssetsPanel } from '@/components/domain/PostAssetsPanel';
 import { PostWorkPanel } from '@/components/domain/PostWorkPanel';
 import { PostContentEditor } from '@/components/domain/PostContentEditor';
 import { WorkflowStepper } from '@/components/domain/WorkflowStepper';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { hasFormDraft, scopeDraftKey } from '@/hooks/useFormDraft';
 import { useAuth } from '@/context/AuthContext';
-import { useCompany } from '@/context/CompanyContext';
+import { useClientView } from '@/hooks/useClientView';
+import { useCan, usePermission } from '@/hooks/usePermission';
 import { contentService } from '@/services/content';
 import { errorCode } from '@/lib/http';
 import { queryKeys } from '@/lib/queryClient';
 import { formatDateTime, fromInputDateTime, humanize } from '@/utils/format';
-import { CompanyMembershipRole, PostReviewErrorCode, PostStatus } from '@/types/domain';
+import { isHiddenFromClient, postActionsFor } from '@/utils/workflow';
+import { PostReviewErrorCode, PostStatus } from '@/types/domain';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 
 export function PostDetailPage() {
@@ -32,14 +36,17 @@ export function PostDetailPage() {
 
 function PostDetailInner({ companyId, postId }: { companyId: string; postId: string }) {
   const { user } = useAuth();
-  const { hasRole } = useCompany();
-  // Client roles must never see internal agency comments.
-  const isClient = hasRole(CompanyMembershipRole.CLIENT_OWNER, CompanyMembershipRole.CLIENT_REVIEWER);
+  // Client-side people only (not an admin, not somebody who also holds an agency role) never see internal comments.
+  const { isClient } = useClientView();
+  // The signed approval trail is Account Manager / Social Media Manager only; asking anyone else is a 403.
+  const canSeeHistory = usePermission('posts:history');
+  const can = useCan();
+  const confirm = useConfirm();
 
   const postsPrefix = [['companies', companyId, 'posts']];
   const post = useAsync(() => contentService.getPost(companyId, postId), [companyId, postId], { queryKey: queryKeys.post(companyId, postId) });
   const comments = useAsync(() => contentService.comments(companyId, postId), [companyId, postId]);
-  const logs = useAsync(() => contentService.approvalLogs(companyId, postId), [companyId, postId]);
+  const logs = useAsync(() => contentService.approvalLogs(companyId, postId), [companyId, postId], { enabled: canSeeHistory });
 
   // All mutations declared before any early return (rules of hooks).
   // 409 STAGES_OPEN is a gate, not a race: the refetch after the press brings the stages that are in the way.
@@ -71,20 +78,38 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
 
   if (post.loading) return <DetailSkeleton />;
   // Clients get 404 (never 403) for posts still in preparation.
-  if (post.errorStatus === 404 && isClient) {
+  // The API answers 404, never 403, so a client cannot tell "hidden" from "missing". A response that carries a hidden status is treated the same way.
+  if (isClient && (post.errorStatus === 404 || (post.data && isHiddenFromClient(post.data.status)))) {
     return <EmptyState title="This post is not available" description="It may still be in preparation. Your agency will send it when it is ready for you." />;
   }
   if (post.error || !post.data) return <ErrorState message={post.error ?? 'Post not found.'} onRetry={post.refetch} />;
 
+  const next = postActionsFor(post.data.status);
+  // What applies in this status, and what this person is allowed to do about it.
+  const showSubmit = next.submit && can('posts:submit');
+  const showReview = next.review && can('posts:approve');
+  const showPublish = next.publish && can('posts:publish');
+  const showPlan = next.plan && can('posts:publish');
   const stages = post.data.stages ?? null;
   const stagesOpen = (stages?.open.length ?? 0) > 0;
 
   // Internal comments are filtered out for client roles.
   const visibleComments = (comments.data ?? []).filter((item) => !item.isInternal || !isClient);
 
-  const reloadAll = async () => { await Promise.all([post.refetch(), comments.refetch(), logs.refetch()]); };
+  const reloadAll = async () => { await Promise.all([post.refetch(), comments.refetch(), canSeeHistory ? logs.refetch() : Promise.resolve()]); };
 
   const transition = async (action: 'submit' | 'approve' | 'changes' | 'reject' | 'publish') => {
+    // Reject is terminal: the post is canceled and cannot be resubmitted. Asking for edits is the reversible choice.
+    if (action === 'reject') {
+      const ok = await confirm({
+        title: 'Reject this post?',
+        message: 'Rejecting is final. The post is canceled and cannot be sent back for approval. If it only needs edits, choose Request changes instead.',
+        confirmLabel: 'Reject post',
+        cancelLabel: 'Keep it',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
     if (action === 'submit') await submitReview.mutate(companyId, postId);
     if (action === 'approve') await approve.mutate(companyId, postId);
     if (action === 'changes') await requestChanges.mutate(companyId, postId, changeNote);
@@ -217,9 +242,11 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
 
         <aside className="detail-side">
           <Card className="content-card action-panel">
-            <CardHeader title="Approval actions" subtitle="Available actions depend on your role and the current workflow state." />
+            <CardHeader title="Approval actions" subtitle={isClient ? next.clientNote : next.agencyNote} />
             <div className="content-card__body form-grid">
-              <RoleGate permission="posts:submit" fallback={<p className="muted">You cannot submit posts from this role.</p>}>
+              {!showSubmit && !showReview && !showPublish && !showPlan ? <p className="muted">Nothing for you to do on this post right now.</p> : null}
+              {showSubmit ? (
+              <>
                 <Button onClick={() => transition('submit')} loading={submitReview.loading} disabled={stagesOpen}>Submit to client</Button>
                 {stagesOpen && stages ? (
                   <div className="blocker-note" role="status">
@@ -236,20 +263,26 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
                     </ul>
                   </div>
                 ) : null}
-              </RoleGate>
-              <RoleGate permission="posts:approve">
-                <Button variant="secondary" onClick={() => transition('approve')} loading={approve.loading}>Approve</Button>
+              </>
+              ) : null}
+              {showReview ? (
+              <>
+                <Button variant="primary" onClick={() => transition('approve')} loading={approve.loading}>Approve</Button>
                 <Field label="Note" htmlFor="change-note" hint="Used when requesting changes or rejecting.">
                   <Textarea id="change-note" rows={3} value={changeNote} onChange={(event) => setChangeNote(event.target.value)} />
                 </Field>
                 <Button variant="secondary" onClick={() => transition('changes')} loading={requestChanges.loading}>Request changes</Button>
-                <Button variant="danger" onClick={() => transition('reject')} loading={reject.loading}>Reject</Button>
-              </RoleGate>
-              <RoleGate permission="posts:publish">
+                <Button variant="danger-quiet" onClick={() => transition('reject')} loading={reject.loading}>Reject post</Button>
+              </>
+              ) : null}
+              {showPublish ? (
+              <>
                 <Field label="Published URL" htmlFor="published-url"><Input id="published-url" value={publishedUrl} onChange={(event) => setPublishedUrl(event.target.value)} /></Field>
                 <Button onClick={() => transition('publish')} loading={publish.loading}>Mark published</Button>
-              </RoleGate>
-              <RoleGate permission="posts:publish">
+              </>
+              ) : null}
+              {showPlan ? (
+              <>
                 <Field
                   label="Planned publish date"
                   htmlFor="schedule-at"
@@ -258,7 +291,8 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
                   <Input id="schedule-at" type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} />
                 </Field>
                 <Button variant="secondary" onClick={schedulePost} loading={schedule.loading} disabled={!scheduleAt}>Save publish date</Button>
-              </RoleGate>
+              </>
+              ) : null}
               {(!blockedByStages && submitReview.error) || approve.error || requestChanges.error || reject.error || publish.error ? (
                 <p className="error-box" role="alert">
                   {(!blockedByStages && submitReview.error) || approve.error || requestChanges.error || reject.error || publish.error}
@@ -270,13 +304,19 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
           {/* Staff only: the client sees the result, not the production line. */}
           {!isClient ? <PostWorkPanel companyId={companyId} post={post.data} /> : null}
 
+          {/* Typed deliverables: Account Manager, Designer and Social Media Manager. */}
+          <RoleGate permission="postAssets:manage">
+            <PostAssetsPanel companyId={companyId} postId={postId} />
+          </RoleGate>
+
           <AttachmentsPanel
             companyId={companyId}
             parent={{ entityType: 'POST', entityId: postId }}
-            title="Assets"
-            subtitle={isClient ? 'Creative files for this post.' : 'Creative files for this post. The client can open these.'}
+            title="Attachments"
+            subtitle={isClient ? 'Files shared with you on this post.' : 'Reference files on this post. The client can open these.'}
           />
 
+          {canSeeHistory ? (
           <Card className="content-card">
             <CardHeader title="Approval log" />
             <div className="content-card__body">
@@ -295,6 +335,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
               )}
             </div>
           </Card>
+          ) : null}
         </aside>
       </div>
     </>

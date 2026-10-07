@@ -69,6 +69,10 @@ export function CampaignIcon(props: IconProps) {
   return <IconShell {...props}><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" /><path d="M17 9a4 4 0 0 1 0 6" /><path d="M20 6.5a8 8 0 0 1 0 11" /></IconShell>;
 }
 
+export function BoltIcon(props: IconProps) {
+  return <IconShell {...props}><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></IconShell>;
+}
+
 export function MatrixIcon(props: IconProps) {
   return <IconShell {...props}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M9 9v12" /><path d="M3 15h18" /></IconShell>;
 }

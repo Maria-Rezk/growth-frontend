@@ -61,6 +61,7 @@ const MembersPage = pick(() => import('@/pages/MembersPage'), 'MembersPage');
 const NotificationsPage = pick(() => import('@/pages/NotificationsPage'), 'NotificationsPage');
 const CampaignsPage = pick(() => import('@/pages/CampaignsPage'), 'CampaignsPage');
 const CampaignDetailPage = pick(() => import('@/pages/CampaignDetailPage'), 'CampaignDetailPage');
+const AutomationsPage = pick(() => import('@/pages/AutomationsPage'), 'AutomationsPage');
 const ResponsibilitiesPage = pick(() => import('@/pages/ResponsibilitiesPage'), 'ResponsibilitiesPage');
 const EmployeesPage = pick(() => import('@/pages/EmployeesPage'), 'EmployeesPage');
 const ClientsPage = pick(() => import('@/pages/ClientsPage'), 'ClientsPage');
@@ -119,6 +120,7 @@ export function App() {
               <Route path="/campaigns/:campaignId" element={<CampaignDetailPage />} />
               <Route path="/members" element={<MembersPage />} />
               <Route path="/responsibilities" element={<ResponsibilitiesPage />} />
+              <Route path="/automations" element={<AutomationsPage />} />
             </Route>
             {/* Platform admin. Guarded as a route rather than in-page so a
                 USER who types the URL is sent away and the admin pages never

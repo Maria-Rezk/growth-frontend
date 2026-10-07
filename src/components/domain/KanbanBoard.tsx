@@ -21,7 +21,7 @@ export function KanbanBoard<T extends { id: string; status: string }>({
     <div className="kanban-wrap">
       {/* Phones only (CSS): the columns scroll sideways, and nothing else says so. */}
       <p className="board-hint" aria-hidden="true">Swipe sideways for the other {columns.length - 1} stages →</p>
-      <div className="kanban" role="list">
+      <div className="kanban">
         {columns.map((column) => (
           <KanbanColumn
             key={column}
@@ -52,7 +52,7 @@ function KanbanColumn<T extends { id: string }>({
   const hidden = items.length - visible.length;
 
   return (
-    <section className="kanban-column" aria-label={humanize(column)}>
+    <div className="kanban-column" role="group" aria-label={`${humanize(column)}, ${items.length}`}>
       <header className="kanban-column__header">
         <StatusBadge value={column} />
         <span>{items.length}</span>
@@ -65,6 +65,6 @@ function KanbanColumn<T extends { id: string }>({
           </Button>
         ) : null}
       </div>
-    </section>
+    </div>
   );
 }

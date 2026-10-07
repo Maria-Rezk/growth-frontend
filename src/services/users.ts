@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, isRouteMissing, notShippedError, unwrap } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import { demoDelay, demoEmployees, makeId } from '@/services/demoStore';
 import type { CreateEmployeePayload, Employee, PlatformRole, UpdateEmployeePayload } from '@/types/domain';
 import { sortByName } from '@/utils/sort';
@@ -14,8 +15,7 @@ export const usersService = {
   async list(): Promise<Employee[]> {
     const order = (employee: Employee) => employee.fullName ?? employee.email;
     if (env.demoMode) return demoDelay(sortByName(demoEmployees, order));
-    const response = await http.get(apiRoutes.users.list);
-    return sortByName(unwrap<Employee[]>(response.data), order);
+    return sortByName(await getAllItems<Employee>(apiRoutes.users.list), order);
   },
   async create(payload: CreateEmployeePayload): Promise<Employee> {
     if (env.demoMode) {

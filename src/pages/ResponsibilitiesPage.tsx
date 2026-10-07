@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
-import { useCompany } from '@/context/CompanyContext';
+import { usePermission } from '@/hooks/usePermission';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -14,7 +14,6 @@ import { responsibilitiesService } from '@/services/responsibilities';
 import { queryKeys } from '@/lib/queryClient';
 import {
   AREA_KEYS,
-  CompanyMembershipRole,
   RESPONSIBILITY_TYPE_LABELS,
   type AreaKey,
   type ResponsibilityArea,
@@ -46,8 +45,7 @@ export function ResponsibilitiesPage() {
 }
 
 function ResponsibilitiesInner({ companyId }: { companyId: string }) {
-  const { hasRole } = useCompany();
-  const canManage = hasRole(CompanyMembershipRole.ACCOUNT_MANAGER);
+  const canManage = usePermission('responsibilities:manage');
 
   const matrix = useAsync(
     () => responsibilitiesService.matrix(companyId),

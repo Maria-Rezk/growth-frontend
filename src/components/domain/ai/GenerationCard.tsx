@@ -123,7 +123,8 @@ export function GenerationCard({ companyId, generation, canApply }: { companyId:
           <strong>{title}</strong>
           {generation.prompt ? <p className="muted">{generation.prompt}</p> : null}
         </div>
-        {applied ? <Badge tone="success">Applied</Badge> : <Badge tone="neutral">Draft</Badge>}
+        {/* A suggestion is not a record: nothing exists in the workspace until an apply call succeeds. */}
+        {applied ? <Badge tone="success">Applied</Badge> : <Badge tone="neutral">Suggestion · not saved</Badge>}
       </div>
 
       {generation.type === AiGenerationType.CONTENT_PLAN_PREVIEW ? <ApplyContentPlan {...shared} />
@@ -220,9 +221,13 @@ function ApplyPostIdeas({ companyId, generation, canApply, applied, onApplied, i
 
   return (
     <div className="stack-list">
+      {applied && appliedIndexes.length === 0 ? (
+        <p className="muted">At least one idea from this set was already turned into a post. The others are still suggestions.</p>
+      ) : null}
       {ideas.map((idea, index) => {
         const ideaRecord = asRecord(idea);
-        const isApplied = applied || appliedIndexes.includes(index);
+        // Per idea, not per card: applying one idea creates one post and leaves the rest as suggestions.
+        const isApplied = appliedIndexes.includes(index);
         return (
           <div key={index} className="bordered-row">
             <div className="bordered-row__head">
@@ -233,7 +238,7 @@ function ApplyPostIdeas({ companyId, generation, canApply, applied, onApplied, i
                 loading={pendingIndex === index}
                 disabled={!canApply || isApplied || pendingIndex !== null}
               >
-                {isApplied ? 'Created' : 'Apply this idea'}
+                {isApplied ? 'Post created' : 'Create post from idea'}
               </Button>
             </div>
             {ideaRecord?.caption ? <p className="pre-wrap">{String(ideaRecord.caption)}</p> : null}
@@ -246,7 +251,7 @@ function ApplyPostIdeas({ companyId, generation, canApply, applied, onApplied, i
   );
 }
 
-function ApplyCaptions({ companyId, generation, canApply, applied, onApplied, invalidateKeys }: ApplyProps) {
+function ApplyCaptions({ companyId, generation, canApply, onApplied, invalidateKeys }: ApplyProps) {
   const apply = useMutation(aiService.applyCaption, { invalidateKeys });
   const [appliedIndex, setAppliedIndex] = useState<number | null>(null);
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
@@ -275,7 +280,8 @@ function ApplyCaptions({ companyId, generation, canApply, applied, onApplied, in
     <div className="stack-list">
       {!postId ? <p className="muted">No target post on this caption generation; it cannot be applied.</p> : null}
       {captions.map((caption, index) => {
-        const isApplied = applied || appliedIndex === index;
+        // Only the option that was used reads Applied; the others stay available, since choosing a different one is a normal change of mind.
+        const isApplied = appliedIndex === index;
         return (
           <div key={index} className="bordered-row">
             <p className="pre-wrap">{typeof caption === 'string' ? caption : JSON.stringify(caption)}</p>

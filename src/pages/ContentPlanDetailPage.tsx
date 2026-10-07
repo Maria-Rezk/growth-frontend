@@ -12,10 +12,12 @@ import { appRoutes } from '@/config/appRoutes';
 import { useAsync } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { contentService } from '@/services/content';
+import { PlanFormModal } from '@/pages/ContentPlansPage';
 import { PostFormModal } from '@/pages/PostsPage';
 import { PostStatus, type ContentPost } from '@/types/domain';
 import { formatDateTime, humanize } from '@/utils/format';
-import { POST_BOARD } from '@/utils/workflow';
+import { POST_STATUSES_ALL, visibleToViewer } from '@/utils/workflow';
+import { useClientView } from '@/hooks/useClientView';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -36,11 +38,13 @@ function PlanDetailInner({ companyId, planId }: { companyId: string; planId: str
   const plans = useAsync(() => contentService.listPlans(companyId), [companyId], { queryKey: queryKeys.contentPlans(companyId) });
   const posts = useAsync(() => contentService.listPosts(companyId), [companyId], { queryKey: queryKeys.posts(companyId) });
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const plan = useMemo(() => (plans.data ?? []).find((item) => item.id === planId) ?? null, [planId, plans.data]);
   // Plain filters, not memos: a status that changed in place must show.
-  const planPosts = (posts.data ?? []).filter((post) => post.contentPlanId === planId);
-  const byStatus = POST_BOARD.map((status) => ({ status, posts: planPosts.filter((post) => post.status === status) })).filter((group) => group.posts.length);
+  const { isClient } = useClientView();
+  const planPosts = visibleToViewer(posts.data ?? [], isClient).filter((post) => post.contentPlanId === planId);
+  const byStatus = POST_STATUSES_ALL.map((status) => ({ status, posts: planPosts.filter((post) => post.status === status) })).filter((group) => group.posts.length);
   const delivered = planPosts.filter((post) => DELIVERED.has(post.status)).length;
   const published = planPosts.filter((post) => post.status === PostStatus.PUBLISHED).length;
   const waitingClient = planPosts.filter((post) => post.status === PostStatus.READY_FOR_CLIENT).length;
@@ -60,6 +64,9 @@ function PlanDetailInner({ companyId, planId }: { companyId: string; planId: str
         action={(
           <span className="button-row">
             <ButtonLink to={appRoutes.contentPlans} variant="secondary" size="sm">All plans</ButtonLink>
+            <RoleGate permission="plans:manage">
+              <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>Edit plan</Button>
+            </RoleGate>
             <RoleGate permission="posts:create">
               <Button size="sm" onClick={() => setCreateOpen(true)}><PlusIcon size={14} /> Add post</Button>
             </RoleGate>
@@ -107,6 +114,7 @@ function PlanDetailInner({ companyId, planId }: { companyId: string; planId: str
         </div>
       </Card>
 
+      <PlanFormModal key={`${plan.id}-${plan.title}-${plan.goal ?? ''}-${plan.month}-${plan.year}`} open={editOpen} companyId={companyId} plan={plan} onClose={() => setEditOpen(false)} />
       <PostFormModal open={createOpen} companyId={companyId} onClose={() => setCreateOpen(false)} planId={planId} onCreated={() => void posts.refetch()} />
     </>
   );

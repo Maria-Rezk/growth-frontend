@@ -12,17 +12,28 @@ const ROLES = [R.ACCOUNT_MANAGER, R.SOCIAL_MEDIA_MANAGER, R.COPYWRITER, R.DESIGN
 
 const MATRIX: Record<Permission, string> = {
   //                AM  SMM CW  DES CO  CR  SA
-  'posts:create':   '✓   ✓   ✓   .   .   .   .',
-  'posts:edit':     '✓   ✓   ✓   ✓   .   .   .',
+  'posts:create':   '✓   ✓   .   .   .   .   .',
+  'posts:edit':     '✓   ✓   .   .   .   .   .',
+  'posts:history':  '✓   ✓   .   .   .   .   .',
   'posts:submit':   '✓   ✓   .   .   .   .   .',
   'posts:approve':  '✓   .   .   .   ✓   ✓   .',
   'posts:publish':  '✓   ✓   .   .   .   .   .',
   'assets:upload':  '✓   ✓   ✓   ✓   .   .   ✓',
   'leads:manage':   '✓   .   .   .   .   .   ✓',
   'tasks:manage':   '✓   ✓   ✓   ✓   .   .   ✓',
-  'tasks:approver': '✓   .   .   .   .   .   .',
+  'tasks:approver': '✓   ✓   .   .   .   .   .',
+  'tasks:edit':     '✓   ✓   .   .   .   .   .',
+  'campaigns:manage': '✓   ✓   .   .   .   .   .',
   'members:manage': '✓   .   .   .   .   .   .',
-  'reports:view':   '✓   ✓   ✓   ✓   ✓   ✓   ✓',
+  'responsibilities:manage': '✓   .   .   .   .   .   .',
+  'plans:manage':   '✓   ✓   .   .   .   .   .',
+  'postAssets:manage': '✓   ✓   .   ✓   .   .   .',
+  'automations:manage': '✓   .   .   .   .   .   .',
+  'reports:view':   '✓   .   .   .   ✓   .   .',
+  'reports:list':   '✓   .   .   .   .   .   .',
+  'reports:generate': '✓   .   .   .   .   .   .',
+  'reports:share':  '✓   .   .   .   .   .   .',
+  'ai:generate':    '✓   ✓   ✓   .   .   .   .',
   'brand:edit':     '✓   .   .   .   .   .   .',
 };
 
@@ -69,9 +80,9 @@ describe('permission matrix', () => {
     expect(canRemoveAttachment([], 'u1', 'u2', true)).toBe(true);
   });
 
-  it('only the Account Manager re-routes an approver', () => {
+  it('only the Account Manager and Social Media Manager re-route an approver', () => {
     ROLES.forEach((role) => {
-      expect(hasPermission([role], 'tasks:approver')).toBe(role === R.ACCOUNT_MANAGER);
+      expect(hasPermission([role], 'tasks:approver')).toBe(role === R.ACCOUNT_MANAGER || role === R.SOCIAL_MEDIA_MANAGER);
     });
   });
 });

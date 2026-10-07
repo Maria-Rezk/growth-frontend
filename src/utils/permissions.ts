@@ -2,54 +2,104 @@ import { CompanyMembershipRole, type AttachmentEntityType, type Membership } fro
 import { CLIENT_SIDE_ROLES, membershipRoles } from '@/utils/roles';
 
 export type Permission =
+  /** Create and edit a post. Account Manager and Social Media Manager. */
   | 'posts:create'
   | 'posts:edit'
+  /** Read a post's signed approval trail. Account Manager and Social Media Manager. */
+  | 'posts:history'
   | 'posts:submit'
   | 'posts:approve'
   | 'posts:publish'
   | 'assets:upload'
   | 'leads:manage'
+  /** Status changes and comments: every internal role. */
   | 'tasks:manage'
-  /** Name or change who approves a task. Account Manager (and platform admins, checked separately). */
+  /** Create a task, reassign it, set its stage. Account Manager and Social Media Manager. */
+  | 'tasks:edit'
+  /** Create and manage campaigns and what is attached to them. Account Manager and Social Media Manager. */
+  | 'campaigns:manage'
+  /** Name or change who approves a task. Account Manager and Social Media Manager. */
   | 'tasks:approver'
   | 'members:manage'
+  /** The responsibility matrix and its areas. Account Manager only. */
+  | 'responsibilities:manage'
+  /** Edit a content plan. Account Manager and Social Media Manager. */
+  | 'plans:manage'
+  /** The deliverable files on a post. AM, Designer, Social Media Manager. */
+  | 'postAssets:manage'
+  /** Automation rules and their run history. Account Manager only. */
+  | 'automations:manage'
+  /** The live reports overview. Account Manager and Client Owner. */
   | 'reports:view'
-  | 'brand:edit';
+  /** The list of generated reports and each report's detail. Account Manager only. */
+  | 'reports:list'
+  /** Generate a monthly report. Account Manager only. */
+  | 'reports:generate'
+  /** Mint, rotate or revoke a report's public link. Account Manager only. */
+  | 'reports:share'
+  /**
+   * Edit the brand profile. PRODUCT POLICY, not an API rule: the API lets any
+   * member of the client write it. Kept to Account Managers until the product
+   * owner decides otherwise; viewing is open to every member.
+   */
+  | 'brand:edit'
+  /**
+   * Run AI generation and apply results. PRODUCT POLICY, not an API rule: the
+   * API lets any member of the client. Kept to the roles that author content.
+   */
+  | 'ai:generate';
 
 const ROLE_PERMISSIONS: Record<CompanyMembershipRole, Permission[]> = {
   [CompanyMembershipRole.ACCOUNT_MANAGER]: [
     'posts:create',
     'posts:edit',
+    'posts:history',
     'posts:submit',
     'posts:approve',
     'posts:publish',
     'assets:upload',
     'leads:manage',
     'tasks:manage',
+    'tasks:edit',
+    'campaigns:manage',
     'tasks:approver',
     'members:manage',
+    'responsibilities:manage',
+    'plans:manage',
+    'postAssets:manage',
+    'automations:manage',
+    'ai:generate',
     'reports:view',
+    'reports:list',
+    'reports:generate',
+    'reports:share',
     'brand:edit',
   ],
   [CompanyMembershipRole.SOCIAL_MEDIA_MANAGER]: [
     'posts:create',
     'posts:edit',
+    'posts:history',
     'posts:submit',
     'posts:publish',
     'assets:upload',
+    'plans:manage',
+    'postAssets:manage',
     'tasks:manage',
-    'reports:view',
+    'tasks:edit',
+    'campaigns:manage',
+    'tasks:approver',
+    'ai:generate',
   ],
   /*
     `assets:upload` (the file upload itself) is every internal role. Client
     roles read attachments on posts; they never add them. Which parent a file
     may then be attached to is narrower — see `canAddAttachment`.
   */
-  [CompanyMembershipRole.COPYWRITER]: ['posts:create', 'posts:edit', 'assets:upload', 'tasks:manage', 'reports:view'],
-  [CompanyMembershipRole.DESIGNER]: ['posts:edit', 'assets:upload', 'tasks:manage', 'reports:view'],
+  [CompanyMembershipRole.COPYWRITER]: ['assets:upload', 'tasks:manage', 'ai:generate'],
+  [CompanyMembershipRole.DESIGNER]: ['assets:upload', 'postAssets:manage', 'tasks:manage'],
   [CompanyMembershipRole.CLIENT_OWNER]: ['posts:approve', 'reports:view'],
-  [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve', 'reports:view'],
-  [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'assets:upload', 'tasks:manage', 'reports:view'],
+  [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve'],
+  [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'assets:upload', 'tasks:manage'],
 };
 
 const R = CompanyMembershipRole;

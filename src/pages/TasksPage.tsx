@@ -24,9 +24,9 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlFilters } from '@/hooks/useDashboardFilters';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { tasksService } from '@/services/tasks';
-import { companiesService } from '@/services/companies';
 import { responsibilitiesService } from '@/services/responsibilities';
 import { queryKeys } from '@/lib/queryClient';
+import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
@@ -95,7 +95,7 @@ function TasksInner({ companyId }: { companyId: string }) {
     [companyId, listScope, status, priority, type, debouncedSearch],
     { queryKey: [...queryKeys.tasks(companyId, filters), listScope], enabled: scope !== 'approvals' },
   );
-  const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
+  const members = useAssignableMembers(companyId);
 
   /*
     The alert tiles are workspace-level KPIs, so they must not be computed
@@ -148,7 +148,7 @@ function TasksInner({ companyId }: { companyId: string }) {
         title="Tasks"
         subtitle="Internal work across copywriting, design, publishing, reporting and sales follow-up."
         action={
-          <RoleGate permission="tasks:manage" fallback={<Button size="sm" disabled>New task</Button>}>
+          <RoleGate permission="tasks:edit" fallback={<Button size="sm" disabled>New task</Button>}>
             <Button size="sm" onClick={() => setCreateOpen(true)}>New task</Button>
           </RoleGate>
         }
@@ -234,7 +234,7 @@ function TasksInner({ companyId }: { companyId: string }) {
           emptyDescription={filtersActive ? undefined : scope === 'mine' ? 'Work assigned to you on this client shows up here.' : 'Tasks are the internal work behind every post, lead and report.'}
           emptyAction={filtersActive
             ? <Button variant="secondary" size="sm" onClick={clearFilters}>Clear filters</Button>
-            : <RoleGate permission="tasks:manage"><Button size="sm" onClick={() => setCreateOpen(true)}>Create the first task</Button></RoleGate>}
+            : <RoleGate permission="tasks:edit"><Button size="sm" onClick={() => setCreateOpen(true)}>Create the first task</Button></RoleGate>}
           defaultSortKey="title"
         />
       )}
@@ -282,7 +282,7 @@ function TaskBoardView({
           description={filtersActive ? 'Clear the search or choose different filters.' : scope === 'mine' ? 'Work assigned to you on this client shows up here.' : 'Tasks are the internal work behind every post, lead and report. Create one, or pick a responsibility area and let the matrix route it.'}
           action={filtersActive
             ? <Button variant="secondary" size="sm" onClick={onClearFilters}>Clear filters</Button>
-            : <RoleGate permission="tasks:manage"><Button size="sm" onClick={onCreate}>Create the first task</Button></RoleGate>}
+            : <RoleGate permission="tasks:edit"><Button size="sm" onClick={onCreate}>Create the first task</Button></RoleGate>}
         />
       </Card>
     );

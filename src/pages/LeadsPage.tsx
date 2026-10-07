@@ -22,8 +22,8 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlFilters } from '@/hooks/useDashboardFilters';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { leadsService } from '@/services/leads';
-import { companiesService } from '@/services/companies';
 import { queryKeys } from '@/lib/queryClient';
+import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
 import { LEAD_PIPELINE } from '@/utils/workflow';
 import { LeadStatus, LeadSource, type Lead, type Membership } from '@/types/domain';
@@ -59,7 +59,18 @@ const leadSchema = z.object({
 type LeadForm = z.infer<typeof leadSchema>;
 
 export function LeadsPage() {
-  return <RequireCompany>{(companyId) => <LeadsInner companyId={companyId} />}</RequireCompany>;
+  return (
+    <RequireCompany>
+      {(companyId) => (
+        <RoleGate
+          permission="leads:manage"
+          fallback={<EmptyState title="Leads are not part of your role" description="The Account Manager and the Sales Agents work the lead pipeline for this client." />}
+        >
+          <LeadsInner companyId={companyId} />
+        </RoleGate>
+      )}
+    </RequireCompany>
+  );
 }
 
 const LEAD_FILTER_DEFAULTS = { status: '', source: '', search: '', view: 'pipeline', page: '1', scope: 'all', due: '' } as const;
@@ -116,11 +127,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
     { queryKey: queryKeys.leadCounts(companyId, countFilters) },
   );
 
-  const members = useAsync(
-    () => companiesService.members(companyId),
-    [companyId],
-    { queryKey: queryKeys.companyMembers(companyId) },
-  );
+  const members = useAssignableMembers(companyId);
 
   /*
     The follow-up tiles are the agent's day: overdue, today, this week, and

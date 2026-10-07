@@ -12,7 +12,7 @@ import { CheckIcon, ClockIcon, PlusIcon } from '@/components/ui/icons';
 import { appRoutes } from '@/config/appRoutes';
 import { useAsync } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
-import { companiesService } from '@/services/companies';
+import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { tasksService } from '@/services/tasks';
 import { TaskModal, type TaskLink } from '@/pages/TasksPage';
 import { TaskStatus, TaskType, type ContentPost, type Task } from '@/types/domain';
@@ -42,7 +42,7 @@ const STAGES: TaskType[] = [TaskType.COPYWRITING, TaskType.DESIGN, TaskType.CLIE
  */
 export function PostWorkPanel({ companyId, post }: { companyId: string; post: ContentPost }) {
   const tasks = useAsync(() => tasksService.list(companyId), [companyId], { queryKey: queryKeys.tasks(companyId) });
-  const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
+  const members = useAssignableMembers(companyId);
   const [createLink, setCreateLink] = useState<TaskLink | null>(null);
 
   const linked = useMemo(() => {
@@ -72,7 +72,7 @@ export function PostWorkPanel({ companyId, post }: { companyId: string; post: Co
             ? `${linked.filter((task) => task.status === TaskStatus.DONE).length} of ${linked.length} tasks done. Give tasks a stage number to make them run in order.`
             : 'Copy, design, review and publishing — each stage is a task with its own approver.'}
         action={(
-          <RoleGate permission="tasks:manage">
+          <RoleGate permission="tasks:edit">
             <Button
               size="sm"
               variant="secondary"

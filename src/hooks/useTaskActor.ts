@@ -1,8 +1,6 @@
-import { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useCompany } from '@/context/CompanyContext';
+import { useCan } from '@/hooks/usePermission';
 import { isPlatformAdmin } from '@/types/domain';
-import { getActiveRoles, hasPermission } from '@/utils/permissions';
 
 /**
  * The signed-in person as the review flow sees them.
@@ -14,15 +12,11 @@ import { getActiveRoles, hasPermission } from '@/utils/permissions';
  */
 export function useTaskActor() {
   const { user } = useAuth();
-  const { activeCompanyId, memberships } = useCompany();
+  const can = useCan();
 
-  return useMemo(() => {
-    const isAdmin = isPlatformAdmin(user?.platformRole);
-    const roles = getActiveRoles(memberships, activeCompanyId);
-    return {
-      userId: user?.id ?? null,
-      isAdmin,
-      canChangeApprover: isAdmin || hasPermission(roles, 'tasks:approver'),
-    };
-  }, [activeCompanyId, memberships, user?.id, user?.platformRole]);
+  return {
+    userId: user?.id ?? null,
+    isAdmin: isPlatformAdmin(user?.platformRole),
+    canChangeApprover: can('tasks:approver'),
+  };
 }

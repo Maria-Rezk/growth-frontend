@@ -12,6 +12,7 @@ import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
 import { StatusBadge } from '@/components/domain/StatusBadges';
+import { usePermission } from '@/hooks/usePermission';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { applyServerFieldErrors } from '@/lib/forms';
@@ -48,6 +49,8 @@ export function CampaignsPage() {
 }
 
 function CampaignsInner({ companyId }: { companyId: string }) {
+  // Everybody on the client can read campaigns; creating and re-statusing is Account Manager / Social Media Manager.
+  const canManage = usePermission('campaigns:manage');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search);
@@ -93,7 +96,7 @@ function CampaignsInner({ companyId }: { companyId: string }) {
     {
       key: 'setStatus',
       header: 'Set status',
-      render: (c) => (
+      render: (c) => canManage ? (
         <Select
           aria-label={`Change status for ${c.name}`}
           value={c.status}
@@ -102,17 +105,17 @@ function CampaignsInner({ companyId }: { companyId: string }) {
         >
           {Object.values(CampaignStatus).map((s) => <option key={s} value={s}>{humanize(s)}</option>)}
         </Select>
-      ),
+      ) : <StatusBadge value={c.status} />,
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [pendingId]);
+  ], [pendingId, canManage]);
 
   return (
     <>
       <PageHeader
         title="Campaigns"
         subtitle="Plan and track marketing campaigns across posts, leads and tasks."
-        action={<Button size="sm" onClick={() => setCreateOpen(true)}>New campaign</Button>}
+        action={canManage ? <Button size="sm" onClick={() => setCreateOpen(true)}>New campaign</Button> : undefined}
       />
 
       <div className="toolbar card">
@@ -140,7 +143,7 @@ function CampaignsInner({ companyId }: { companyId: string }) {
         onRetry={campaigns.refetch}
         emptyTitle="No campaigns yet"
         emptyDescription="A campaign groups posts, leads and tasks around one objective, so you can report on it as a whole."
-        emptyAction={<Button size="sm" onClick={() => setCreateOpen(true)}>Create the first campaign</Button>}
+        emptyAction={canManage ? <Button size="sm" onClick={() => setCreateOpen(true)}>Create the first campaign</Button> : undefined}
         defaultSortKey="name"
       />
 

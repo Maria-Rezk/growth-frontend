@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import {
   demoDelay,
   demoLeadHistory,
@@ -81,9 +82,8 @@ function normalizeStatusHistory(raw: RawStatusHistory): LeadStatusHistory {
 export const leadsService = {
   async list(companyId: string, params?: ListParams): Promise<Lead[]> {
     if (env.demoMode) return demoDelay(filterList(demoLeads.filter((lead) => lead.companyId === companyId), params));
-    const response = await http.get(apiRoutes.leads.list(companyId), { params });
-    // Backend returns { items, total, limit, offset }; unwrap extracts items.
-    return unwrap<Lead[]>(response.data);
+    // Every page: a bare GET is capped at 25, which hid the 26th lead from pickers and the dashboard.
+    return getAllItems<Lead>(apiRoutes.leads.list(companyId), params as Record<string, unknown>);
   },
 
   // Same as list, but preserves pagination metadata for components that need it.

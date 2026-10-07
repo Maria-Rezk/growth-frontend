@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { FileDropzone } from '@/components/ui/FileDropzone';
 import { CloseIcon } from '@/components/ui/icons';
+import { UploadProgress } from '@/components/ui/UploadProgress';
 import { ATTACHMENT_ACCEPT } from '@/components/domain/AttachmentsPanel';
 import { errorMessage } from '@/lib/http';
 import { filesService } from '@/services/files';
@@ -35,7 +36,8 @@ export function PendingAttachmentsField({
   onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
 }) {
-  const [uploading, setUploading] = useState(0);
+  // Files in flight, keyed by position:name:size, with how far each has got (0–1).
+  const [inFlight, setInFlight] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const full = value.length >= ATTACHMENTS_PER_RECORD;
 
@@ -47,18 +49,23 @@ export function PendingAttachmentsField({
     const files = picked.slice(0, room);
     if (picked.length > room) setError(`Only ${ATTACHMENTS_PER_RECORD} attachments per record — ${picked.length - room} not added.`);
 
-    setUploading((count) => count + files.length);
+    const keyOf = (file: File, index: number) => `${index}:${file.name}:${file.size}`;
+    setInFlight((current) => ({ ...current, ...Object.fromEntries(files.map((file, index) => [keyOf(file, index), 0])) }));
     onBusyChange?.(true);
     const added: PendingUpload[] = [];
     const failures: string[] = [];
-    await Promise.all(files.map(async (file) => {
+    await Promise.all(files.map(async (file, index) => {
+      const key = keyOf(file, index);
       try {
-        const stored = await filesService.upload(companyId, file);
+        const stored = await filesService.upload(companyId, file, (fraction) => setInFlight((current) => (key in current ? { ...current, [key]: fraction } : current)));
         added.push({ fileId: stored.id, name: file.name, size: file.size });
       } catch (cause) {
         failures.push(errorMessage(cause));
       } finally {
-        setUploading((count) => count - 1);
+        setInFlight((current) => {
+          const { [key]: _done, ...rest } = current;
+          return rest;
+        });
       }
     }));
     onBusyChange?.(false);
@@ -80,7 +87,9 @@ export function PendingAttachmentsField({
             onFiles={(files) => void onFiles(files)}
           />
         ) : null}
-        {uploading > 0 ? <p className="muted" aria-live="polite">Uploading {uploading} file{uploading === 1 ? '' : 's'}…</p> : null}
+        {Object.entries(inFlight).map(([key, fraction]) => (
+          <UploadProgress key={key} name={key.split(':').slice(1, -1).join(':')} value={fraction > 0 ? fraction : null} />
+        ))}
         {error ? <p className="error-box pre-wrap" role="alert">{error}</p> : null}
         {value.length ? (
           <ul className="attachment-list">

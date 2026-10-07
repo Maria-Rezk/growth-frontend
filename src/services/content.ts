@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import {
   demoContentPlans,
   demoDelay,
@@ -17,6 +18,7 @@ import { attachmentsService } from '@/services/attachments';
 import { PostReviewErrorCode } from '@/types/domain';
 import type {
   ContentPlan,
+  ContentPlanInput,
   ContentPost,
   ListParams,
   PostApprovalLog,
@@ -122,8 +124,7 @@ function extractPost(data: unknown): ContentPost {
 export const contentService = {
   async listPlans(companyId: string): Promise<ContentPlan[]> {
     if (env.demoMode) return demoDelay(demoContentPlans.filter((plan) => plan.companyId === companyId));
-    const response = await http.get(apiRoutes.contentPlans.list(companyId));
-    return unwrap<ContentPlan[]>(response.data);
+    return getAllItems<ContentPlan>(apiRoutes.contentPlans.list(companyId));
   },
 
   async createPlan(
@@ -147,10 +148,30 @@ export const contentService = {
     return unwrap<ContentPlan>(response.data);
   },
 
+  async getPlan(companyId: string, planId: string): Promise<ContentPlan> {
+    if (env.demoMode) {
+      const plan = demoContentPlans.find((item) => item.companyId === companyId && item.id === planId);
+      if (!plan) throw new Error('Plan not found.');
+      return demoDelay(plan);
+    }
+    const response = await http.get(apiRoutes.contentPlans.detail(companyId, planId));
+    return unwrap<ContentPlan>(response.data);
+  },
+
+  async updatePlan(companyId: string, planId: string, payload: ContentPlanInput): Promise<ContentPlan> {
+    if (env.demoMode) {
+      const plan = demoContentPlans.find((item) => item.companyId === companyId && item.id === planId);
+      if (!plan) throw new Error('Plan not found.');
+      Object.assign(plan, payload);
+      return demoDelay(plan);
+    }
+    const response = await http.patch(apiRoutes.contentPlans.detail(companyId, planId), payload);
+    return unwrap<ContentPlan>(response.data);
+  },
+
   async listPosts(companyId: string, params?: ListParams): Promise<ContentPost[]> {
     if (env.demoMode) return demoDelay(filterList(demoPosts.filter((post) => post.companyId === companyId), params));
-    const response = await http.get(apiRoutes.posts.list(companyId), { params });
-    return unwrap<ContentPost[]>(response.data);
+    return getAllItems<ContentPost>(apiRoutes.posts.list(companyId), params as Record<string, unknown>);
   },
 
   async getPost(companyId: string, postId: string): Promise<ContentPost> {

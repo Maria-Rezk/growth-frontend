@@ -28,6 +28,8 @@ const planSchema = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
   goal: z.string().trim().min(5, 'Describe the goal of this plan.'),
 });
+// A plan generated elsewhere may have no goal; that must not stop it being renamed.
+const editPlanSchema = planSchema.extend({ goal: z.string().trim() });
 type PlanForm = z.infer<typeof planSchema>;
 
 export function ContentPlansPage() {
@@ -85,7 +87,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
         title="Content plans"
         subtitle="Group posts into monthly plans. Generate with AI, review, then apply into posts."
         action={
-          <RoleGate permission="posts:create" fallback={<Button size="sm" disabled>New plan</Button>}>
+          <RoleGate permission="plans:manage" fallback={<Button size="sm" disabled>New plan</Button>}>
             <Button size="sm" onClick={() => setCreateOpen(true)}>New plan</Button>
           </RoleGate>
         }
@@ -98,7 +100,7 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
         loading={plans.loading}
         error={plans.error}
         onRetry={plans.refetch}
-        emptyAction={<RoleGate permission="posts:create"><span className="button-row"><Button size="sm" onClick={() => setCreateOpen(true)}>Create the first plan</Button><ButtonLink to="/ai-studio" variant="secondary" size="sm">Generate with AI</ButtonLink></span></RoleGate>}
+        emptyAction={<RoleGate permission="plans:manage"><span className="button-row"><Button size="sm" onClick={() => setCreateOpen(true)}>Create the first plan</Button><ButtonLink to="/ai-studio" variant="secondary" size="sm">Generate with AI</ButtonLink></span></RoleGate>}
         emptyTitle="No content plans yet"
         defaultSortKey="title"
         emptyDescription="Create a plan manually or generate one in the AI studio."
@@ -109,36 +111,39 @@ function ContentPlansInner({ companyId }: { companyId: string }) {
   );
 }
 
-function PlanFormModal({ open, companyId, onClose }: { open: boolean; companyId: string; onClose: () => void }) {
+/** Creates a plan, or edits `plan` when given. Mount it with a `key` so an edit starts from that plan's values. */
+export function PlanFormModal({ open, companyId, onClose, plan }: { open: boolean; companyId: string; onClose: () => void; plan?: ContentPlan }) {
+  const editing = Boolean(plan);
   const form = useForm<PlanForm>({
-    resolver: zodResolver(planSchema),
-    defaultValues: { title: '', month: now.getMonth() + 1, year: now.getFullYear(), goal: '' },
+    resolver: zodResolver(editing ? editPlanSchema : planSchema),
+    defaultValues: plan
+      ? { title: plan.title, month: plan.month ?? now.getMonth() + 1, year: plan.year ?? now.getFullYear(), goal: plan.goal ?? '' }
+      : { title: '', month: now.getMonth() + 1, year: now.getFullYear(), goal: '' },
     mode: 'onBlur',
   });
 
-  const create = useMutation(contentService.createPlan, {
-    invalidateKeys: [queryKeys.contentPlans(companyId)],
-    onError: (error) => applyServerFieldErrors(form, error),
-  });
+  const onError = (error: unknown) => applyServerFieldErrors(form, error);
+  const createMutation = useMutation(contentService.createPlan, { invalidateKeys: [queryKeys.contentPlans(companyId)], onError });
+  const updateMutation = useMutation(contentService.updatePlan, { invalidateKeys: [queryKeys.contentPlans(companyId)], onError });
+  const create = editing ? updateMutation : createMutation;
 
   // Reset the mutation too, or a previous error is still shown on reopen.
   const close = () => {
     form.reset();
-    create.reset();
+    createMutation.reset();
+    updateMutation.reset();
     onClose();
   };
   const discard = useDiscardGuard(form, open);
   const cancel = discard(close);
 
   const submit = form.handleSubmit(async (values) => {
-    const result = await create.mutate(companyId, {
-      title: values.title.trim(),
-      month: values.month,
-      year: values.year,
-      goal: values.goal.trim(),
-    });
+    const payload = { title: values.title.trim(), month: values.month, year: values.year, goal: values.goal.trim() };
+    const result = plan
+      ? await updateMutation.mutate(companyId, plan.id, payload)
+      : await createMutation.mutate(companyId, payload);
     if (result) {
-      toast.success('Content plan created.');
+      toast.success(editing ? 'Content plan updated.' : 'Content plan created.');
       close();
     }
   });
@@ -147,11 +152,11 @@ function PlanFormModal({ open, companyId, onClose }: { open: boolean; companyId:
     <Modal
       open={open}
       onClose={cancel}
-      title="Create content plan"
+      title={editing ? 'Edit content plan' : 'Create content plan'}
       footer={
         <>
           <Button variant="secondary" type="button" onClick={cancel}>Cancel</Button>
-          <Button type="submit" form="plan-form" loading={form.formState.isSubmitting || create.loading}>Create plan</Button>
+          <Button type="submit" form="plan-form" loading={form.formState.isSubmitting || create.loading}>{editing ? 'Save changes' : 'Create plan'}</Button>
         </>
       }
     >

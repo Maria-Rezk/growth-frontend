@@ -17,7 +17,8 @@ export function fileTooLargeError(file: File): (Error & ApiErrorShape) | null {
 }
 
 export const filesService = {
-  async upload(companyId: string, file: File): Promise<StoredFile> {
+  /** `onProgress` receives 0–1 as the bytes leave the browser. The file goes to the upload route, which stores it; nothing is streamed back. */
+  async upload(companyId: string, file: File, onProgress?: (fraction: number) => void): Promise<StoredFile> {
     const tooLarge = fileTooLargeError(file);
     if (tooLarge) throw tooLarge;
 
@@ -32,12 +33,16 @@ export const filesService = {
         createdAt: new Date().toISOString(),
       };
       demoFiles.unshift(stored);
+      onProgress?.(1);
       return demoDelay(stored);
     }
     const formData = new FormData();
     formData.append('file', file);
     const response = await http.post(apiRoutes.files.upload(companyId), formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (event) => {
+        if (event.total) onProgress?.(event.loaded / event.total);
+      },
     });
     return unwrap<StoredFile>(response.data);
   },

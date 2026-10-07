@@ -10,8 +10,20 @@ import {
   tokenStorage,
 } from '@/lib/http';
 import { useStorageSync } from '@/hooks/useStorageSync';
+import { queryClient } from '@/lib/queryClient';
 import { demoUser as DEMO_USER } from '@/services/demoStore';
-import type { AuthResponse, LoginRequest, User } from '@/types/domain';
+import type { AuthResponse, LoginRequest, Membership, User } from '@/types/domain';
+
+/**
+ * Splits `/auth/me` into the user and the memberships it carries. `null`
+ * memberships means the API did not send any (as opposed to an empty list,
+ * which means "a member of nothing") — the distinction decides where company
+ * roles come from, see CompanyContext.
+ */
+function splitMe(me: User & { memberships?: Membership[] }): { user: User; memberships: Membership[] | null } {
+  const { memberships, ...user } = me;
+  return { user, memberships: Array.isArray(memberships) ? memberships : null };
+}
 
 type AcceptResult = { accepted: boolean; authenticated: boolean };
 
@@ -38,6 +50,12 @@ function broadcastAuthEvent(kind: 'signed-in' | 'signed-out'): void {
 
 interface AuthContextValue {
   user: User | null;
+  /**
+   * The signed-in person's own memberships, straight from `/auth/me` — the one
+   * source of company roles that every member is allowed to read. `null` when
+   * the API did not include them.
+   */
+  sessionMemberships: Membership[] | null;
   token: string | null;
   loading: boolean;
   error: string | null;
@@ -45,16 +63,39 @@ interface AuthContextValue {
   login: (payload: LoginRequest) => Promise<boolean>;
   acceptInvitation: (payload: { token: string; fullName?: string; password?: string }) => Promise<AcceptResult>;
   logout: () => void;
-  reloadUser: () => Promise<void>;
+  reloadUser: (options?: { silent?: boolean }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => (env.demoMode ? DEMO_USER : null));
+  const [sessionMemberships, setSessionMemberships] = useState<Membership[] | null>(null);
   const [token, setToken] = useState<string | null>(() => (env.demoMode ? 'demo-token' : tokenStorage.get()));
   const [loading, setLoading] = useState(!env.demoMode);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+    Server state belongs to one person. Posts, tasks, members and notifications
+    are cached for minutes, so without this the next person to sign in on a
+    shared computer — or the same tab after a session expired — would be shown
+    the previous person's data until each query went stale. Cleared whenever
+    the signed-in identity changes or ends; a silent refresh for the same
+    person keeps the cache.
+  */
+  const cachedFor = useRef<string | null>(null);
+  const adoptIdentity = useCallback((nextUserId: string | null) => {
+    if (cachedFor.current !== nextUserId) queryClient.clear();
+    cachedFor.current = nextUserId;
+  }, []);
+
+  /** Takes a freshly read `/auth/me` as the session's truth: identity, user and memberships together. */
+  const adoptSession = useCallback((me: User & { memberships?: Membership[] }) => {
+    const next = splitMe(me);
+    adoptIdentity(next.user.id);
+    setUser(next.user);
+    setSessionMemberships(next.memberships);
+  }, [adoptIdentity]);
 
   /**
    * Clears this tab's session state. Used both by the explicit "Logout"
@@ -71,9 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     tokenStorage.clear();
+    adoptIdentity(null);
     setToken(null);
     setUser(null);
-  }, []);
+    setSessionMemberships(null);
+  }, [adoptIdentity]);
 
   /** The person's own "Logout" action: revoke the session, not just forget it locally, and tell other tabs. */
   const logout = useCallback(() => {
@@ -84,17 +127,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [clearSession]);
 
   const applyAuth = useCallback(
-    (auth: AuthResponse) => {
+    async (auth: AuthResponse) => {
       tokenStorage.set(auth.accessToken);
+      /*
+        The login response is not relied on for memberships: the session's roles
+        come from `/auth/me`, read once here so the app never renders signed in
+        with roles still unknown. If that read fails the person is still signed
+        in, with no company roles — which fails closed.
+      */
+      let me: User & { memberships?: Membership[] } = auth.user;
+      try {
+        me = await authService.me();
+      } catch {
+        // keep the login response's user
+      }
+      adoptSession(me);
       setToken(auth.accessToken);
-      setUser(auth.user);
       if (!env.demoMode) broadcastAuthEvent('signed-in');
     },
-    [],
+    [adoptSession],
   );
 
-  const reloadUser = useCallback(async () => {
-    setLoading(true);
+  /** `silent` re-checks the session without blanking the screen — for a background signal, not a page load. */
+  const reloadUser = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       /*
@@ -108,55 +164,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!refreshedToken) {
         // No cookie, or it's expired/revoked — the ordinary signed-out
         // state, not a failure worth showing an error for.
+        adoptIdentity(null);
         setToken(null);
         setUser(null);
+        setSessionMemberships(null);
         return;
       }
+      adoptSession(await authService.me());
       setToken(refreshedToken);
-      setUser(await authService.me());
     } catch (err) {
       clearSession();
       setError(err instanceof Error ? err.message : 'Could not restore session.');
     } finally {
       setLoading(false);
     }
-  }, [clearSession]);
+  }, [adoptIdentity, adoptSession, clearSession]);
 
   /*
-    Flow 7 — a role that changed mid-session.
+    A role that changed mid-session.
 
-    A demoted admin keeps a token still claiming the old role until it is
-    re-issued, so the UI can offer an action the API now refuses. Any 403 is
-    treated as "re-establish who I am", once: `syncingRole` collapses the burst
-    of 403s a dashboard full of independent widgets produces into a single
-    round-trip. Guards then re-render from the true role on their own — no
-    screen has to handle this, and no dead-end error is shown.
-
-    Refresh first, not /auth/me. Refresh re-issues the token, which is what
-    actually clears the mismatch; /auth/me would correct what the UI *shows*
-    while leaving the stale token in place, so the API would go on answering
-    403 for the same actions. /auth/me is kept only as the fallback for when
-    refresh is unavailable — better a corrected UI than none.
+    A 403 means "signed in, not allowed" — an authorization answer, not an
+    expired credential, so it never touches the refresh cookie (401 owns that,
+    see http.ts). It only prompts a quiet re-read of `/auth/me`, so a role
+    changed elsewhere reaches the UI and the controls it no longer allows
+    disappear. A role that simply lacks access gets the same 403 on every visit,
+    so the re-read is throttled and single-flight: a dashboard of independent
+    widgets that all 403 together costs one request, once a minute at most.
   */
   const syncingRole = useRef(false);
+  const lastRoleSync = useRef(0);
+  /*
+    At most once a minute.
+  */
+  const ROLE_SYNC_MIN_INTERVAL_MS = 60_000;
 
   const syncRoleAfterForbidden = useCallback(async () => {
     if (syncingRole.current || !tokenStorage.get()) return;
+    if (Date.now() - lastRoleSync.current < ROLE_SYNC_MIN_INTERVAL_MS) return;
+    lastRoleSync.current = Date.now();
     syncingRole.current = true;
     try {
-      const refreshed = await refreshSession();
-      if (refreshed) {
-        setToken(refreshed);
-        return;
-      }
-      setUser(await authService.me());
+      adoptSession(await authService.me());
     } catch {
       // A 401 on the re-read already signed the user out through the
       // unauthorized handler; anything else leaves the session as it was.
     } finally {
       syncingRole.current = false;
     }
-  }, []);
+  }, [adoptSession]);
 
   useEffect(() => {
     if (env.demoMode) {
@@ -181,6 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user and token while the network layer has moved on.
     */
     setSessionRefreshedHandler((refreshedUser) => {
+      adoptIdentity(refreshedUser.id);
       setToken(tokenStorage.get());
       setUser(refreshedUser);
     });
@@ -190,7 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setForbiddenHandler(null);
       setSessionRefreshedHandler(null);
     };
-  }, [clearSession, reloadUser, syncRoleAfterForbidden]);
+  }, [adoptIdentity, clearSession, reloadUser, syncRoleAfterForbidden]);
 
   /*
     Multiple tabs on the same session.
@@ -212,16 +268,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const { kind } = JSON.parse(raw) as { kind?: string };
           if (kind === 'signed-out') {
+            adoptIdentity(null);
             setToken(null);
             setUser(null);
+            setSessionMemberships(null);
           } else if (kind === 'signed-in') {
-            void reloadUser();
+            void reloadUser({ silent: true });
           }
         } catch {
           // Malformed broadcast — ignore it rather than guess.
         }
       },
-      [reloadUser],
+      [adoptIdentity, reloadUser],
     ),
   );
 
@@ -229,7 +287,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (payload: LoginRequest) => {
       setError(null);
       try {
-        applyAuth(await authService.login(payload));
+        await applyAuth(await authService.login(payload));
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Login failed.');
@@ -251,7 +309,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const email = result.user?.email;
         if (email && payload.password) {
           try {
-            applyAuth(await authService.login({ email, password: payload.password }));
+            await applyAuth(await authService.login({ email, password: payload.password }));
             return { accepted: true, authenticated: true };
           } catch {
             // Accepted, but auto-login failed — fall through to manual login.
@@ -269,6 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      sessionMemberships,
       token,
       loading,
       error,
@@ -278,7 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       reloadUser,
     }),
-    [acceptInvitation, error, loading, login, logout, reloadUser, token, user],
+    [acceptInvitation, error, loading, login, logout, reloadUser, sessionMemberships, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

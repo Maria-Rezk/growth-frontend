@@ -5,13 +5,17 @@ import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { useCompany } from '@/context/CompanyContext';
+import { usePermission } from '@/hooks/usePermission';
+import { useAuth } from '@/context/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
-import { Field, Input, Select } from '@/components/ui/Fields';
+import { Field, Input } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState, ErrorState } from '@/components/ui/State';
+import { RoleGate } from '@/components/domain/RoleGate';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { invitationAcceptUrl } from '@/config/appRoutes';
@@ -21,6 +25,7 @@ import { queryKeys } from '@/lib/queryClient';
 import {
   CompanyMembershipRole,
   INVITABLE_ROLES,
+  isPlatformAdmin,
   type InvitableRole,
   type Invitation,
   type InvitationCreateResult,
@@ -32,12 +37,28 @@ import { formatDateTime, humanize } from '@/utils/format';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
 export function MembersPage() {
-  return <RequireCompany>{(companyId) => <MembersInner companyId={companyId} />}</RequireCompany>;
+  return (
+    <RequireCompany>
+      {(companyId) => (
+        <RoleGate
+          permission="members:manage"
+          fallback={<EmptyState title="Members are managed by the Account Manager" description="Ask them to invite or remove people on this client." />}
+        >
+          <MembersInner companyId={companyId} />
+        </RoleGate>
+      )}
+    </RequireCompany>
+  );
 }
 
 function MembersInner({ companyId }: { companyId: string }) {
-  const { hasRole, refreshMemberships } = useCompany();
-  const canManage = hasRole(CompanyMembershipRole.ACCOUNT_MANAGER);
+  const { refreshMemberships } = useCompany();
+  const { user } = useAuth();
+  const confirm = useConfirm();
+  // Inviting and removing: Account Manager, or a platform admin (who passes every company check).
+  const canManage = usePermission('members:manage');
+  // PATCH /members (roles, suspend) is admin-only; an Account Manager can invite and remove.
+  const isAdmin = isPlatformAdmin(user?.platformRole);
   const members = useAsync(
     () => companiesService.members(companyId),
     [companyId],
@@ -52,6 +73,9 @@ function MembersInner({ companyId }: { companyId: string }) {
   // the gates read CompanyContext rather than the members query.
   const updateMember = useMutation(companiesService.updateMember, {
     onSuccess: () => { void refreshMemberships(); },
+    invalidateKeys: [queryKeys.companyMembers(companyId)],
+  });
+  const removeMember = useMutation(companiesService.removeMember, {
     invalidateKeys: [queryKeys.companyMembers(companyId)],
   });
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -71,7 +95,7 @@ function MembersInner({ companyId }: { companyId: string }) {
       // Full enum on purpose. This hits PATCH /members/:id, which can set any
       // roles on an existing member — unlike the invite endpoint, which is
       // restricted to INVITABLE_ROLES.
-      render: (member) => canManage ? (
+      render: (member) => isAdmin ? (
         <RoleChecklist
           value={membershipRoles(member)}
           /*
@@ -88,8 +112,25 @@ function MembersInner({ companyId }: { companyId: string }) {
       ) : <RolePills roles={membershipRoles(member)} />,
     },
     { key: 'status', header: 'Status', render: (member) => <Badge tone={member.status === 'ACTIVE' ? 'success' : 'warning'}>{humanize(member.status)}</Badge> },
-    { key: 'actions', header: '', className: 'cell-right', render: (member) => canManage ? <Button variant="secondary" size="sm" onClick={() => updateMember.mutate(companyId, member.id, { status: member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}>{member.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</Button> : null },
-  ], [canManage, companyId, updateMember]);
+    { key: 'actions', header: '', className: 'cell-right', render: (member) => {
+        if (isAdmin) return <Button variant="secondary" size="sm" onClick={() => updateMember.mutate(companyId, member.id, { status: member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}>{member.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</Button>;
+        if (!canManage || member.status !== 'ACTIVE') return null;
+        const name = member.user?.fullName ?? member.user?.email ?? 'this person';
+        return (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={async () => {
+              const ok = await confirm({ title: 'Remove member', message: <>Remove <strong>{name}</strong> from this client? They lose access, and their history is kept.</>, confirmLabel: 'Remove', tone: 'danger' });
+              if (ok) void removeMember.mutate(companyId, member.id);
+            }}
+          >
+            Remove
+          </Button>
+        );
+      },
+    },
+  ], [canManage, companyId, confirm, isAdmin, removeMember, updateMember]);
 
   return (
     <>
@@ -98,6 +139,8 @@ function MembersInner({ companyId }: { companyId: string }) {
         subtitle="Client-side people are invited here. Your own team is assigned from Platform admin › Employees, which is why the invite list offers client roles only."
         action={canManage ? <Button size="sm" onClick={() => setInviteOpen(true)}>Invite member</Button> : undefined}
       />
+
+      {updateMember.error || removeMember.error ? <p className="error-box" role="alert">{updateMember.error ?? removeMember.error}</p> : null}
 
       <DataTable
         columns={columns}

@@ -1,14 +1,14 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
-import { http, unwrap } from '@/lib/http';
+import { http } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import { demoDelay, demoInvitations, makeId, pushNotification } from '@/services/demoStore';
 import type { InvitableRole, Invitation, InvitationCreateResult } from '@/types/domain';
 
 export const invitationsService = {
   async list(companyId: string): Promise<Invitation[]> {
     if (env.demoMode) return demoDelay(demoInvitations.filter((invitation) => invitation.companyId === companyId));
-    const response = await http.get(apiRoutes.invitations.list(companyId));
-    return unwrap<Invitation[]>(response.data);
+    return getAllItems<Invitation>(apiRoutes.invitations.list(companyId));
   },
   /**
    * Roles are typed as InvitableRole, not CompanyMembershipRole — the endpoint

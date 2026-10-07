@@ -46,6 +46,7 @@ const TYPE_META: Partial<Record<NotificationType, NotificationTypeMeta>> = {
 
   LEAD_ASSIGNED: { tone: 'lead', label: 'Lead assigned', icon: <LeadIcon size={ICON_SIZE} /> },
   LEAD_STATUS_CHANGED: { tone: 'lead', label: 'Lead status changed', icon: <TrendUpIcon size={ICON_SIZE} /> },
+  LEAD_NOTE_ADDED: { tone: 'lead', label: 'Lead note added', icon: <LeadIcon size={ICON_SIZE} /> },
 
   INVITATION_CREATED: { tone: 'invite', label: 'Invitation created', icon: <PlusIcon size={ICON_SIZE} /> },
   INVITATION_ACCEPTED: { tone: 'invite', label: 'Invitation accepted', icon: <CheckIcon size={ICON_SIZE} /> },

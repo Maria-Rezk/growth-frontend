@@ -27,6 +27,7 @@ export const appRoutes = {
   tasks: '/tasks',
   task: (taskId: string) => `/tasks/${taskId}`,
   responsibilities: '/responsibilities',
+  automations: '/automations',
   dashboard: '/dashboard',
   members: '/members',
   adminDashboard: '/admin/dashboard',

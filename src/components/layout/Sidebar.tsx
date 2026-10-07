@@ -3,11 +3,14 @@ import { Link, NavLink } from 'react-router-dom';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useLocale } from '@/context/LocaleContext';
 import { useAuth } from '@/context/AuthContext';
+import { useCan } from '@/hooks/usePermission';
+import type { Permission } from '@/utils/permissions';
 import { Logo } from '@/components/brand/Logo';
 import { isPlatformAdmin } from '@/types/domain';
 import { useClientView } from '@/hooks/useClientView';
 import {
   BellIcon,
+  BoltIcon,
   BrandIcon,
   CampaignIcon,
   CheckAllIcon,
@@ -31,6 +34,8 @@ interface NavItem {
   to: string;
   key: string;
   icon: NavIcon;
+  /** Hide the entry from people who could not use the page. Platform admins always see it. */
+  permission?: Permission;
 }
 
 interface NavGroup {
@@ -51,14 +56,15 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'nav.group.content',
     items: [
       { to: '/content-plans', key: 'nav.contentPlans', icon: PlanIcon },
-      { to: '/ai-studio', key: 'nav.aiStudio', icon: SparkIcon },
+      { to: '/ai-studio', key: 'nav.aiStudio', icon: SparkIcon, permission: 'ai:generate' },
       { to: '/posts', key: 'nav.posts', icon: PostIcon },
       { to: '/campaigns', key: 'nav.campaigns', icon: CampaignIcon },
     ],
   },
   {
     key: 'nav.group.pipeline',
-    items: [{ to: '/leads', key: 'nav.leads', icon: LeadIcon }],
+    // The lead list is Account Manager / Sales Agent in the API; offering it to anyone else is a link to a 403.
+    items: [{ to: '/leads', key: 'nav.leads', icon: LeadIcon, permission: 'leads:manage' }],
   },
   {
     key: 'nav.group.delivery',
@@ -66,13 +72,15 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/tasks', key: 'nav.tasks', icon: TaskIcon },
       { to: '/approvals', key: 'nav.approvals', icon: CheckAllIcon },
       { to: '/responsibilities', key: 'nav.responsibilities', icon: MatrixIcon },
-      { to: '/reports', key: 'nav.reports', icon: ReportIcon },
+      { to: '/automations', key: 'nav.automations', icon: BoltIcon, permission: 'automations:manage' },
+      { to: '/reports', key: 'nav.reports', icon: ReportIcon, permission: 'reports:view' },
     ],
   },
   {
     key: 'nav.group.admin',
     items: [
-      { to: '/members', key: 'nav.members', icon: MembersIcon },
+      // The member list is Account Manager (or admin) only in the API.
+      { to: '/members', key: 'nav.members', icon: MembersIcon, permission: 'members:manage' },
       { to: '/notifications', key: 'nav.notifications', icon: BellIcon },
     ],
   },
@@ -91,7 +99,7 @@ const CLIENT_NAV: NavGroup[] = [
       { to: '/posts', key: 'nav.posts', icon: PostIcon },
       { to: '/content-plans', key: 'nav.contentPlans', icon: PlanIcon },
       { to: '/brand-profile', key: 'nav.brandProfile', icon: BrandIcon },
-      { to: '/reports', key: 'nav.reports', icon: ReportIcon },
+      { to: '/reports', key: 'nav.reports', icon: ReportIcon, permission: 'reports:view' },
       { to: '/notifications', key: 'nav.notifications', icon: BellIcon },
     ],
   },
@@ -115,9 +123,13 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const { t } = useLocale();
   const { user } = useAuth();
   const { isClient } = useClientView();
-  const navGroups = isClient
-    ? CLIENT_NAV
-    : isPlatformAdmin(user?.platformRole) ? [...NAV_GROUPS, PLATFORM_ADMIN_GROUP] : NAV_GROUPS;
+  const can = useCan();
+  const admin = isPlatformAdmin(user?.platformRole);
+  const visible = (group: NavGroup): NavGroup => ({
+    ...group,
+    items: group.items.filter((item) => !item.permission || can(item.permission)),
+  });
+  const navGroups = (isClient ? CLIENT_NAV : admin ? [...NAV_GROUPS, PLATFORM_ADMIN_GROUP] : NAV_GROUPS).map(visible);
 
   return (
     <aside className={open ? 'sidebar sidebar--open' : 'sidebar'}>

@@ -11,19 +11,12 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { scopeDraftKey, useFormDraft } from '@/hooks/useFormDraft';
 import { useAuth } from '@/context/AuthContext';
-import { useCompany } from '@/context/CompanyContext';
+import { usePermission } from '@/hooks/usePermission';
 import { aiService, AiGenerationType, type AiGeneration } from '@/services/ai';
 import { contentService } from '@/services/content';
 import { queryKeys } from '@/lib/queryClient';
-import { CompanyMembershipRole } from '@/types/domain';
 import { humanize } from '@/utils/format';
 import { GenerationsList } from '@/components/domain/ai/GenerationsList';
-
-const GENERATOR_ROLES = [
-  CompanyMembershipRole.ACCOUNT_MANAGER,
-  CompanyMembershipRole.COPYWRITER,
-  CompanyMembershipRole.SOCIAL_MEDIA_MANAGER,
-];
 
 const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK', 'LINKEDIN', 'WHATSAPP', 'WEBSITE'];
 const CONTENT_TYPES = ['POST', 'REEL', 'STORY', 'CAROUSEL', 'VIDEO'];
@@ -71,8 +64,7 @@ export function AiStudioPage() {
 
 function AiStudioInner({ companyId }: { companyId: string }) {
   const { user } = useAuth();
-  const { hasRole } = useCompany();
-  const canGenerate = hasRole(...GENERATOR_ROLES);
+  const canGenerate = usePermission('ai:generate');
 
   const generations = useAsync(
     () => aiService.listGenerations(companyId),
@@ -157,7 +149,7 @@ function AiStudioInner({ companyId }: { companyId: string }) {
     }
 
     if (result) {
-      toast.success('AI draft generated. Review it before applying.');
+      toast.success('Suggestion generated. Review it, then apply it to save it.');
       draft.discard();
     }
   });
@@ -280,7 +272,7 @@ function AiStudioInner({ companyId }: { companyId: string }) {
           <div className="form-status-row">
             <span className="muted">
               {canGenerate
-                ? 'Drafts are saved for review — nothing is published automatically.'
+                ? 'Results are suggestions only. Nothing becomes a plan, post or caption until you apply it, and nothing is published automatically.'
                 : 'Your role cannot generate AI drafts.'}
             </span>
             <Button type="submit" loading={form.formState.isSubmitting || busy} disabled={!canGenerate}>

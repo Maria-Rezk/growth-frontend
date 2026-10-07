@@ -6,7 +6,7 @@ import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
-import { ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { DetailSkeleton, ListSkeleton } from '@/components/ui/Skeleton';
 import { PlusIcon } from '@/components/ui/icons';
 import { RoleGate } from '@/components/domain/RoleGate';
@@ -18,10 +18,10 @@ import { appRoutes } from '@/config/appRoutes';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useTaskActor } from '@/hooks/useTaskActor';
 import { leadsService } from '@/services/leads';
-import { companiesService } from '@/services/companies';
 import { tasksService } from '@/services/tasks';
 import { TaskModal, type TaskLink } from '@/pages/TasksPage';
 import { queryKeys } from '@/lib/queryClient';
+import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { formatAmount, formatDateTime, fromInputDateTime, humanize, toInputDateTime } from '@/utils/format';
 import { LeadStatus, TaskStatus, TaskType, type LeadNote, type LostReason } from '@/types/domain';
 import {
@@ -37,7 +37,18 @@ import { formatWaiting, userLabel } from '@/utils/taskReview';
 
 export function LeadDetailPage() {
   const { leadId = '' } = useParams();
-  return <RequireCompany>{(companyId) => <LeadDetailInner companyId={companyId} leadId={leadId} />}</RequireCompany>;
+  return (
+    <RequireCompany>
+      {(companyId) => (
+        <RoleGate
+          permission="leads:manage"
+          fallback={<EmptyState title="Leads are not part of your role" description="The Account Manager and the Sales Agents work the lead pipeline for this client." />}
+        >
+          <LeadDetailInner companyId={companyId} leadId={leadId} />
+        </RoleGate>
+      )}
+    </RequireCompany>
+  );
 }
 
 function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: string }) {
@@ -47,7 +58,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   const lead = useAsync(() => leadsService.get(companyId, leadId), [companyId, leadId], { queryKey: queryKeys.lead(companyId, leadId) });
   const notes = useAsync(() => leadsService.notes(companyId, leadId), [companyId, leadId]);
   const history = useAsync(() => leadsService.statusHistory(companyId, leadId), [companyId, leadId]);
-  const members = useAsync(() => companiesService.members(companyId), [companyId], { queryKey: queryKeys.companyMembers(companyId) });
+  const members = useAssignableMembers(companyId);
   const tasks = useAsync(() => tasksService.list(companyId), [companyId], { queryKey: queryKeys.tasks(companyId) });
   const { userId } = useTaskActor();
 
@@ -251,7 +262,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
               title={`Follow-up tasks${linkedTasks.length ? ` (${linkedTasks.length})` : ''}`}
               subtitle="Work someone has to do for this lead — a proposal, a call, a demo."
               action={(
-                <RoleGate permission="tasks:manage">
+                <RoleGate permission="tasks:edit">
                   <Button variant="secondary" size="sm" onClick={() => setTaskLink({ relatedEntityType: 'LEAD', relatedEntityId: leadId, label: current.name, type: TaskType.FOLLOW_UP })}>
                     <PlusIcon size={14} /> Add task
                   </Button>

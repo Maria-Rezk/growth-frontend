@@ -1,6 +1,7 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
+import { getAllItems } from '@/lib/paging';
 import {
   demoDelay,
   demoMemberUser,
@@ -119,8 +120,7 @@ function demoLog(taskId: string, action: string, metadata?: Record<string, unkno
 export const tasksService = {
   async list(companyId: string, params?: ListParams): Promise<Task[]> {
     if (env.demoMode) return demoDelay(filterList(demoTasks.filter((task) => task.companyId === companyId), params));
-    const response = await http.get(apiRoutes.tasks.list(companyId), { params });
-    return unwrap<Array<Task & { taskType?: TaskType }>>(response.data).map(normalizeTask);
+    return (await getAllItems<WireTask>(apiRoutes.tasks.list(companyId), params as Record<string, unknown>)).map(normalizeTask);
   },
   async get(companyId: string, taskId: string): Promise<Task> {
     if (env.demoMode) {

@@ -5,15 +5,15 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
-import { ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
+import { RoleGate } from '@/components/domain/RoleGate';
 import { ReportBody, monthName } from '@/components/domain/ReportBody';
 import { ReportShareDialog } from '@/components/domain/ReportShareDialog';
 import { appRoutes } from '@/config/appRoutes';
-import { useAuth } from '@/context/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
 import { reportsService } from '@/services/reports';
-import { CompanyMembershipRole, isPlatformAdmin } from '@/types/domain';
 import { formatDate } from '@/utils/format';
 
 /**
@@ -27,13 +27,23 @@ import { formatDate } from '@/utils/format';
  */
 export function ReportDetailPage() {
   const { reportId = '' } = useParams();
-  return <RequireCompany>{(companyId) => <ReportDetailInner companyId={companyId} reportId={reportId} />}</RequireCompany>;
+  return (
+    <RequireCompany>
+      {(companyId) => (
+        <RoleGate
+          permission="reports:list"
+          fallback={<EmptyState title="This report is not available to your role" description="The Account Manager can share a report with you as a link." />}
+        >
+          <ReportDetailInner companyId={companyId} reportId={reportId} />
+        </RoleGate>
+      )}
+    </RequireCompany>
+  );
 }
 
 function ReportDetailInner({ companyId, reportId }: { companyId: string; reportId: string }) {
-  const { activeCompany, hasRole } = useCompany();
-  const { user } = useAuth();
-  const canShare = isPlatformAdmin(user?.platformRole) || hasRole(CompanyMembershipRole.ACCOUNT_MANAGER);
+  const { activeCompany } = useCompany();
+  const canShare = usePermission('reports:share');
   const report = useAsync(() => reportsService.get(companyId, reportId), [companyId, reportId]);
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);

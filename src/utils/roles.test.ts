@@ -67,7 +67,7 @@ describe('hasPermission', () => {
 
   it('grants the union, not the intersection', () => {
     const roles = [CompanyMembershipRole.DESIGNER, CompanyMembershipRole.SALES_AGENT];
-    expect(hasPermission(roles, 'posts:edit')).toBe(true); // Designer only
+    expect(hasPermission(roles, 'postAssets:manage')).toBe(true); // Designer only
     expect(hasPermission(roles, 'leads:manage')).toBe(true); // Sales agent only
   });
 

@@ -148,7 +148,7 @@ function CampaignDetailInner({ companyId, campaignId }: { companyId: string; cam
           <Card>
             <CardHeader title="Status" action={<StatusBadge value={campaign.status} />} />
             <div className="content-card__body">
-              <RoleGate permission="posts:create" fallback={<p className="muted">Your role cannot change campaign status.</p>}>
+              <RoleGate permission="campaigns:manage" fallback={<p className="muted">Your role cannot change campaign status.</p>}>
                 <Field label="Set status" htmlFor="campaign-status">
                   <Select id="campaign-status" value={campaign.status} disabled={setStatus.loading} onChange={(event) => void changeStatus(event.target.value as CampaignStatus)}>
                     {CAMPAIGN_STATUSES.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
@@ -297,7 +297,7 @@ function LinkedList<T extends Linkable>({
         title={`${title} (${linked.length || expected})`}
         subtitle={subtitle}
         action={!closed ? (
-          <RoleGate permission="posts:create">
+          <RoleGate permission="campaigns:manage">
             <Button variant="secondary" size="sm" onClick={() => setPicking((v) => !v)}><PlusIcon size={14} /> Add</Button>
           </RoleGate>
         ) : undefined}
@@ -328,7 +328,7 @@ function LinkedList<T extends Linkable>({
             <span className="button-row">
               <StatusBadge value={status(item)} />
               {!closed ? (
-                <RoleGate permission="posts:create">
+                <RoleGate permission="campaigns:manage">
                   <Button variant="ghost" size="sm" aria-label={`Remove ${label(item)}`} loading={busyId === item.id} onClick={() => doDetach(item)}><CloseIcon size={14} /></Button>
                 </RoleGate>
               ) : null}

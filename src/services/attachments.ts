@@ -89,8 +89,8 @@ export const attachmentsService = {
     await http.delete(apiRoutes.attachments.detail(companyId, parent, attachmentId));
   },
 
-  async uploadAndAttach(companyId: string, parent: AttachmentParent, file: File, label?: string): Promise<Attachment> {
-    const stored = await filesService.upload(companyId, file);
+  async uploadAndAttach(companyId: string, parent: AttachmentParent, file: File, label?: string, onProgress?: (fraction: number) => void): Promise<Attachment> {
+    const stored = await filesService.upload(companyId, file, onProgress);
     return attachmentsService.add(companyId, parent, stored.id, label);
   },
 };

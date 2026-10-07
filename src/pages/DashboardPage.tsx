@@ -14,7 +14,7 @@ import { tasksService } from '@/services/tasks';
 import { leadsService } from '@/services/leads';
 import { contentService } from '@/services/content';
 import { useCompany } from '@/context/CompanyContext';
-import { getActiveRoles } from '@/utils/permissions';
+import { useActiveRoles, useCan } from '@/hooks/usePermission';
 import { humanizeRole } from '@/utils/roles';
 import { groupByStatus, needsLeadAction, needsPostAction, needsTaskAction, TASK_BOARD } from '@/utils/workflow';
 import { formatDate, formatPercent, humanize } from '@/utils/format';
@@ -31,6 +31,12 @@ function sumStatuses(counts: Record<string, number> | undefined, statuses: reado
   return statuses.reduce((total, status) => total + (counts[status] ?? 0), 0);
 }
 
+/** Exact per-status counts from a complete list, or `undefined` until the list has loaded. */
+function countByStatus(items: ReadonlyArray<{ status: string }>, loaded: boolean): Record<string, number> | undefined {
+  if (!loaded) return undefined;
+  return items.reduce<Record<string, number>>((counts, item) => ({ ...counts, [item.status]: (counts[item.status] ?? 0) + 1 }), {});
+}
+
 /** `—` while loading or unavailable, so an absent number never reads as zero. */
 function display(value: number | string | undefined, loading: boolean): string {
   if (loading) return '—';
@@ -43,8 +49,19 @@ export function DashboardPage() {
 }
 
 function DashboardInner({ companyId }: { companyId: string }) {
-  const { memberships, activeCompany } = useCompany();
-  const roles = getActiveRoles(memberships, companyId);
+  const { activeCompany } = useCompany();
+  const roles = useActiveRoles();
+  /*
+    The overview and the leads list are not open to every agency role (the
+    overview is Account Manager and Client Owner; leads, Account Manager and
+    Sales Agent). Asking anyway only earns a 403, which used to surface as an
+    error card for a Designer opening their own overview. Skip what the role
+    cannot read, and count from what it can.
+  */
+  const can = useCan();
+  const canOverview = can('reports:view');
+  const canLeads = can('leads:manage');
+  const canReports = can('reports:list');
 
   /*
     Explicit query keys matter here. Without them useAsync falls back to a
@@ -56,7 +73,7 @@ function DashboardInner({ companyId }: { companyId: string }) {
   const overview = useAsync(
     () => reportsService.overview(companyId),
     [companyId],
-    { queryKey: queryKeys.reportOverview(companyId) },
+    { queryKey: queryKeys.reportOverview(companyId), enabled: canOverview },
   );
   const tasks = useAsync(
     () => tasksService.list(companyId),
@@ -66,14 +83,14 @@ function DashboardInner({ companyId }: { companyId: string }) {
   const leads = useAsync(
     () => leadsService.list(companyId),
     [companyId],
-    { queryKey: queryKeys.leads(companyId, { view: 'dashboard' }) },
+    { queryKey: queryKeys.leads(companyId, { view: 'dashboard' }), enabled: canLeads },
   );
   const posts = useAsync(
     () => contentService.listPosts(companyId),
     [companyId],
     { queryKey: queryKeys.posts(companyId, {}) },
   );
-  const reports = useAsync(() => reportsService.list(companyId), [companyId], { queryKey: queryKeys.reports(companyId) });
+  const reports = useAsync(() => reportsService.list(companyId), [companyId], { queryKey: queryKeys.reports(companyId), enabled: canReports });
 
   const allPosts = posts.data ?? [];
   const allTasks = tasks.data ?? [];
@@ -90,7 +107,9 @@ function DashboardInner({ companyId }: { companyId: string }) {
     "show me a few things needing attention" is fine from a first page.
     Counting is not.
   */
-  const approvalQueueCount = sumStatuses(overview.data?.postsByStatus, POST_ACTION_STATUSES);
+  // Posts come back whole (a bare array), so a role without the overview still gets exact post counts.
+  const postCounts = overview.data?.postsByStatus ?? countByStatus(allPosts, posts.data !== null);
+  const approvalQueueCount = sumStatuses(postCounts, POST_ACTION_STATUSES);
   const activeLeadsCount = sumStatuses(overview.data?.leadsByStatus, LEAD_ACTION_STATUSES);
 
   // No server aggregate exists for tasks, so this one is still list-derived.
@@ -100,10 +119,12 @@ function DashboardInner({ companyId }: { companyId: string }) {
   const approvalQueue = allPosts.filter(needsPostAction);
   const activeLeads = allLeads.filter(needsLeadAction);
 
-  const postsByStatus = overview.data?.postsByStatus;
+  const postsByStatus = postCounts;
   const leadsByStatus = overview.data?.leadsByStatus;
 
-  const anyError = overview.error ?? posts.error ?? leads.error ?? tasks.error;
+  // A 403 means "not for your role", which the page already handles by hiding the part. Only real failures are errors.
+  const failing = [overview, posts, leads, tasks].find((state) => state.error && state.errorStatus !== 403);
+  const anyError = failing?.error ?? null;
 
   return (
     <>
@@ -142,7 +163,7 @@ function DashboardInner({ companyId }: { companyId: string }) {
         </Card>
       ) : null}
 
-      <ReportDueNotice reports={reports.data} loading={reports.loading} />
+      {canReports ? <ReportDueNotice reports={reports.data} loading={reports.loading} /> : null}
 
       <div className="stat-grid">
         <MetricCard
@@ -151,24 +172,28 @@ function DashboardInner({ companyId }: { companyId: string }) {
           helper="Posts awaiting the client's decision or your next step"
           tone="accent"
         />
-        <MetricCard
-          label="Active leads"
-          value={display(activeLeadsCount, overview.loading)}
-          helper="New, interested, waiting decision or follow-up"
-          tone="info"
-        />
+        {canOverview ? (
+          <MetricCard
+            label="Active leads"
+            value={display(activeLeadsCount, overview.loading)}
+            helper="New, interested, waiting decision or follow-up"
+            tone="info"
+          />
+        ) : null}
         <MetricCard
           label="Open tasks"
           value={display(openTasks.length, tasks.loading)}
           helper="Execution work not completed yet"
           tone="warning"
         />
-        <MetricCard
-          label="Conversion rate"
-          value={display(overview.data ? formatPercent(overview.data.conversionRate) : undefined, overview.loading)}
-          helper="Won leads against total pipeline"
-          tone="success"
-        />
+        {canOverview ? (
+          <MetricCard
+            label="Conversion rate"
+            value={display(overview.data ? formatPercent(overview.data.conversionRate) : undefined, overview.loading)}
+            helper="Won leads against total pipeline"
+            tone="success"
+          />
+        ) : null}
       </div>
 
       <div className="dashboard-grid dashboard-grid--senior">
@@ -180,9 +205,9 @@ function DashboardInner({ companyId }: { companyId: string }) {
         <Card>
           <CardHeader title="Delivery health" subtitle="Signals account managers should watch." />
           <div className="insight-list">
-            <Insight label="Ready for client" value={postsByStatus?.[PostStatus.READY_FOR_CLIENT]} loading={overview.loading} to="/posts" />
-            <Insight label="Changes requested" value={postsByStatus?.[PostStatus.CHANGES_REQUESTED]} loading={overview.loading} to="/posts" />
-            <Insight label="Leads waiting decision" value={leadsByStatus?.[LeadStatus.WAITING_DECISION]} loading={overview.loading} to="/leads" />
+            <Insight label="Ready for client" value={postsByStatus?.[PostStatus.READY_FOR_CLIENT]} loading={overview.loading || posts.loading} to="/posts" />
+            <Insight label="Changes requested" value={postsByStatus?.[PostStatus.CHANGES_REQUESTED]} loading={overview.loading || posts.loading} to="/posts" />
+            {canOverview ? <Insight label="Leads waiting decision" value={leadsByStatus?.[LeadStatus.WAITING_DECISION]} loading={overview.loading} to="/leads" /> : null}
             <Insight label="Blocked tasks" value={tasksByStatus[TaskStatus.BLOCKED]?.length ?? 0} loading={tasks.loading} to="/tasks" />
           </div>
           {overview.data?.recommendations?.length ? (
@@ -212,7 +237,7 @@ function DashboardInner({ companyId }: { companyId: string }) {
                 key={status}
                 label={humanize(status)}
                 value={postsByStatus?.[status]}
-                loading={overview.loading}
+                loading={overview.loading || posts.loading}
               />
             ))}
           </div>

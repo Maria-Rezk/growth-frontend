@@ -23,10 +23,10 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlFilters } from '@/hooks/useDashboardFilters';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { contentService } from '@/services/content';
-import { reportsService } from '@/services/reports';
 import { queryKeys } from '@/lib/queryClient';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
-import { POST_BOARD } from '@/utils/workflow';
+import { postBoardFor, visibleToViewer } from '@/utils/workflow';
+import { useClientView } from '@/hooks/useClientView';
 import { PostStatus, type ContentPost } from '@/types/domain';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 import { BoardSkeleton } from '@/components/ui/Skeleton';
@@ -90,23 +90,24 @@ function PostsInner({ companyId }: { companyId: string }) {
     { queryKey: queryKeys.posts(companyId, filters) },
   );
   /*
-    Counts come from the reports overview, which aggregates server-side.
-    Deriving them from `posts.data` meant clicking a tile filtered the list
-    and then zeroed every other tile — and listPosts unwraps `items` out of a
-    paginated envelope, so it was page-limited on top of that.
+    The summary tiles count from the *unfiltered* list below, not from
+    `posts.data`: counting the filtered list meant clicking a tile filtered the
+    board and then zeroed every other tile. The reports overview used to supply
+    them, but it is Account Manager / Client Owner only, so every other role
+    saw zeros.
   */
   // Unfiltered, so the publishing strip sees every scheduled post whatever
   // the board is filtered to. Same key the client Home reads — one request.
   const allPosts = useAsync(() => contentService.listPosts(companyId), [companyId], { queryKey: queryKeys.posts(companyId) });
 
-  const overview = useAsync(
-    () => reportsService.overview(companyId),
-    [companyId],
-    { queryKey: queryKeys.reportOverview(companyId) },
-  );
-  const postsByStatus = overview.data?.postsByStatus;
+  // A client-only person is shown only what the API would show them, whatever a response contains.
+  const { isClient } = useClientView();
+  const visibleAll = visibleToViewer(allPosts.data ?? [], isClient);
 
-  const rows = posts.data ?? [];
+  // Counted from the posts themselves: the overview is Account Manager / Client Owner only, and a role without it saw every tile read 0.
+  const postsByStatus = allPosts.data ? visibleAll.reduce<Record<string, number>>((counts, post) => ({ ...counts, [post.status]: (counts[post.status] ?? 0) + 1 }), {}) : undefined;
+
+  const rows = visibleToViewer(posts.data ?? [], isClient);
 
   const columns = useMemo<Column<ContentPost>[]>(() => [
     { key: 'title', header: 'Post', sortValue: (post) => post.title, render: (post) => <div><Link className="table-link" to={`/posts/${post.id}`}>{post.title}</Link><p className="muted">{post.platform ?? 'No platform'} · {post.contentType ?? 'Content'}</p></div> },
@@ -120,7 +121,7 @@ function PostsInner({ companyId }: { companyId: string }) {
     <>
       <PageHeader
         title="Content posts"
-        subtitle="Draft, internal review, client approval, scheduling and publishing."
+        subtitle="Draft, client approval, scheduling and publishing."
         action={
           <RoleGate permission="posts:create" fallback={<Button size="sm" disabled>New post</Button>}>
             <Button size="sm" onClick={() => setCreateOpen(true)}>New post</Button>
@@ -128,10 +129,10 @@ function PostsInner({ companyId }: { companyId: string }) {
         }
       />
 
-      <PublishingDue companyId={companyId} posts={allPosts.data ?? []} onPublished={() => { void allPosts.refetch(); void posts.refetch(); void overview.refetch(); }} />
+      <PublishingDue companyId={companyId} posts={visibleAll} onPublished={() => { void allPosts.refetch(); void posts.refetch(); }} />
 
       <div className="workflow-summary card">
-        {POST_BOARD.map((item) => (
+        {postBoardFor(visibleAll, isClient).map((item) => (
           <button
             key={item}
             type="button"
@@ -140,7 +141,7 @@ function PostsInner({ companyId }: { companyId: string }) {
             aria-pressed={status === item}
           >
             <span>{humanize(item)}</span>
-            <strong>{overview.loading ? '—' : postsByStatus?.[item] ?? 0}</strong>
+            <strong>{postsByStatus ? postsByStatus[item] ?? 0 : '—'}</strong>
           </button>
         ))}
       </div>
@@ -168,7 +169,7 @@ function PostsInner({ companyId }: { companyId: string }) {
       {view === 'calendar' ? (
         // The calendar reads every post, not the filtered page: a month with
         // a status filter applied would look emptier than it is.
-        <ContentCalendar posts={allPosts.data ?? []} />
+        <ContentCalendar posts={visibleAll} />
       ) : view === 'board' ? (
         <PostBoardView
           loading={posts.loading}
@@ -222,7 +223,8 @@ function PostBoardView({
   onClearFilters: () => void;
   onCreate: () => void;
 }) {
-  if (loading) return <BoardSkeleton columns={POST_BOARD} />;
+  const { isClient } = useClientView();
+  if (loading) return <BoardSkeleton columns={postBoardFor(rows, isClient)} />;
   if (error) return <Card><ErrorState message={error} onRetry={onRetry} /></Card>;
 
   if (rows.length === 0) {
@@ -243,7 +245,7 @@ function PostBoardView({
     <section className="board-section" aria-label="Approval and publishing board">
       {refreshing ? <p className="muted" aria-live="polite">Updating…</p> : null}
       <KanbanBoard
-        columns={POST_BOARD}
+        columns={postBoardFor(rows, isClient)}
         items={rows}
         renderCard={(post) => <PostBoardCard post={post} />}
         emptyText="No content here."
@@ -287,7 +289,6 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
 
   const create = useMutation(contentService.createPost, {
     // Prefix match: refreshes every filtered posts list + dependent views.
-    // The reports overview drives the summary tiles, so it needs busting too.
     invalidateKeys: [['companies', companyId, 'posts'], queryKeys.reportOverview(companyId)],
     onError: (error) => applyServerFieldErrors(form, error),
   });

@@ -5,15 +5,16 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Field, Input } from '@/components/ui/Fields';
 import { FileDropzone } from '@/components/ui/FileDropzone';
+import { UploadProgress } from '@/components/ui/UploadProgress';
 import { useAuth } from '@/context/AuthContext';
-import { useCompany } from '@/context/CompanyContext';
+import { useActiveRoles } from '@/hooks/usePermission';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { attachmentsService, type AttachmentParent } from '@/services/attachments';
 import { fileTooLargeError } from '@/services/files';
 import { ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_RECORD, isPlatformAdmin } from '@/types/domain';
 import { formatBytes } from '@/utils/format';
-import { canAddAttachment, canRemoveAttachment, getActiveRoles } from '@/utils/permissions';
+import { canAddAttachment, canRemoveAttachment } from '@/utils/permissions';
 
 /** What the upload picker accepts — the API refuses anything else at upload. */
 export const ATTACHMENT_ACCEPT = [
@@ -34,10 +35,9 @@ const LABEL_EXAMPLES: Record<AttachmentParent['entityType'], string> = {
 };
 
 /** Who may add and remove on this parent, from the signed-in person's roles on the client. */
-export function useAttachmentAccess(companyId: string, entityType: AttachmentParent['entityType']) {
+export function useAttachmentAccess(entityType: AttachmentParent['entityType']) {
   const { user } = useAuth();
-  const { memberships } = useCompany();
-  const roles = getActiveRoles(memberships, companyId);
+  const roles = useActiveRoles();
   const isAdmin = isPlatformAdmin(user?.platformRole);
   return {
     canAdd: canAddAttachment(roles, entityType, isAdmin),
@@ -64,7 +64,7 @@ export function AttachmentsPanel({
   onChanged?: () => void;
 }) {
   const key = queryKeys.attachments(companyId, parent.entityType, parent.entityId);
-  const access = useAttachmentAccess(companyId, parent.entityType);
+  const access = useAttachmentAccess(parent.entityType);
   const list = useAsync(() => attachmentsService.list(companyId, parent), [companyId, parent.entityType, parent.entityId], { queryKey: key });
   const add = useMutation(attachmentsService.uploadAndAttach, { invalidateKeys: [key] });
   const remove = useMutation(attachmentsService.remove, { invalidateKeys: [key] });
@@ -76,6 +76,7 @@ export function AttachmentsPanel({
   const full = count >= ATTACHMENTS_PER_RECORD;
 
   const [pickError, setPickError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
 
   const stage = (file: File) => {
     add.reset();
@@ -93,7 +94,8 @@ export function AttachmentsPanel({
 
   const attach = async () => {
     if (!staged) return;
-    const result = await add.mutate(companyId, parent, staged, label);
+    setProgress(null);
+    const result = await add.mutate(companyId, parent, staged, label, setProgress);
     if (result) {
       setStaged(null);
       setLabel('');
@@ -140,6 +142,7 @@ export function AttachmentsPanel({
                   onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void attach(); } }}
                 />
               </Field>
+              {add.loading ? <UploadProgress name={staged.name} value={progress} /> : null}
               {add.error ? <p className="error-box" role="alert">{add.error}</p> : null}
               <div className="button-row">
                 <Button size="sm" onClick={attach} loading={add.loading}>Attach</Button>
