@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
+import { EmptyState, ErrorState } from '@/components/ui/State';
 import { Button } from '@/components/ui/Button';
 import { compareNames } from '@/utils/sort';
 import { TableSkeleton } from './Skeleton';
@@ -125,7 +125,8 @@ export function DataTable<T>({
             {paginatedRows.map((row) => (
               <tr key={rowKey(row)}>
                 {columns.map((column) => (
-                  <td key={column.key} className={column.className}>{column.render(row)}</td>
+                  // `data-label` names the cell on phones, where rows stack into cards and the header row is hidden.
+                  <td key={column.key} className={column.className} data-label={typeof column.header === 'string' && column.header ? column.header : undefined}>{column.render(row)}</td>
                 ))}
               </tr>
             ))}

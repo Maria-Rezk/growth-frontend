@@ -84,7 +84,7 @@ export const demoMemberships: Membership[] = [
   },
 ];
 
-export let demoBrandProfile: BrandProfile = {
+export const demoBrandProfile: BrandProfile = {
   id: 'demo-brand-profile',
   companyId: demoCompany.id,
   brandName: 'Solu1ions Business Development',
@@ -113,11 +113,11 @@ export let demoBrandProfile: BrandProfile = {
   updatedAt: iso(-2),
 };
 
-export let demoContentPlans: ContentPlan[] = [
+export const demoContentPlans: ContentPlan[] = [
   { id: 'plan-1', companyId: demoCompany.id, title: 'June Growth Content Plan', month: 6, year: 2026, createdAt: iso(-7) },
 ];
 
-export let demoPosts: ContentPost[] = [
+export const demoPosts: ContentPost[] = [
   {
     id: 'post-1',
     companyId: demoCompany.id,
@@ -164,22 +164,22 @@ export let demoPosts: ContentPost[] = [
   },
 ];
 
-export let demoPostComments: PostComment[] = [
+export const demoPostComments: PostComment[] = [
   { id: 'post-comment-1', postId: 'post-1', body: 'Looks clear. Please make the CTA stronger.', authorId: 'demo-client', author: demoMemberships[2].user, createdAt: iso(-1) },
   { id: 'post-comment-2', postId: 'post-1', body: 'I will revise the last slide and send it back for approval.', authorId: 'demo-user', author: demoUser, createdAt: iso(0) },
 ];
 
-export let demoPostLogs: PostApprovalLog[] = [
+export const demoPostLogs: PostApprovalLog[] = [
   { id: 'approval-log-1', postId: 'post-1', action: 'SUBMITTED_TO_CLIENT', actorId: 'demo-user', actor: demoUser, createdAt: iso(-2) },
   { id: 'approval-log-2', postId: 'post-1', action: 'CLIENT_COMMENTED', actorId: 'demo-client', actor: demoMemberships[2].user, note: 'CTA needs refinement.', createdAt: iso(-1) },
 ];
 
-export let demoFiles: StoredFile[] = [
+export const demoFiles: StoredFile[] = [
   { id: 'file-1', companyId: demoCompany.id, originalName: 'launch-carousel-v1.png', filename: 'launch-carousel-v1.png', mimeType: 'image/png', size: 248000, createdAt: iso(-1) },
   { id: 'file-2', companyId: demoCompany.id, originalName: 'approval-flow-wireframe.pdf', filename: 'approval-flow-wireframe.pdf', mimeType: 'application/pdf', size: 512000, createdAt: iso(-2) },
 ];
 
-export let demoAttachments: Attachment[] = [
+export const demoAttachments: Attachment[] = [
   {
     id: 'attachment-1', kind: 'FILE', entityType: 'POST', entityId: 'post-1', label: null, url: null, text: null,
     uploadedById: 'demo-designer', uploadedBy: { id: 'demo-designer', fullName: 'Demo Designer' }, createdAt: iso(-1),
@@ -192,13 +192,13 @@ export let demoAttachments: Attachment[] = [
   },
 ];
 
-export let demoLeads: Lead[] = [
+export const demoLeads: Lead[] = [
   { id: 'lead-1', companyId: demoCompany.id, name: 'Nour Clinic', email: 'hello@nourclinic.com', phone: '+963 999 111 222', source: 'Instagram DM', status: 'INTERESTED', nextFollowUpAt: iso(-1), assignedToId: 'demo-user', assignedTo: demoUser, createdAt: iso(-10), updatedAt: iso(-1) },
   { id: 'lead-2', companyId: demoCompany.id, name: 'Alpha Retail', email: 'contact@alpharetail.com', phone: '+963 999 333 444', source: 'Website', status: 'CONTACTED', nextFollowUpAt: iso(0), assignedToId: 'demo-user', assignedTo: demoUser, createdAt: iso(-5), updatedAt: iso(-2) },
   { id: 'lead-3', companyId: demoCompany.id, name: 'Daleel Chicago', source: 'Referral', status: 'NEW', createdAt: iso(-1), updatedAt: iso(-1) },
 ];
 
-export let demoLeadNotes: LeadNote[] = [
+export const demoLeadNotes: LeadNote[] = [
   { id: 'lead-note-1', leadId: 'lead-1', body: 'Interested in CRM plus social media reporting. Needs proposal by next week.', authorId: 'demo-user', author: demoUser, createdAt: iso(-1) },
 ];
 
@@ -212,13 +212,13 @@ export function demoMemberUser(userId: string): User | null {
   return demoMemberships.find((membership) => membership.userId === userId)?.user ?? null;
 }
 
-export let demoTasks: Task[] = [
+export const demoTasks: Task[] = [
   { id: 'task-1', companyId: demoCompany.id, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_REVIEW', priority: 'HIGH', taskTypes: ['DESIGN'], customTaskType: null, isDraft: false, startedAt: iso(-2), assignedToId: 'demo-designer', assignedTo: demoMemberships[1].user, approverId: demoUser.id, approver: demoUser, submittedForReviewAt: iso(-1), reviewedAt: null, reviewNote: null, relatedEntityType: 'POST', relatedEntityId: 'post-1', sequence: 1, dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
   { id: 'task-2', companyId: demoCompany.id, title: 'Follow up with Nour Clinic', description: 'Send proposal summary and confirm decision timeline.', status: 'IN_PROGRESS', priority: 'URGENT', taskTypes: ['OTHER'], customTaskType: 'Follow up', isDraft: false, startedAt: iso(-1), assignedToId: 'demo-user', assignedTo: demoUser, approverId: 'demo-designer', approver: demoMemberships[1].user, submittedForReviewAt: null, reviewedAt: iso(-1), reviewNote: 'Add the pricing table before it goes out.', relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', dueDate: iso(2), createdAt: iso(-1), updatedAt: iso(-1) },
   { id: 'task-3', companyId: demoCompany.id, title: 'Prepare monthly report notes', description: 'Write recommendations based on content and lead conversion performance.', status: 'TODO', priority: 'MEDIUM', taskTypes: ['OTHER'], customTaskType: 'Reporting', isDraft: false, startedAt: null, assignedToId: 'demo-user', assignedTo: demoUser, approverId: null, approver: null, submittedForReviewAt: null, reviewedAt: null, reviewNote: null, dueDate: iso(4), createdAt: iso(-3), updatedAt: iso(-3) },
 ];
 
-export let demoTaskComments: TaskComment[] = [
+export const demoTaskComments: TaskComment[] = [
   { id: 'task-comment-1', taskId: 'task-1', body: 'CTA copy updated. Waiting for final visual export.', authorId: 'demo-user', author: demoUser, createdAt: iso(-1) },
 ];
 
@@ -227,7 +227,7 @@ export let demoTaskLogs: TaskActivityLog[] = [
   { id: 'task-log-2', taskId: 'task-1', action: 'STATUS_CHANGED_TO_IN_PROGRESS', createdAt: iso(-1) },
 ];
 
-export let demoReports: Report[] = [
+export const demoReports: Report[] = [
   {
     id: 'report-1',
     companyId: demoCompany.id,
@@ -245,7 +245,7 @@ export let demoReports: Report[] = [
     updatedAt: iso(-5),
   },
 ];
-export let demoCampaigns: Campaign[] = [
+export const demoCampaigns: Campaign[] = [
   {
     id: 'campaign-1',
     companyId: demoCompany.id,
@@ -264,7 +264,7 @@ export let demoCampaigns: Campaign[] = [
   },
 ];
 
-export let demoEmployees: Employee[] = [
+export const demoEmployees: Employee[] = [
   {
     ...demoUser,
     clients: [{ membershipId: demoMemberships[0].id, companyId: demoCompany.id, companyName: demoCompany.name, roles: ['ACCOUNT_MANAGER'], role: 'ACCOUNT_MANAGER' }],
@@ -280,7 +280,7 @@ export let demoEmployees: Employee[] = [
   },
 ];
 
-export let demoInvitations: Invitation[] = [
+export const demoInvitations: Invitation[] = [
   { id: 'invitation-1', companyId: demoCompany.id, email: 'newclient@example.com', role: 'CLIENT_REVIEWER', status: 'PENDING', token: 'demo-invite-token', createdAt: iso(-1), expiresAt: iso(6) },
 ];
 

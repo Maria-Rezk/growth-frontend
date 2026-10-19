@@ -18,7 +18,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { tasksService } from '@/services/tasks';
 import { appRoutes } from '@/config/appRoutes';
 import type { Task } from '@/types/domain';
-import { formatDateTime, humanize } from '@/utils/format';
+import { formatDateTime } from '@/utils/format';
 import { byWaitingLongest, formatWaiting, isWaitingLong, userLabel } from '@/utils/taskReview';
 import { isOverdue } from '@/utils/workflow';
 
@@ -110,6 +110,7 @@ export function ApprovalQueueList({
   };
 
   // One instant per render so two rows submitted a second apart do not straddle an hour boundary.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `rows` is the trigger: re-read the clock when the queue refreshes.
   const now = useMemo(() => Date.now(), [rows]);
 
   if (rows.length === 0) {

@@ -41,7 +41,7 @@ export function LoginPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-brand">
-          <Logo height={36} title="Solu1ions Business Development" />
+          <Logo height={36} title="Solu1ions — Business Development" />
           <p>Content approvals, leads and delivery in one workspace.</p>
         </div>
         <h1>Sign in</h1>

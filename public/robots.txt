@@ -1,4 +1,4 @@
-# Solu1ions Growth OS is an authenticated internal application. Nothing here
+# Solu1ions — Business Development is an authenticated internal application. Nothing here
 # is meant to be in a public index.
 #
 # Crawling is deliberately ALLOWED. This looks wrong, and it is the single

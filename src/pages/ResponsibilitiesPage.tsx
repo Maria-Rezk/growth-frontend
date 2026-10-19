@@ -142,6 +142,8 @@ function MatrixGrid({
 
   return (
     <Card className="table-card">
+      {/* Phones only: the grid is wider than the screen, and nothing else says so. */}
+      <p className="board-hint raci-hint" aria-hidden="true">Swipe sideways to see every team member →</p>
       <div className="raci-scroll">
         <table className="raci">
           <thead>

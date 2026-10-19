@@ -2,6 +2,19 @@
 
 **Source of truth:** `Solutions-Platform-API-Reference.md` (28 September 2026) and the companion guides (`Backend-Seams-Frontend-Guide.md`, `Task-Approval-Flow-Frontend-Guide.md`, `Frontend-Multiple-Roles.md`).
 
+## Live API probe — 19 October 2026
+
+Unauthenticated GET requests against `https://api.solu1ions.tech/api` (read-only; an existing route answers `401`, an unknown one `404`):
+
+| Endpoint | Answer | Meaning |
+|---|---|---|
+| `GET /me/memberships` | **404** | **Not deployed.** Non-admin users cannot be given their roles; the app shows "We could not confirm your role on this client". Platform admins are unaffected. |
+| `GET /auth/me`, `/companies`, `/users`, `/notifications`, `/me/approval-queue`, `/me/notification-preferences` | 401 | Deployed |
+| `GET /companies/:id/{tasks, tasks/resolve-approver, leads, content-plans, campaigns, reports, automation-rules, responsibility-areas, responsibility-areas/options}` | 401 | Deployed |
+| `GET /admin/dashboard/*` (12 widgets), `GET /admin/system/health` | 401 | Deployed |
+
+Nothing behind sign-in has been verified: no staging environment or test account is available. See `qa/README.md` for the read-only live Playwright suite that does this once one is.
+
 **Not available when this was written:** the backend source, a running backend, and test accounts. Everything below marked **UNVERIFIED** is therefore a *stated assumption*, not a tested fact. Each one is a one-line change in the file named beside it once confirmed.
 
 ## Where current-company roles come from

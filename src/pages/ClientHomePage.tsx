@@ -43,6 +43,7 @@ function ClientHomeInner({ companyId }: { companyId: string }) {
   const canListReports = useCan()('reports:list');
   const reports = useAsync(() => reportsService.list(companyId), [companyId], { queryKey: queryKeys.reports(companyId), enabled: canListReports });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `posts.data` is the trigger: re-read the clock when the posts refresh.
   const now = useMemo(() => Date.now(), [posts.data]);
   const summary = useMemo(() => summarise(visibleToViewer(posts.data ?? [], true), now), [now, posts.data]);
   const latestReport = useMemo(() => latest(reports.data ?? []), [reports.data]);

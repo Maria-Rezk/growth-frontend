@@ -18,7 +18,9 @@ import { TeamWorkloadCard } from '@/components/admin/TeamWorkloadCard';
 import { SuperAdminOnly } from '@/components/layout/RequireAdmin';
 import { Badge } from '@/components/ui/Badge';
 import { ButtonLink } from '@/components/ui/Button';
-import { PageHeader } from '@/components/ui/Card';
+import { Card, PageHeader } from '@/components/ui/Card';
+import { EmptyState } from '@/components/ui/State';
+import { env } from '@/config/env';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { appRoutes } from '@/config/appRoutes';
@@ -67,19 +69,43 @@ export function AdminDashboardPage() {
     attentionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
+  const header = (
+    <PageHeader
+      title="Operations dashboard"
+      subtitle="Everything that needs a decision today, across every client."
+      action={(
+        <>
+          <Badge tone="accent">{humanize(user?.platformRole)}</Badge>
+          <ButtonLink to={appRoutes.adminClients} variant="secondary" size="sm">Clients</ButtonLink>
+          <ButtonLink to={appRoutes.adminEmployees} variant="secondary" size="sm">Employees</ButtonLink>
+        </>
+      )}
+    />
+  );
+
+  /*
+    The demo workspace has no agency-wide operations data, and inventing
+    figures would misrepresent the product. One honest page-level statement
+    instead of a dozen empty widgets; the live API serves every widget.
+  */
+  if (env.demoMode) {
+    return (
+      <>
+        {header}
+        <Card>
+          <EmptyState
+            title="Live operations data"
+            description="This dashboard reads agency-wide figures from the live server: workload, approvals, overdue follow-ups and client health. The demo workspace has no agency data, so nothing is shown here rather than sample numbers."
+            action={<ButtonLink to={appRoutes.adminClients} variant="secondary" size="sm">Open clients</ButtonLink>}
+          />
+        </Card>
+      </>
+    );
+  }
+
   return (
     <>
-      <PageHeader
-        title="Operations dashboard"
-        subtitle="Everything that needs a decision today, across every client."
-        action={(
-          <>
-            <Badge tone="accent">{humanize(user?.platformRole)}</Badge>
-            <ButtonLink to={appRoutes.adminClients} variant="secondary" size="sm">Clients</ButtonLink>
-            <ButtonLink to={appRoutes.adminEmployees} variant="secondary" size="sm">Employees</ButtonLink>
-          </>
-        )}
-      />
+      {header}
 
       {/* Super Admin only. If the Product Owner widens platform health to
           Admin, deleting this wrapper is the entire frontend change. */}

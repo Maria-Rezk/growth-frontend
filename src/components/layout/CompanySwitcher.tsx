@@ -1,8 +1,8 @@
 import { useCompany } from '@/context/CompanyContext';
 import { Select } from '@/components/ui/Fields';
 
-// Solutions is the product; the client is the workspace you're currently in.
-// Renders "Solutions (Curby)" — a static client name when there's only one to
+// The product is already named by the logo beside this; what the top bar adds
+// is which client you are working in. A static name when there is only one to
 // switch to, otherwise a dropdown of every client the signed-in employee works on.
 export function CompanySwitcher() {
   const { companies, activeCompany, activeCompanyId, setActiveCompanyId, loading } = useCompany();
@@ -10,12 +10,16 @@ export function CompanySwitcher() {
   if (!companies.length) return <span className="pill">No client</span>;
 
   if (companies.length === 1) {
-    return <span className="company-switcher">Solutions ({activeCompany?.name ?? companies[0].name})</span>;
+    return (
+      <span className="company-switcher">
+        <span className="company-switcher__label">Client</span> {activeCompany?.name ?? companies[0].name}
+      </span>
+    );
   }
 
   return (
     <label className="company-switcher">
-      <span>Solutions</span>
+      <span className="company-switcher__label">Client</span>
       <Select
         aria-label="Client"
         value={activeCompanyId ?? ''}

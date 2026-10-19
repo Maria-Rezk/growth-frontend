@@ -79,6 +79,7 @@ function MyWorkInner() {
     `new Date()` would let a list straddle midnight and put two tasks with the
     same due date in different buckets.
   */
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `work.data` is the trigger: re-read the clock when the list refreshes.
   const now = useMemo(() => new Date(), [work.data]);
 
   const setStatus = useMutation(tasksService.setStatus, {

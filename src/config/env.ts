@@ -11,7 +11,7 @@ export const env = {
   */
   arabicEnabled: import.meta.env.VITE_ENABLE_ARABIC === 'true',
   apiTimeoutMs: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 25000),
-  appName: import.meta.env.VITE_APP_NAME ?? 'Solu1ions Growth OS',
+  appName: import.meta.env.VITE_APP_NAME ?? 'Solu1ions — Business Development',
 };
 
 export function validateRuntimeEnv() {

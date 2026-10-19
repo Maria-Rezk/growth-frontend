@@ -42,7 +42,8 @@ function ClientsInner() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const rows = clients.data ?? [];
+  // A stable array: `?? []` alone is a new array every render and would rebuild the map each time.
+  const rows = useMemo(() => clients.data ?? [], [clients.data]);
   const byId = useMemo(() => new Map(rows.map((client) => [client.id, client])), [rows]);
   const detailClient = detailId ? byId.get(detailId) ?? null : null;
   const deleteClient = deleteId ? byId.get(deleteId) ?? null : null;

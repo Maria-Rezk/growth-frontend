@@ -25,7 +25,7 @@ export function PublicReportPage() {
   return (
     <main className="public-report">
       <header className="public-report__brand no-print">
-        <Logo height={28} title="Solu1ions Business Development" />
+        <Logo height={28} title="Solu1ions — Business Development" />
       </header>
 
       {report.loading ? <DetailSkeleton /> : null}
@@ -53,7 +53,7 @@ export function PublicReportPage() {
           </p>
           <ReportBody report={report.data} audience="public" />
           <p className="public-report__footer no-print">
-            Shared by Solu1ions Business Development. This link works until {formatDate(report.data.sharedUntil)}.
+            Shared by Solu1ions — Business Development. This link works until {formatDate(report.data.sharedUntil)}.
           </p>
         </div>
       ) : null}

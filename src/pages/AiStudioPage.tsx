@@ -119,7 +119,7 @@ function AiStudioInner({ companyId }: { companyId: string }) {
   const generateError = genPlan.error || genIdeas.error || genCaption.error;
 
   const submit = form.handleSubmit(async (v) => {
-    let result: AiGeneration | null = null;
+    let result: AiGeneration | null;
 
     if (v.type === AiGenerationType.CONTENT_PLAN_PREVIEW) {
       result = await genPlan.mutate(companyId, {

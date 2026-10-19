@@ -11,7 +11,7 @@ import { useMutation } from '@/hooks/useAsync';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { ADMIN_DASHBOARD_KEY, queryKeys } from '@/lib/queryClient';
 import { usersService } from '@/services/users';
-import { PASSWORD_MIN_LENGTH, PlatformRole, type Employee } from '@/types/domain';
+import { PASSWORD_MIN_LENGTH, PlatformRole } from '@/types/domain';
 import { humanize } from '@/utils/format';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 

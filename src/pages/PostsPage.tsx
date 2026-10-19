@@ -319,6 +319,7 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
     });
     if (result) {
       toast.success('Draft post created.');
+      onCreated?.(result);
       close();
     }
   });
