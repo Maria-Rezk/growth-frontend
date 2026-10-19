@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -9,7 +8,8 @@ import { EmptyState, ErrorState } from '@/components/ui/State';
 import { ListSkeleton } from '@/components/ui/Skeleton';
 import { TaskTypeChips } from '@/components/domain/TaskTypes';
 import { RoleGate } from '@/components/domain/RoleGate';
-import { appRoutes } from '@/config/appRoutes';
+import { TaskModal } from '@/components/domain/TaskFormModal';
+import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { errorCode } from '@/lib/http';
 import { queryKeys } from '@/lib/queryClient';
@@ -21,6 +21,10 @@ import { formatDateTime } from '@/utils/format';
  * The caller's own drafts. A draft is invisible to everyone else, notifies
  * nobody, and cannot change status until it is published; publishing is what
  * tells the assignee.
+ *
+ * A draft opens in the same form it was written in (TaskModal in edit mode),
+ * with every saved value restored, not on the task detail page: unfinished
+ * work is finished where it was started.
  */
 export function TaskDrafts({ companyId, onCreate }: { companyId: string; onCreate: () => void }) {
   const drafts = useAsync(() => tasksService.listDrafts(companyId), [companyId], { queryKey: queryKeys.taskDrafts(companyId) });
@@ -33,6 +37,8 @@ export function TaskDrafts({ companyId, onCreate }: { companyId: string; onCreat
   const discard = useMutation(tasksService.discardDraft, { invalidateKeys, onError: staleDraft });
   const confirm = useConfirm();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const members = useAssignableMembers(companyId);
+  const [editing, setEditing] = useState<Task | null>(null);
 
   const onPublish = async (task: Task) => {
     setBusyId(task.id);
@@ -88,12 +94,13 @@ export function TaskDrafts({ companyId, onCreate }: { companyId: string; onCreat
           {rows.map((task) => (
             <li key={task.id} className="draft-row">
               <div className="draft-row__main">
-                <Link className="table-link" to={appRoutes.task(task.id)}>{task.title}</Link>
+                <button type="button" className="draft-row__title" onClick={() => setEditing(task)}>{task.title}</button>
                 <p className="muted">
                   <Badge tone="neutral">Draft</Badge> <TaskTypeChips task={task} /> · saved {formatDateTime(task.updatedAt ?? task.createdAt)}
                 </p>
               </div>
               <div className="draft-row__actions">
+                <Button size="sm" variant="secondary" onClick={() => setEditing(task)} disabled={busyId !== null}>Edit</Button>
                 <Button size="sm" onClick={() => void onPublish(task)} loading={busyId === task.id && publish.loading} disabled={busyId !== null}>Publish</Button>
                 <Button size="sm" variant="ghost" onClick={() => void onDiscard(task)} loading={busyId === task.id && discard.loading} disabled={busyId !== null}>Discard</Button>
               </div>
@@ -101,6 +108,17 @@ export function TaskDrafts({ companyId, onCreate }: { companyId: string; onCreat
           ))}
         </ul>
       </div>
+      {editing ? (
+        <TaskModal
+          key={editing.id}
+          open
+          companyId={companyId}
+          members={members.data ?? []}
+          task={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => void drafts.refetch()}
+        />
+      ) : null}
     </Card>
   );
 }

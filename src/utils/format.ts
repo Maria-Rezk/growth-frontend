@@ -62,11 +62,17 @@ export function formatPercent(value?: number | null): string {
   return `${Math.round(value * 100) / 100}%`;
 }
 
-export function toInputDateTime(value?: string): string {
+/**
+ * An ISO instant as a `datetime-local` value, which is wall-clock LOCAL time.
+ * Formatting with toISOString() gave UTC instead, so every round trip
+ * (load → save) moved the time by the UTC offset.
+ */
+export function toInputDateTime(value?: string | null): string {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 16);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function fromInputDateTime(value: string): string | undefined {

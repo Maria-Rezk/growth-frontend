@@ -1809,7 +1809,14 @@ a.list-row:hover strong {
 .modal {
   width: min(520px, 100%);
   max-height: min(820px, 90vh);
-  overflow: auto;
+  /*
+    Header and footer stay put; only the body scrolls. When the whole dialog
+    scrolled, a long form's Save button was only reachable at the very bottom
+    and scrolled out of view on a phone.
+  */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--surface);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-md);
@@ -1829,14 +1836,39 @@ a.list-row:hover strong {
   border-bottom: 1px solid var(--line);
 }
 
+.modal__header,
+.modal__footer {
+  flex: none;
+}
+
 .modal__body {
   padding: var(--s-5);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal__footer {
   border-top: 1px solid var(--line);
   border-bottom: 0;
   justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .modal-backdrop {
+    padding: var(--s-3);
+  }
+
+  .modal {
+    max-height: calc(100dvh - 2 * var(--s-3));
+  }
+
+  /* Three actions on a phone: the primary one takes the full row, last. */
+  .modal__footer .btn {
+    flex: 1 1 auto;
+  }
 }
 
 .token-box {
@@ -5213,6 +5245,35 @@ fieldset.field > legend {
 
 .draft-row__main {
   min-width: 0;
+}
+
+.draft-row__title {
+  display: block;
+  max-width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.draft-row__title:hover {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.draft-row__title:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+.task-form__note {
+  margin-bottom: var(--s-3);
 }
 
 .draft-row__main p {

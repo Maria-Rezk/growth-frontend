@@ -1,73 +1,37 @@
-import { useCallback, useMemo, useState } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import toast from 'react-hot-toast';
-import { z } from 'zod';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
-import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
-import { Modal } from '@/components/ui/Modal';
+import { Field, Input, Select } from '@/components/ui/Fields';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { ApprovalQueue } from '@/components/domain/ApprovalQueue';
-import { ApproverPicker } from '@/components/domain/ApproverPicker';
 import { TaskDrafts } from '@/components/domain/TaskDrafts';
-import { TaskTypeChips, TaskTypePicker } from '@/components/domain/TaskTypes';
-import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
+import { TaskModal } from '@/components/domain/TaskFormModal';
+import { TaskTypeChips } from '@/components/domain/TaskTypes';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Badge } from '@/components/ui/Badge';
-import { useAsync, useMutation } from '@/hooks/useAsync';
+import { useAsync } from '@/hooks/useAsync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlFilters } from '@/hooks/useDashboardFilters';
-import { applyServerFieldErrors } from '@/lib/forms';
 import { tasksService } from '@/services/tasks';
-import { responsibilitiesService } from '@/services/responsibilities';
 import { queryKeys } from '@/lib/queryClient';
 import { useAssignableMembers } from '@/hooks/useAssignableMembers';
-import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
+import { formatDateTime, humanize } from '@/utils/format';
 import { TASK_TYPE_OPTIONS } from '@/utils/taskTypes';
-import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
 import { formatWaiting, isInReview, isWaitingLong, needsApprover, userLabel } from '@/utils/taskReview';
-import { TaskPriority, TaskReviewErrorCode, TaskStatus, TaskType, type Membership, type Task } from '@/types/domain';
-import { errorCode, errorMessage } from '@/lib/http';
-import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
-import { useDiscardGuard } from '@/hooks/useDiscardGuard';
+import { TaskPriority, TaskStatus, type Task } from '@/types/domain';
 import { BoardSkeleton } from '@/components/ui/Skeleton';
 
 type ViewMode = 'board' | 'table';
 /** `approvals` is the review queue — what is waiting on *me* — and reads a different endpoint. */
 type Scope = 'all' | 'mine' | 'approvals' | 'drafts';
 type AssigneeNameFn = (id?: string | null) => string;
-
-const taskSchema = z.object({
-  title: z.string().trim().min(3, 'Task title is required.').max(180, 'Up to 180 characters.'),
-  description: z.string().optional(),
-  // Any number, none included: a draft may have no type yet.
-  taskTypes: z.array(z.nativeEnum(TaskType)),
-  customTaskType: z.string().optional(),
-  priority: z.nativeEnum(TaskPriority),
-  assignedToId: z.string().optional(),
-  approverId: z.string().optional(),
-  dueDate: z.string().optional(),
-  // Stage order on a post. Blank means "not a stage".
-  sequence: z
-    .string()
-    .optional()
-    .refine((value) => !value || (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 50), 'A whole number from 1 to 50.'),
-}).superRefine((values, context) => {
-  // Mirrors the API's 422 CUSTOM_TASK_TYPE_REQUIRED, so the field is flagged before a round trip.
-  if (values.taskTypes.includes(TaskType.OTHER) && !values.customTaskType?.trim()) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['customTaskType'], message: 'Say what the other type of work is.' });
-  }
-});
-
-type TaskForm = z.infer<typeof taskSchema>;
 
 /** Overdue only applies to work someone is still expected to complete. */
 function isTaskOverdue(task: Task): boolean {
@@ -384,276 +348,3 @@ function ApproverCell({ task, resolveName }: { task: Task; resolveName: Assignee
   );
 }
 
-/** What a task is about, when it is created from a post, lead or campaign. */
-export interface TaskLink {
-  relatedEntityType: 'POST' | 'LEAD' | 'CAMPAIGN';
-  relatedEntityId: string;
-  /** Pre-fills the title, e.g. the post's name. */
-  label?: string;
-  /** Pre-selects the types, e.g. DESIGN for the design stage of a post. */
-  taskTypes?: TaskType[];
-  /** The text for `OTHER`, when pre-selected. */
-  customTaskType?: string;
-  /** Pre-fills the stage number. Posts only. */
-  sequence?: number;
-}
-
-export function TaskModal({
-  open,
-  companyId,
-  onClose,
-  members,
-  link,
-  onCreated,
-}: {
-  open: boolean;
-  companyId: string;
-  onClose: () => void;
-  members: Membership[];
-  /** Attach the new task to a record — the post detail's "Add task". */
-  link?: TaskLink;
-  onCreated?: (task: Task) => void;
-}) {
-  const form = useForm<TaskForm>({
-    resolver: zodResolver(taskSchema),
-    defaultValues: {
-      title: link?.label ? `${link.label} — ` : '',
-      description: '',
-      taskTypes: link?.taskTypes ?? [],
-      customTaskType: link?.customTaskType ?? '',
-      priority: TaskPriority.MEDIUM,
-      assignedToId: '',
-      approverId: '',
-      dueDate: '',
-      sequence: link?.sequence ? String(link.sequence) : '',
-    },
-    mode: 'onBlur',
-  });
-  const onPost = link?.relatedEntityType === 'POST';
-  const [pendingFiles, setPendingFiles] = useState<PendingAttachments>(NO_PENDING_ATTACHMENTS);
-  const [uploading, setUploading] = useState(false);
-
-  // Stable, so the picker's pre-fill effect does not re-run on every render.
-  const setApprover = useCallback(
-    (userId: string) => form.setValue('approverId', userId, { shouldDirty: true }),
-    [form],
-  );
-  const watchedTypes = form.watch('taskTypes');
-  const watchedCustomType = form.watch('customTaskType') ?? '';
-
-  /*
-    The responsibility matrix decides who this work belongs to.
-
-    Until now the matrix was a page nobody opened: it recorded that Dina works
-    on Instagram content and Amir approves it, but every task was still routed
-    by whoever happened to be filling in this form. Picking an area here reads
-    the matrix and fills in the assignee, and names who approves and who is
-    told when it slips.
-
-    It fills the field rather than locking it — the person creating the task
-    can still override, which is what "expected" means as opposed to
-    "permitted". Persisting the area on the task itself (so routing survives
-    creation and can drive reassignment) needs a `responsibilityAreaId` field
-    on the task API.
-  */
-  const [areaId, setAreaId] = useState('');
-  const matrix = useAsync(
-    () => responsibilitiesService.matrix(companyId),
-    [companyId],
-    { queryKey: queryKeys.responsibilityMatrix(companyId), enabled: open },
-  );
-  const routing = useMemo(() => routingForArea(matrix.data, areaId), [areaId, matrix.data]);
-
-  const chooseArea = (nextAreaId: string) => {
-    setAreaId(nextAreaId);
-    const suggested = routingForArea(matrix.data, nextAreaId).executor;
-    // Only prefill someone the Assign to list actually offers. Selecting a
-    // value with no matching <option> silently falls back to the first one,
-    // which would assign the task to the wrong person.
-    const assignable = suggested && members.some((member) => member.userId === suggested.userId);
-    form.setValue('assignedToId', assignable ? suggested.userId : '', { shouldDirty: true });
-  };
-
-  const create = useMutation(tasksService.create, {
-    invalidateKeys: [['companies', companyId, 'tasks'], ['companies', companyId, 'posts']],
-    onError: (error) => {
-      const code = errorCode(error);
-      if (code === TaskReviewErrorCode.SEQUENCE_TAKEN || code === TaskReviewErrorCode.SEQUENCE_NEEDS_POST) {
-        form.setError('sequence', { message: errorMessage(error) });
-        return;
-      }
-      if (code === TaskReviewErrorCode.CUSTOM_TASK_TYPE_REQUIRED) {
-        form.setError('customTaskType', { message: 'Say what the other type of work is.' });
-        return;
-      }
-      applyServerFieldErrors(form, error);
-    },
-  });
-
-  // Reset the mutation too, or a previous error is still on screen next open.
-  const close = () => {
-    form.reset();
-    create.reset();
-    setAreaId('');
-    setPendingFiles(NO_PENDING_ATTACHMENTS);
-    onClose();
-  };
-  const discard = useDiscardGuard(form, open);
-  const cancel = discard(close);
-
-  const save = (asDraft: boolean) => form.handleSubmit(async (values) => {
-    const result = await create.mutate(companyId, {
-      title: values.title.trim(),
-      description: values.description,
-      taskTypes: values.taskTypes,
-      customTaskType: values.customTaskType,
-      isDraft: asDraft,
-      priority: values.priority,
-      assignedToId: values.assignedToId || undefined,
-      // Empty means "let the matrix decide" — the backend resolves it again on create.
-      approverId: values.approverId || undefined,
-      dueDate: fromInputDateTime(values.dueDate ?? ''),
-      relatedEntityType: link?.relatedEntityType,
-      relatedEntityId: link?.relatedEntityId,
-      sequence: onPost && values.sequence ? Number(values.sequence) : undefined,
-      ...pendingPayload(pendingFiles),
-    });
-    if (result) {
-      toast.success(asDraft ? 'Draft saved. Find it under My drafts.' : 'Task created.');
-      onCreated?.(result);
-      close();
-    }
-  });
-  const submit = save(false);
-  const saveDraft = save(true);
-
-  return (
-    <Modal open={open} onClose={cancel} title="Create task" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button variant="secondary" type="button" onClick={saveDraft} disabled={uploading || create.loading}>Save draft</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create task</Button></>}>
-      <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
-          <Input id="task-title" maxLength={180} {...form.register('title')} />
-        </Field>
-        <Field label="Description" htmlFor="task-description" error={form.formState.errors.description?.message}>
-          <Textarea id="task-description" rows={4} maxLength={3000} {...form.register('description')} />
-        </Field>
-        <TaskTypePicker
-          value={watchedTypes}
-          customValue={watchedCustomType}
-          onChange={(next) => form.setValue('taskTypes', next, { shouldDirty: true })}
-          onCustomChange={(next) => form.setValue('customTaskType', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })}
-          error={form.formState.errors.taskTypes?.message}
-          customError={form.formState.errors.customTaskType?.message}
-          disabled={create.loading}
-        />
-        <Field label="Priority" htmlFor="task-priority" error={form.formState.errors.priority?.message}>
-          <Select id="task-priority" {...form.register('priority')}>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select>
-        </Field>
-        <Field
-          label="Responsibility area"
-          htmlFor="task-area"
-          hint="Optional. Picking an area routes the task using the responsibility matrix."
-        >
-          <Select id="task-area" value={areaId} onChange={(event) => chooseArea(event.target.value)} disabled={matrix.loading}>
-            <option value="">{matrix.loading ? 'Loading areas…' : 'No area — assign manually'}</option>
-            {(matrix.data?.areas ?? []).map((area) => (
-              <option key={area.id} value={area.id}>{area.name}</option>
-            ))}
-          </Select>
-        </Field>
-
-        {areaId ? (
-          <RoutingSummary
-            routing={routing}
-            executorIsMember={Boolean(routing.executor && members.some((member) => member.userId === routing.executor?.userId))}
-          />
-        ) : null}
-
-        <div className="grid-2">
-          <Field label="Assign to" htmlFor="task-assignee" hint="Optional. Leave unassigned if not decided.">
-            {/*
-              The field holds a plain user id; the option values carry a role
-              too so one person can be listed under each of theirs. Assignment
-              itself is per person — the role only helps find them.
-            */}
-            <Select
-              id="task-assignee"
-              value={assigneeValueFor(members, form.watch('assignedToId'))}
-              onChange={(event) => form.setValue('assignedToId', assigneeUserId(event.target.value))}
-            >
-              <AssigneeOptions members={members} />
-            </Select>
-          </Field>
-          <Field label="Due date" htmlFor="due" error={form.formState.errors.dueDate?.message}>
-            <Input id="due" type="datetime-local" {...form.register('dueDate')} />
-          </Field>
-        </div>
-        {/*
-          Pre-filled from `resolve-approver` for the chosen type, and refilled
-          when the type changes. Whoever is picked here is who the task waits
-          on at "Submit for review"; the matrix is read once, at creation.
-        */}
-        {open ? (
-          <ApproverPicker
-            companyId={companyId}
-            taskTypes={watchedTypes}
-            members={members}
-            value={form.watch('approverId') ?? ''}
-            onChange={setApprover}
-            error={form.formState.errors.approverId?.message}
-          />
-        ) : null}
-        {onPost ? (
-          <Field
-            label="Stage on this post (optional)"
-            htmlFor="task-sequence"
-            hint="Stages run lowest number first; each waits for the ones before it. Leave blank if order doesn't matter."
-            error={form.formState.errors.sequence?.message}
-          >
-            <Input id="task-sequence" type="number" inputMode="numeric" min={1} max={50} step={1} {...form.register('sequence')} />
-          </Field>
-        ) : null}
-        <PendingAttachmentsField
-          companyId={companyId}
-          value={pendingFiles}
-          onChange={setPendingFiles}
-          onBusyChange={setUploading}
-          disabled={create.loading}
-        />
-        {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
-      </form>
-    </Modal>
-  );
-}
-
-/** What the matrix says about this area, in the words the matrix uses. */
-function RoutingSummary({ routing, executorIsMember }: { routing: AreaRouting; executorIsMember: boolean }) {
-  const rows: Array<{ label: string; value: string }> = [
-    { label: 'Works on it', value: memberLabel(routing.executor) },
-    { label: 'Approves', value: memberLabel(routing.approver) },
-    { label: 'Supervises', value: memberLabel(routing.supervisor) },
-  ];
-  if (routing.informed.length) {
-    rows.push({ label: 'Informed', value: routing.informed.map(memberLabel).join(', ') });
-  }
-
-  return (
-    <div className="routing-summary">
-      <p className="eyebrow">From the responsibility matrix</p>
-      {rows.map((row) => (
-        <div className="routing-summary__row" key={row.label}>
-          <span>{row.label}</span>
-          <strong>{row.value}</strong>
-        </div>
-      ))}
-      {!routing.executor ? (
-        <p className="muted">Nobody is set to work on this area yet — assign someone manually, or fill the matrix in.</p>
-      ) : null}
-      {routing.executor && !executorIsMember ? (
-        <p className="muted">
-          {memberLabel(routing.executor)} is named in the matrix but is not an active member of this client, so the
-          assignee was left empty.
-        </p>
-      ) : null}
-    </div>
-  );
-}

@@ -12,7 +12,7 @@ import { Timeline } from '@/components/domain/Timeline';
 import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskReviewPanel';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { Badge } from '@/components/ui/Badge';
-import { EditTaskModal } from '@/components/domain/EditTaskModal';
+import { TaskModal } from '@/components/domain/TaskFormModal';
 import { TaskTypeChips } from '@/components/domain/TaskTypes';
 import { appRoutes } from '@/config/appRoutes';
 import { errorCode } from '@/lib/http';
@@ -135,11 +135,12 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
       />
 
       {editing ? (
-        <EditTaskModal
+        <TaskModal
+          key={current.id}
           open
           companyId={companyId}
+          members={members.data ?? []}
           task={current}
-          invalidateKeys={tasksPrefix}
           onClose={() => setEditing(false)}
           onSaved={(saved) => { task.setData(saved); void logs.refetch(); }}
         />
@@ -152,6 +153,9 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
               <div className="content-card__body stack-list">
                 <p><Badge tone="neutral">Draft</Badge> Only you can see this. Nobody has been told, and it cannot change status until it is published.</p>
                 <div className="button-row">
+                  <RoleGate permission="tasks:edit">
+                    <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={publishDraft.loading || discardDraft.loading}>Edit draft</Button>
+                  </RoleGate>
                   <Button size="sm" onClick={() => void onPublish()} loading={publishDraft.loading} disabled={discardDraft.loading}>Publish</Button>
                   <Button size="sm" variant="ghost" onClick={() => void onDiscard()} loading={discardDraft.loading} disabled={publishDraft.loading}>Discard draft</Button>
                 </div>

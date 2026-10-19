@@ -19,7 +19,7 @@ import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useTaskActor } from '@/hooks/useTaskActor';
 import { leadsService } from '@/services/leads';
 import { tasksService } from '@/services/tasks';
-import { TaskModal, type TaskLink } from '@/pages/TasksPage';
+import { TaskModal, type TaskLink } from '@/components/domain/TaskFormModal';
 import { queryKeys } from '@/lib/queryClient';
 import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { taskTypeSummary } from '@/utils/taskTypes';

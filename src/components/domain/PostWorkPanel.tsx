@@ -14,7 +14,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { tasksService } from '@/services/tasks';
-import { TaskModal, type TaskLink } from '@/pages/TasksPage';
+import { TaskModal, type TaskLink } from '@/components/domain/TaskFormModal';
 import { TaskStatus, TaskType, type ContentPost, type Task } from '@/types/domain';
 import { formatDate } from '@/utils/format';
 import { TaskTypeChips } from '@/components/domain/TaskTypes';

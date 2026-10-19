@@ -62,12 +62,19 @@ export function ApproverPicker({
     with — the suggestion only lands again when the task type changes.
   */
   const applied = useRef<string | null>(null);
+  /*
+    The types a person picked an approver for by hand. The lookup is async: a
+    choice made while it is in flight must not be replaced when the answer
+    lands. Changing the types again re-suggests, as before.
+  */
+  const chosenFor = useRef<string | null>(null);
   useEffect(() => {
     if (!hasTypes) applied.current = null;
     if (!autoResolve || !hasTypes || !resolution.data) return;
     const key = `${companyId}:${[...resolution.data.taskTypes].sort().join(',')}`;
     if (applied.current === key) return;
     applied.current = key;
+    if (chosenFor.current === key) return;
     const suggested = resolution.data.approverId;
     // Only prefill someone the list actually offers; a value with no
     // matching <option> silently snaps to the first one.
@@ -80,7 +87,15 @@ export function ApproverPicker({
 
   return (
     <Field label={label} htmlFor={id} error={error} hint={hint?.text}>
-      <Select id={id} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+      <Select
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => {
+          chosenFor.current = `${companyId}:${typesKey}`;
+          onChange(event.target.value);
+        }}
+      >
         <option value="">No approver yet</option>
         {groups.candidates.length ? (
           <optgroup label={areaNames.length ? `Approves ${areaNames.join(' / ')}` : 'Approves this area'}>

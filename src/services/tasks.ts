@@ -28,6 +28,9 @@ import type {
 import { TaskReviewErrorCode, TaskType as TaskTypeValue } from '@/types/domain';
 import { readTaskTypes } from '@/utils/taskTypes';
 
+/** A PATCH: any subset of the editable fields, with `null` to clear one. */
+export type TaskUpdatePayload = Partial<Omit<Task, 'dueDate' | 'sequence'>> & { dueDate?: string | null; sequence?: number | null };
+
 /** Files are uploaded on selection and attached in the same transaction as the create. Files, links and notes together: max 20. */
 export type TaskCreatePayload = Partial<Task> & AttachmentCreateFields & {
   relatedEntityType?: string;
@@ -232,7 +235,8 @@ export const tasksService = {
     const response = await http.post(apiRoutes.tasks.list(companyId), body);
     return normalizeTask(unwrap<Task & { taskType?: TaskType }>(response.data));
   },
-  async update(companyId: string, taskId: string, payload: Partial<Task>): Promise<Task> {
+  /** Fields left out are kept; `null` clears an assignee, approver, due date or stage. */
+  async update(companyId: string, taskId: string, payload: TaskUpdatePayload): Promise<Task> {
     if (env.demoMode) {
       const task = demoTasks.find((item) => item.companyId === companyId && item.id === taskId);
       if (!task) throw new Error('Task not found.');
