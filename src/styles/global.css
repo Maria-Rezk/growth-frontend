@@ -4839,9 +4839,18 @@ fieldset.field > legend {
   min-width: 0;
 }
 
+/* A legend is not a normal block: reset its default inset and give it the same
+   rhythm as every other field label. */
+.type-picker legend {
+  padding: 0;
+  margin-bottom: var(--s-2);
+}
+
+/* An even grid, not a ragged flow: equal-width pills line up in columns and
+   never strand one short word ("IT") at the end of a row. */
 .type-picker__options {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: var(--s-2);
 }
 
@@ -4849,8 +4858,9 @@ fieldset.field > legend {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 var(--s-3);
   border: 1px solid var(--line-strong);
   border-radius: 999px;
