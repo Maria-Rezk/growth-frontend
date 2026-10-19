@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 
 export function RequireCompany({ children }: { children: (companyId: string) => React.ReactNode }) {
-  const { activeCompanyId, companies, loading, error, refreshCompanies, refreshMemberships, rolesUnavailable } = useCompany();
+  const { activeCompanyId, companies, loading, error, refreshCompanies, refreshMemberships, rolesUnavailable, rolesUnavailableReason } = useCompany();
 
   if (loading) return <LoadingState label="Loading clients…" />;
   if (error) return <ErrorState message={error} onRetry={refreshCompanies} />;
@@ -25,8 +25,15 @@ export function RequireCompany({ children }: { children: (companyId: string) => 
       {/* Without the person's roles every role-gated control is hidden. Say so, rather than leave a page that looks empty. */}
       {rolesUnavailable ? (
         <div className="review-note notice-row" role="status">
-          <span>We could not confirm your role on this client, so some actions are hidden.</span>
-          <Button size="sm" variant="secondary" onClick={() => void refreshMemberships()}>Try again</Button>
+          {rolesUnavailableReason === 'unsupported' ? (
+            // A missing endpoint, not a blip: a retry button here would only ever fail again.
+            <span>Your role on this client cannot be read from this server yet, so role-based actions are hidden. An administrator can still do everything.</span>
+          ) : (
+            <>
+              <span>We could not confirm your role on this client, so some actions are hidden.</span>
+              <Button size="sm" variant="secondary" onClick={() => void refreshMemberships()}>Try again</Button>
+            </>
+          )}
         </div>
       ) : null}
       {/* Keyed by client: everything a page holds in local state (an open dialog, a selected record, a half-typed form) belongs to one client and is dropped when the person switches. */}

@@ -46,7 +46,7 @@ type Scope = 'all' | 'mine' | 'approvals' | 'drafts';
 type AssigneeNameFn = (id?: string | null) => string;
 
 const taskSchema = z.object({
-  title: z.string().trim().min(3, 'Task title is required.'),
+  title: z.string().trim().min(3, 'Task title is required.').max(180, 'Up to 180 characters.'),
   description: z.string().optional(),
   // Any number, none included: a draft may have no type yet.
   taskTypes: z.array(z.nativeEnum(TaskType)),
@@ -531,10 +531,10 @@ export function TaskModal({
     <Modal open={open} onClose={cancel} title="Create task" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button variant="secondary" type="button" onClick={saveDraft} disabled={uploading || create.loading}>Save draft</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create task</Button></>}>
       <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
-          <Input id="task-title" {...form.register('title')} />
+          <Input id="task-title" maxLength={180} {...form.register('title')} />
         </Field>
         <Field label="Description" htmlFor="task-description" error={form.formState.errors.description?.message}>
-          <Textarea id="task-description" rows={4} {...form.register('description')} />
+          <Textarea id="task-description" rows={4} maxLength={3000} {...form.register('description')} />
         </Field>
         <TaskTypePicker
           value={watchedTypes}

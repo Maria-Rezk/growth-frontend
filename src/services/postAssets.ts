@@ -40,7 +40,7 @@ export const postAssetsService = {
     return unwrapList<RawAsset>(response.data).map((asset) => normalizeAsset(asset, postId));
   },
 
-  async add(companyId: string, postId: string, fileId: string, assetType: PostAssetType, label?: string): Promise<PostAsset> {
+  async add(companyId: string, postId: string, fileId: string, assetType: PostAssetType): Promise<PostAsset> {
     if (env.demoMode) {
       if (demoAssets.filter((asset) => asset.postId === postId).length >= ATTACHMENTS_PER_RECORD) {
         throw Object.assign(new Error(`A record can hold up to ${ATTACHMENTS_PER_RECORD} attachments.`), { statusCode: 422, code: AttachmentErrorCode.ATTACHMENT_LIMIT });
@@ -50,7 +50,7 @@ export const postAssetsService = {
         id: makeId('asset'),
         postId,
         assetType,
-        label: label?.trim() || null,
+        label: null,
         uploadedById: demoUser.id,
         uploadedBy: { id: demoUser.id, fullName: demoUser.fullName },
         createdAt: new Date().toISOString(),
@@ -59,17 +59,14 @@ export const postAssetsService = {
       demoAssets.unshift(asset);
       return demoDelay(asset);
     }
-    const response = await http.post(apiRoutes.posts.assets(companyId, postId), {
-      fileId,
-      assetType,
-      label: label?.trim() || undefined,
-    });
+    // AttachPostAssetDto declares fileId and assetType only; with forbidNonWhitelisted a `label` is a 400.
+    const response = await http.post(apiRoutes.posts.assets(companyId, postId), { fileId, assetType });
     return normalizeAsset(unwrap<RawAsset>(response.data), postId);
   },
 
-  async uploadAndAdd(companyId: string, postId: string, file: File, assetType: PostAssetType, label?: string, onProgress?: (fraction: number) => void): Promise<PostAsset> {
+  async uploadAndAdd(companyId: string, postId: string, file: File, assetType: PostAssetType, onProgress?: (fraction: number) => void): Promise<PostAsset> {
     const stored = await filesService.upload(companyId, file, onProgress);
-    return postAssetsService.add(companyId, postId, stored.id, assetType, label);
+    return postAssetsService.add(companyId, postId, stored.id, assetType);
   },
 
   async remove(companyId: string, postId: string, assetId: string): Promise<void> {

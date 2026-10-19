@@ -4,7 +4,7 @@ import { ATTACHMENT_ACCEPT } from '@/components/domain/AttachmentsPanel';
 import { AttachmentList } from '@/components/domain/AttachmentList';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
-import { Field, Input, Select } from '@/components/ui/Fields';
+import { Field, Select } from '@/components/ui/Fields';
 import { FileDropzone } from '@/components/ui/FileDropzone';
 import { UploadProgress } from '@/components/ui/UploadProgress';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -54,7 +54,6 @@ export function PostAssetsPanel({ companyId, postId }: { companyId: string; post
 
   const [staged, setStaged] = useState<File | null>(null);
   const [assetType, setAssetType] = useState<PostAssetType>(PostAssetType.DESIGN);
-  const [label, setLabel] = useState('');
   const [pickError, setPickError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -64,7 +63,6 @@ export function PostAssetsPanel({ companyId, postId }: { companyId: string; post
 
   const stage = (file: File) => {
     add.reset();
-    setLabel('');
     const tooLarge = fileTooLargeError(file);
     setPickError(tooLarge?.message ?? null);
     setStaged(tooLarge ? null : file);
@@ -74,13 +72,12 @@ export function PostAssetsPanel({ companyId, postId }: { companyId: string; post
   const cancel = () => {
     add.reset();
     setStaged(null);
-    setLabel('');
   };
 
   const attach = async () => {
     if (!staged) return;
     setProgress(null);
-    const result = await add.mutate(companyId, postId, staged, assetType, label, setProgress);
+    const result = await add.mutate(companyId, postId, staged, assetType, setProgress);
     if (result) {
       cancel();
       toast.success(`Added ${result.file.originalName ?? 'file'} as ${humanize(result.assetType).toLowerCase()}.`);
@@ -116,17 +113,7 @@ export function PostAssetsPanel({ companyId, postId }: { companyId: string; post
                 {Object.values(PostAssetType).map((type) => <option key={type} value={type}>{humanize(type)}</option>)}
               </Select>
             </Field>
-            <Field label="Label (optional)" htmlFor="post-asset-label" hint="Shown next to the file name.">
-              <Input
-                id="post-asset-label"
-                placeholder="e.g. Slide 3, final"
-                value={label}
-                maxLength={120}
-                disabled={add.loading}
-                onChange={(event) => setLabel(event.target.value)}
-                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void attach(); } }}
-              />
-            </Field>
+            {/* No label field: AttachPostAssetDto takes only fileId and assetType, and the API rejects anything else. */}
             {add.loading ? <UploadProgress name={staged.name} value={progress} /> : null}
             {add.error ? <p className="error-box" role="alert">{add.error}</p> : null}
             <div className="button-row">

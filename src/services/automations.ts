@@ -164,7 +164,14 @@ export const automationsService = {
         && (!params?.status || run.status === params.status)
         && (!params?.ruleId || run.ruleId === params.ruleId)));
     }
-    const response = await http.get(apiRoutes.automations.runs(companyId), { params });
-    return unwrapList<RawRun>(response.data).map((run) => normalizeRun(run, companyId));
+    /*
+      FindAutomationRunsQueryDto accepts triggerType, actionType, status, limit
+      and offset, and rejects anything else. There is no rule filter on the
+      server, so `ruleId` stays here and is applied to the response.
+    */
+    const { ruleId, ...query } = params ?? {};
+    const response = await http.get(apiRoutes.automations.runs(companyId), { params: Object.keys(query).length ? query : undefined });
+    const runs = unwrapList<RawRun>(response.data).map((run) => normalizeRun(run, companyId));
+    return ruleId ? runs.filter((run) => run.ruleId === ruleId) : runs;
   },
 };

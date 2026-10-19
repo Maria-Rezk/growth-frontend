@@ -38,9 +38,12 @@ export type TaskCreatePayload = Partial<Task> & AttachmentCreateFields & {
 /**
  * `OTHER` needs its text and every other selection must not carry any: the
  * backend clears a leftover on its own, but sending it would be a lie on the wire.
+ *
+ * `taskTypes` is optional but, when present, `@ArrayMinSize(1)`: an empty list
+ * is a 400. No types means leaving the field out.
  */
-function typeFields(taskTypes: TaskType[] | undefined, customTaskType: string | null | undefined) {
-  if (!taskTypes) return {};
+export function typeFields(taskTypes: TaskType[] | undefined, customTaskType: string | null | undefined) {
+  if (!taskTypes?.length) return {};
   const hasOther = taskTypes.includes(TaskTypeValue.OTHER);
   return { taskTypes, customTaskType: hasOther ? customTaskType?.trim() || undefined : undefined };
 }

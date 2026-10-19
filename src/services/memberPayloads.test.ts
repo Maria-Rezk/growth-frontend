@@ -65,29 +65,22 @@ describe('updateMember', () => {
 });
 
 describe('invitations.create', () => {
-  it('sends roles, not the deprecated role, even for a single one', async () => {
+  /*
+    Backend contract (task-draft): CreateCompanyInvitationDto declares
+    `email`, a required single `role`, and `fullName`. The global pipe uses
+    forbidNonWhitelisted, so a `roles` array is a 400.
+  */
+  it('sends exactly email, fullName and one role', async () => {
     post.mockResolvedValue({ data: { invitation: {}, invitationToken: 't', acceptPath: '/a' } });
 
     await invitationsService.create('c1', {
       email: 'new@example.com',
       fullName: 'New Person',
-      roles: ['CLIENT_REVIEWER'],
+      role: 'CLIENT_REVIEWER',
     });
 
     const body = sentBody(post);
-    expect(body).toEqual({ email: 'new@example.com', fullName: 'New Person', roles: ['CLIENT_REVIEWER'] });
-    expect(body).not.toHaveProperty('role');
-  });
-
-  it('invites with several roles in one request', async () => {
-    post.mockResolvedValue({ data: { invitation: {}, invitationToken: 't', acceptPath: '/a' } });
-
-    await invitationsService.create('c1', {
-      email: 'new@example.com',
-      fullName: 'New Person',
-      roles: ['CLIENT_REVIEWER', 'SALES_AGENT'],
-    });
-
-    expect(sentBody(post).roles).toEqual(['CLIENT_REVIEWER', 'SALES_AGENT']);
+    expect(body).toEqual({ email: 'new@example.com', fullName: 'New Person', role: 'CLIENT_REVIEWER' });
+    expect(body).not.toHaveProperty('roles');
   });
 });

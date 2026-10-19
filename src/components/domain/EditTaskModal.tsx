@@ -39,7 +39,7 @@ export function EditTaskModal({
   const [custom, setCustom] = useState(task.customTaskType ?? '');
   const [priority, setPriority] = useState(task.priority);
   const [dueDate, setDueDate] = useState(toInputDateTime(task.dueDate));
-  const [errors, setErrors] = useState<{ title?: string; custom?: string }>({});
+  const [errors, setErrors] = useState<{ title?: string; custom?: string; types?: string }>({});
 
   const save = useMutation(tasksService.update, {
     invalidateKeys,
@@ -55,8 +55,10 @@ export function EditTaskModal({
     const next: typeof errors = {};
     if (title.trim().length < 3) next.title = 'Task title is required.';
     if (taskTypes.includes(TaskType.OTHER) && !custom.trim()) next.custom = 'Say what the other type of work is.';
+    // The API cannot clear a task's types (an empty list is refused), so once it has one it keeps at least one.
+    if (!taskTypes.length && (task.taskTypes ?? []).length) next.types = 'Keep at least one type.';
     setErrors(next);
-    if (next.title || next.custom) return;
+    if (next.title || next.custom || next.types) return;
 
     const result = await save.mutate(companyId, task.id, {
       title: title.trim(),
@@ -87,17 +89,18 @@ export function EditTaskModal({
     >
       <form id="edit-task-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="edit-task-title" error={errors.title}>
-          <Input id="edit-task-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <Input id="edit-task-title" value={title} maxLength={180} onChange={(event) => setTitle(event.target.value)} />
         </Field>
         <Field label="Description" htmlFor="edit-task-description">
-          <Textarea id="edit-task-description" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />
+          <Textarea id="edit-task-description" rows={4} value={description} maxLength={3000} onChange={(event) => setDescription(event.target.value)} />
         </Field>
         <TaskTypePicker
           value={taskTypes}
           customValue={custom}
-          onChange={setTaskTypes}
+          onChange={(next) => { setTaskTypes(next); if (errors.types) setErrors((current) => ({ ...current, types: undefined })); }}
           onCustomChange={(next) => { setCustom(next); if (errors.custom) setErrors({}); }}
           customError={errors.custom}
+          error={errors.types}
           disabled={save.loading}
           hint="Saving replaces the types this task has now."
         />

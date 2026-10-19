@@ -87,3 +87,18 @@ describe('permission matrix', () => {
     });
   });
 });
+
+describe('ART_DIRECTOR (backend: TASK_ASSIGN_ROLES and design roles)', () => {
+  it('can do what a Designer does, plus create, assign and re-route tasks', () => {
+    for (const permission of ['postAssets:manage', 'tasks:manage', 'tasks:edit', 'tasks:approver'] as const) {
+      expect(hasPermission([R.ART_DIRECTOR], permission)).toBe(true);
+    }
+  });
+
+  it('cannot do what the backend reserves for others', () => {
+    for (const permission of ['posts:create', 'posts:approve', 'campaigns:manage', 'responsibilities:manage', 'members:manage'] as const) {
+      expect(hasPermission([R.ART_DIRECTOR], permission)).toBe(false);
+    }
+  });
+});
+

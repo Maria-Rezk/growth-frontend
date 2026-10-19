@@ -8,7 +8,7 @@ Unauthenticated GET requests against `https://api.solu1ions.tech/api` (read-only
 
 | Endpoint | Answer | Meaning |
 |---|---|---|
-| `GET /me/memberships` | **404** | **Not deployed.** Non-admin users cannot be given their roles; the app shows "We could not confirm your role on this client". Platform admins are unaffected. |
+| `GET /me/memberships` | **404** | **Not built** — confirmed in the backend source (`task-draft`), see `backend-contract-audit.md`. Non-admin users cannot be given their roles; the app shows "We could not confirm your role on this client". Platform admins are unaffected. |
 | `GET /auth/me`, `/companies`, `/users`, `/notifications`, `/me/approval-queue`, `/me/notification-preferences` | 401 | Deployed |
 | `GET /companies/:id/{tasks, tasks/resolve-approver, leads, content-plans, campaigns, reports, automation-rules, responsibility-areas, responsibility-areas/options}` | 401 | Deployed |
 | `GET /admin/dashboard/*` (12 widgets), `GET /admin/system/health` | 401 | Deployed |

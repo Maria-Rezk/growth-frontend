@@ -104,7 +104,8 @@ const ROLE_PERMISSIONS: Record<CompanyMembershipRole, Permission[]> = {
   [CompanyMembershipRole.COPYWRITER]: ['assets:upload', 'tasks:manage', 'ai:generate'],
   [CompanyMembershipRole.DESIGNER]: ['assets:upload', 'postAssets:manage', 'tasks:manage'],
   // A Designer who also hands design work out: creates and assigns tasks.
-  [CompanyMembershipRole.ART_DIRECTOR]: ['assets:upload', 'postAssets:manage', 'tasks:manage', 'tasks:edit'],
+  // TASK_ASSIGN_ROLES in the API includes ART_DIRECTOR: create, assign and re-route (approver) tasks.
+  [CompanyMembershipRole.ART_DIRECTOR]: ['assets:upload', 'postAssets:manage', 'tasks:manage', 'tasks:edit', 'tasks:approver'],
   [CompanyMembershipRole.CLIENT_OWNER]: ['posts:approve', 'reports:view'],
   [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve'],
   [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'assets:upload', 'tasks:manage'],

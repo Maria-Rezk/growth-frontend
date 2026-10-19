@@ -10,7 +10,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { PageHeader, Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
-import { Field, Input } from '@/components/ui/Fields';
+import { Field, Input, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState, ErrorState } from '@/components/ui/State';
@@ -24,13 +24,12 @@ import { queryKeys } from '@/lib/queryClient';
 import {
   CompanyMembershipRole,
   INVITABLE_ROLES,
-  type InvitableRole,
   type Invitation,
   type InvitationCreateResult,
   type Membership,
 } from '@/types/domain';
 import { RoleChecklist, RolePills } from '@/components/domain/RoleChecklist';
-import { membershipRoles, rolesLabel } from '@/utils/roles';
+import { humanizeRole, membershipRoles, rolesLabel } from '@/utils/roles';
 import { formatDateTime, humanize } from '@/utils/format';
 import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 
@@ -268,8 +267,9 @@ function PendingInvitations({
 const inviteSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name is required.'),
   email: z.string().trim().email('Enter a valid email address.'),
-  // Mirrors the backend's invite DTO, not the full membership enum.
-  roles: z.array(z.enum(INVITABLE_ROLES)).min(1, 'Pick at least one role.'),
+  // One role: the invitation endpoint takes a single `role` (and rejects `roles`).
+  // Further roles are added from the members table once they have joined.
+  role: z.enum(INVITABLE_ROLES, { errorMap: () => ({ message: 'Pick a role.' }) }),
 });
 
 type InviteForm = z.infer<typeof inviteSchema>;
@@ -279,13 +279,13 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
 
   const form = useForm<InviteForm>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { fullName: '', email: '', roles: [CompanyMembershipRole.CLIENT_REVIEWER] },
+    defaultValues: { fullName: '', email: '', role: CompanyMembershipRole.CLIENT_REVIEWER },
     mode: 'onBlur',
   });
 
   const create = useMutation(invitationsService.create, {
     invalidateKeys: [queryKeys.invitations(companyId)],
-    // The checklist is already constrained to INVITABLE_ROLES, so this mainly
+    // The select is already constrained to INVITABLE_ROLES, so this mainly
     // catches duplicate-email and expired-membership rejections.
     onError: (error) => applyServerFieldErrors(form, error),
   });
@@ -293,7 +293,7 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
   const submit = form.handleSubmit(async (values) => {
     const created = await create.mutate(companyId, {
       email: values.email,
-      roles: values.roles,
+      role: values.role,
       fullName: values.fullName,
     });
     if (created) {
@@ -369,16 +369,14 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
             />
           </Field>
           <Field
-            label="Roles"
-            htmlFor="invite-roles"
-            hint="Invitations cover a narrower set than the table above, where an existing member can be moved to any role."
-            error={form.formState.errors.roles?.message}
+            label="Role"
+            htmlFor="invite-role"
+            hint="An invitation carries one role. More can be added from the members table once they have joined."
+            error={form.formState.errors.role?.message}
           >
-            <RoleChecklist
-              available={INVITABLE_ROLES}
-              value={form.watch('roles')}
-              onChange={(roles) => form.setValue('roles', roles as InvitableRole[], { shouldValidate: true })}
-            />
+            <Select id="invite-role" {...form.register('role')}>
+              {INVITABLE_ROLES.map((role) => <option key={role} value={role}>{humanizeRole(role)}</option>)}
+            </Select>
           </Field>
           {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}
         </form>

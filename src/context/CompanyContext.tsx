@@ -31,6 +31,12 @@ interface CompanyContextValue {
    * roles: a platform admin legitimately has none and still passes every check.
    */
   rolesUnavailable: boolean;
+  /**
+   * Why: `unsupported` when the server has no `/me/memberships` at all (a 404 —
+   * retrying cannot help, it needs a backend release), `failed` for anything
+   * transient. Null while roles are known.
+   */
+  rolesUnavailableReason: 'unsupported' | 'failed' | null;
   currentMembership: SessionMembership | null;
   hasRole: (...roles: CompanyMembershipRole[]) => boolean;
 }
@@ -184,6 +190,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     retry is paused (a hidden tab, being offline) and before the first failure has been reported.
   */
   const rolesUnavailable = !env.demoMode && !admin && Boolean(userId) && loadedMemberships === null && !membershipsQuery.loading;
+  const rolesUnavailableReason = !rolesUnavailable ? null : membershipsQuery.errorStatus === 404 ? 'unsupported' : 'failed';
   const { refetch: refetchMemberships } = membershipsQuery;
 
   const refreshMemberships = useCallback(async () => {
@@ -225,10 +232,11 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       refreshCompanies,
       refreshMemberships,
       rolesUnavailable,
+      rolesUnavailableReason,
       currentMembership,
       hasRole,
     }),
-    [activeCompany, activeCompanyId, companies, companyData, currentMembership, hasRole, loading, memberships, refreshCompanies, refreshMemberships, rolesUnavailable, setActiveCompanyId],
+    [activeCompany, activeCompanyId, companies, companyData, currentMembership, hasRole, loading, memberships, refreshCompanies, refreshMemberships, rolesUnavailable, rolesUnavailableReason, setActiveCompanyId],
   );
 
   return <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>;

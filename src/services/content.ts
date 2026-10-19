@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
-import { http, unwrap } from '@/lib/http';
+import { http, unwrap, unwrapList } from '@/lib/http';
 import { getAllItems } from '@/lib/paging';
 import {
   demoContentPlans,
@@ -121,6 +121,26 @@ function extractPost(data: unknown): ContentPost {
   return unwrapped as unknown as ContentPost;
 }
 
+/** The filters `GET /posts` accepts. */
+export interface PostListFilters {
+  contentPlanId?: string;
+  platform?: string;
+  contentType?: string;
+}
+
+const POST_QUERY_KEYS = ['contentPlanId', 'status', 'platform', 'contentType'] as const;
+
+/** Only the declared, non-empty filters: anything else is refused by the API. */
+export function postQuery(params?: ListParams & PostListFilters): Record<string, string> | undefined {
+  if (!params) return undefined;
+  const query: Record<string, string> = {};
+  for (const key of POST_QUERY_KEYS) {
+    const value = params[key];
+    if (typeof value === 'string' && value) query[key] = value;
+  }
+  return Object.keys(query).length ? query : undefined;
+}
+
 export const contentService = {
   async listPlans(companyId: string): Promise<ContentPlan[]> {
     if (env.demoMode) return demoDelay(demoContentPlans.filter((plan) => plan.companyId === companyId));
@@ -169,9 +189,20 @@ export const contentService = {
     return unwrap<ContentPlan>(response.data);
   },
 
-  async listPosts(companyId: string, params?: ListParams): Promise<ContentPost[]> {
+  /*
+    `GET /posts` binds FindContentPostsQueryDto, which declares only
+    contentPlanId, status, platform and contentType, under a pipe that rejects
+    unknown properties. It is not paginated (one array), so the paging helper's
+    limit/offset and the list's `search` would each be a 400. Only the four
+    declared filters go to the server; search is applied here.
+  */
+  async listPosts(companyId: string, params?: ListParams & PostListFilters): Promise<ContentPost[]> {
     if (env.demoMode) return demoDelay(filterList(demoPosts.filter((post) => post.companyId === companyId), params));
-    return getAllItems<ContentPost>(apiRoutes.posts.list(companyId), params as Record<string, unknown>);
+    const response = await http.get(apiRoutes.posts.list(companyId), { params: postQuery(params) });
+    const rows = unwrapList<ContentPost>(response.data);
+    const needle = params?.search?.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((post) => `${post.title ?? ''} ${post.caption ?? ''}`.toLowerCase().includes(needle));
   },
 
   async getPost(companyId: string, postId: string): Promise<ContentPost> {

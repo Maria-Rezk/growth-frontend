@@ -216,6 +216,20 @@ describe('the member directory is not how roles are learned', () => {
     AM_ONLY.forEach((href) => expect(sidebarLinks()).not.toContain(href));
   });
 
+  it('a server without /me/memberships (404) is reported as unsupported, not as a blip to retry', async () => {
+    const missing = Object.assign(new Error('Cannot GET /api/me/memberships'), { statusCode: 404, isApiResponse: true });
+    await renderFor({ id: 'u1', platformRole: 'USER' }, missing);
+    expect(companyApi.rolesUnavailable).toBe(true);
+    expect(companyApi.rolesUnavailableReason).toBe('unsupported');
+    // Still fails closed: no role is guessed.
+    expect(can('tasks:manage')).toBe(false);
+  });
+
+  it('a transient failure is reported as failed', async () => {
+    await renderFor({ id: 'u1', platformRole: 'USER' }, new Error('down'));
+    expect(companyApi.rolesUnavailableReason).toBe('failed');
+  });
+
   it('memberships that cannot be read do not lock out a platform admin', async () => {
     await renderFor({ id: 'u1', platformRole: 'SUPER_ADMIN' }, new Error('down'));
     expect(companyApi.rolesUnavailable).toBe(false);

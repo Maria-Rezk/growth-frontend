@@ -44,5 +44,8 @@ Probed without signing in, read-only, against `https://api.solu1ions.tech/api`:
   `/admin/system/health` answer `401`, while an unknown path answers `404`).
   The dashboard's empty widgets in demo mode come from the demo, which has no
   agency-wide data, not from missing endpoints.
+- `GET /me/memberships` answers `404`, and the backend source (`task-draft`) confirms the route
+  does not exist. Non-admin users therefore cannot be given their roles. Details and every other
+  contract finding: `docs/backend-contract-audit.md`.
 - Not verified: anything behind sign-in. There is no staging URL or test account
   in this project, and the only known API host is the production domain.

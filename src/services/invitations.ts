@@ -11,17 +11,17 @@ export const invitationsService = {
     return getAllItems<Invitation>(apiRoutes.invitations.list(companyId));
   },
   /**
-   * Roles are typed as InvitableRole, not CompanyMembershipRole — the endpoint
-   * rejects the wider set, so a mismatch is a compile error rather than a
-   * runtime 400.
+   * One role per invitation. `CreateCompanyInvitationDto` declares a required
+   * `role` and no `roles`, and the API rejects unknown fields, so sending an
+   * array is a 400. Accepting the invitation turns it into `roles: [role]`;
+   * further roles are added on the membership afterwards.
    *
-   * Always sends `roles`, never the deprecated `role`, confirmed against the
-   * backend. This is the last place the app sent a single role, so the API is
-   * free to drop that field whenever it likes.
+   * Typed as InvitableRole: the product offers a narrower set than the API's
+   * full membership enum.
    */
   async create(
     companyId: string,
-    payload: { email: string; roles: InvitableRole[]; fullName: string },
+    payload: { email: string; role: InvitableRole; fullName: string },
   ): Promise<InvitationCreateResult> {
     if (env.demoMode) {
       const invitation: Invitation = {
@@ -29,8 +29,8 @@ export const invitationsService = {
         companyId,
         email: payload.email,
         fullName: payload.fullName,
-        roles: payload.roles,
-        role: payload.roles[0],
+        roles: [payload.role],
+        role: payload.role,
         status: 'PENDING',
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -49,7 +49,7 @@ export const invitationsService = {
     const response = await http.post(apiRoutes.invitations.create(companyId), {
       email: payload.email,
       fullName: payload.fullName,
-      roles: payload.roles,
+      role: payload.role,
     });
     return response.data as InvitationCreateResult;
   },

@@ -126,6 +126,20 @@ test.describe('automations', () => {
 });
 
 test.describe('members', () => {
+  test('an invitation carries one role and returns a link', async ({ page }) => {
+    await open(page, '/members');
+    await page.getByRole('button', { name: 'Invite member' }).click();
+    const dialog = page.getByRole('dialog');
+    // A single select, not a checklist: the API takes exactly one `role`.
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    await dialog.getByLabel('Full name').fill('E2E Invitee');
+    await dialog.getByLabel('Email').fill('e2e-invitee@example.test');
+    await dialog.getByLabel('Role').selectOption('ART_DIRECTOR');
+    await dialog.getByRole('button', { name: 'Create invitation' }).click();
+    await expect(dialog.getByText('Share this link now')).toBeVisible();
+  });
+
+
   test('roles open for editing on demand and suspending asks first', async ({ page }) => {
     await open(page, '/members');
     await expect(page.locator('.role-checklist')).toHaveCount(0);
