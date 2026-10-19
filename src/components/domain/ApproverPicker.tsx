@@ -5,7 +5,7 @@ import { appRoutes } from '@/config/appRoutes';
 import { useAsync } from '@/hooks/useAsync';
 import { tasksService } from '@/services/tasks';
 import { queryKeys } from '@/lib/queryClient';
-import { humanize } from '@/utils/format';
+import { taskTypeLabel } from '@/utils/taskTypes';
 import { AGENCY_ROLES, membershipRoles } from '@/utils/roles';
 import { compareNames } from '@/utils/sort';
 import type { ApproverResolution, Membership, TaskType } from '@/types/domain';
@@ -25,7 +25,7 @@ import type { ApproverResolution, Membership, TaskType } from '@/types/domain';
 export function ApproverPicker({
   id = 'task-approver',
   companyId,
-  taskType,
+  taskTypes,
   members,
   value,
   onChange,
@@ -36,7 +36,7 @@ export function ApproverPicker({
 }: {
   id?: string;
   companyId: string;
-  taskType: TaskType;
+  taskTypes: TaskType[];
   members: Membership[];
   value: string;
   onChange: (userId: string) => void;
@@ -45,10 +45,13 @@ export function ApproverPicker({
   autoResolve?: boolean;
   label?: string;
 }) {
+  // A stable key: the same set in a different tick order asks the same question.
+  const typesKey = useMemo(() => [...taskTypes].sort().join(','), [taskTypes]);
+  const hasTypes = taskTypes.length > 0;
   const resolution = useAsync(
-    () => tasksService.resolveApprover(companyId, taskType),
-    [companyId, taskType],
-    { queryKey: queryKeys.resolveApprover(companyId, taskType), enabled: autoResolve },
+    () => tasksService.resolveApprover(companyId, taskTypes),
+    [companyId, typesKey],
+    { queryKey: queryKeys.resolveApprover(companyId, typesKey), enabled: autoResolve && hasTypes },
   );
 
   const memberIds = useMemo(() => new Set(members.filter((m) => m.status === 'ACTIVE').map((m) => m.userId)), [members]);
@@ -60,25 +63,27 @@ export function ApproverPicker({
   */
   const applied = useRef<string | null>(null);
   useEffect(() => {
-    if (!autoResolve || !resolution.data) return;
-    const key = `${companyId}:${resolution.data.taskType}`;
+    if (!hasTypes) applied.current = null;
+    if (!autoResolve || !hasTypes || !resolution.data) return;
+    const key = `${companyId}:${[...resolution.data.taskTypes].sort().join(',')}`;
     if (applied.current === key) return;
     applied.current = key;
     const suggested = resolution.data.approverId;
     // Only prefill someone the list actually offers; a value with no
     // matching <option> silently snaps to the first one.
     onChange(suggested && memberIds.has(suggested) ? suggested : '');
-  }, [autoResolve, companyId, memberIds, onChange, resolution.data]);
+  }, [autoResolve, companyId, hasTypes, memberIds, onChange, resolution.data]);
 
   const groups = useMemo(() => groupApprovers(members, resolution.data), [members, resolution.data]);
-  const hint = autoResolve ? resolutionHint(resolution.data, resolution.loading, taskType) : undefined;
+  const hint = autoResolve ? resolutionHint(hasTypes ? resolution.data : null, hasTypes && resolution.loading, taskTypes) : undefined;
+  const areaNames = Array.from(new Set((resolution.data?.areas ?? []).map((area) => area.areaName)));
 
   return (
     <Field label={label} htmlFor={id} error={error} hint={hint?.text}>
       <Select id={id} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
         <option value="">No approver yet</option>
         {groups.candidates.length ? (
-          <optgroup label={resolution.data?.areaName ? `Approves ${resolution.data.areaName}` : 'Approves this area'}>
+          <optgroup label={areaNames.length ? `Approves ${areaNames.join(' / ')}` : 'Approves this area'}>
             {groups.candidates.map((member) => (
               <option key={member.id} value={member.userId}>{memberName(member)}</option>
             ))}
@@ -125,25 +130,29 @@ function groupApprovers(members: Membership[], resolution: ApproverResolution | 
 function resolutionHint(
   resolution: ApproverResolution | null,
   loading: boolean,
-  taskType: TaskType,
+  taskTypes: TaskType[],
 ): { text: string; matrixLink?: boolean } | undefined {
   if (loading) return { text: 'Checking the responsibility matrix…' };
   if (!resolution) return { text: 'Optional. Leave it empty and the matrix decides at creation.' };
-  const area = resolution.areaName ?? 'this area';
+  const names = Array.from(new Set(resolution.areas.map((entry) => entry.areaName)));
+  const area = names.length ? names.join(' and ') : 'this area';
   switch (resolution.reason) {
     case 'RESOLVED':
       return { text: `Pre-filled from the responsibility matrix (${area}). You can still change it.` };
     case 'MULTIPLE_APPROVERS':
-      return { text: `Several people approve ${area}. Who approves this one?` };
+      // Different types point at different people: say whose, and ask. Never guess.
+      return { text: `${area} have different approvers. Who approves this task?` };
     case 'NO_APPROVER_IN_AREA':
       return { text: `Nobody active holds "To Approve" for ${area}. Pick someone here, or fill the matrix in.`, matrixLink: true };
-    case 'NO_MATCHING_AREA':
+    case 'NO_MATCHING_AREA': {
+      const named = taskTypes.filter((type) => type !== 'OTHER').map((type) => taskTypeLabel(type)).join(', ');
       return {
-        text: `This client has no area for ${humanize(taskType).toLowerCase()} work. Pick someone, or ask an admin to set the area key in the matrix.`,
+        text: `This client has no area for ${named || 'this'} work. Pick someone, or add the area in the responsibility matrix.`,
         matrixLink: true,
       };
+    }
     case 'UNMAPPED_TASK_TYPE':
-      return { text: 'General tasks have no area. Name an approver, or leave it empty.' };
+      return { text: '“Other” work has no area. Name an approver, or leave it empty.' };
     default:
       return undefined;
   }

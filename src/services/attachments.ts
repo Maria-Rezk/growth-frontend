@@ -3,9 +3,25 @@ import { apiRoutes, type AttachmentParent } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
 import { demoAttachments, demoDelay, demoFiles, demoUser, makeId } from '@/services/demoStore';
 import { filesService } from '@/services/files';
-import { ATTACHMENTS_PER_RECORD, AttachmentErrorCode, type Attachment } from '@/types/domain';
+import { ATTACHMENTS_PER_RECORD, AttachmentErrorCode, type Attachment, type AttachmentInput, type PendingLink, type PendingText } from '@/types/domain';
 
 export type { AttachmentParent } from '@/config/apiRoutes';
+
+/** The three lists a create form can send beside the record's own fields. Together: at most 20. */
+export interface AttachmentCreateFields {
+  attachmentFileIds?: string[];
+  attachmentLinks?: PendingLink[];
+  attachmentTexts?: PendingText[];
+}
+
+/** Only the non-empty lists, so an untouched form sends nothing extra. */
+export function attachmentFieldsForWire(fields: AttachmentCreateFields): AttachmentCreateFields {
+  return {
+    attachmentFileIds: fields.attachmentFileIds?.length ? fields.attachmentFileIds : undefined,
+    attachmentLinks: fields.attachmentLinks?.length ? fields.attachmentLinks : undefined,
+    attachmentTexts: fields.attachmentTexts?.length ? fields.attachmentTexts : undefined,
+  };
+}
 
 /*
   The documented shape is the contract. The fallbacks cover a backend still
@@ -16,25 +32,33 @@ type RawAttachment = Partial<Attachment> & {
   id: string;
   fileId?: string;
   taskId?: string;
-  file?: Partial<Attachment['file']> & { filename?: string };
+  file?: (Partial<NonNullable<Attachment['file']>> & { filename?: string }) | null;
 };
 
 export function normalizeAttachment(raw: RawAttachment, parent: AttachmentParent): Attachment {
   const fileId = raw.file?.id ?? raw.fileId ?? '';
+  // A response from before links and notes existed has no `kind`: it was a file.
+  const kind = raw.kind ?? (raw.url ? 'LINK' : raw.text ? 'TEXT' : 'FILE');
   return {
     id: raw.id,
+    kind,
     entityType: raw.entityType ?? parent.entityType,
     entityId: raw.entityId ?? raw.taskId ?? parent.entityId ?? '',
     label: raw.label ?? null,
+    url: raw.url ?? null,
+    text: raw.text ?? null,
     uploadedById: raw.uploadedById ?? raw.uploadedBy?.id ?? '',
     uploadedBy: raw.uploadedBy ?? null,
     createdAt: raw.createdAt,
-    file: {
-      id: fileId,
-      originalName: raw.file?.originalName ?? raw.file?.filename,
-      mimeType: raw.file?.mimeType,
-      size: raw.file?.size,
-    },
+    // Null for a link or a note: read `kind` before touching it.
+    file: kind === 'FILE' && (raw.file || fileId)
+      ? {
+          id: fileId,
+          originalName: raw.file?.originalName ?? raw.file?.filename,
+          mimeType: raw.file?.mimeType,
+          size: raw.file?.size,
+        }
+      : null,
   };
 }
 
@@ -51,33 +75,47 @@ export const attachmentsService = {
     return (Array.isArray(raw) ? raw : []).map((item) => normalizeAttachment(item, parent));
   },
 
-  /** Attaching a file already on the record returns the existing row, not a duplicate. */
-  async add(companyId: string, parent: AttachmentParent, fileId: string, label?: string): Promise<Attachment> {
+  /**
+   * Attach a file, a link or a note: exactly one. A bare string is a file id.
+   * Attaching a file or link already on the record returns the existing row.
+   */
+  async add(companyId: string, parent: AttachmentParent, input: string | AttachmentInput, label?: string): Promise<Attachment> {
+    const body: AttachmentInput = typeof input === 'string' ? { fileId: input, label } : input;
+    const cleanLabel = body.label?.trim() || undefined;
     if (env.demoMode) {
-      const existing = demoAttachments.find((item) => matchesParent(item, parent) && item.file.id === fileId);
+      const siblings = demoAttachments.filter((item) => matchesParent(item, parent));
+      const existing = siblings.find((item) =>
+        ('fileId' in body && item.file?.id === body.fileId) || ('url' in body && item.url === body.url));
       if (existing) return demoDelay(existing);
-      if (demoAttachments.filter((item) => matchesParent(item, parent)).length >= ATTACHMENTS_PER_RECORD) {
+      if (siblings.length >= ATTACHMENTS_PER_RECORD) {
         throw Object.assign(new Error(`A record can hold up to ${ATTACHMENTS_PER_RECORD} attachments.`), { statusCode: 422, code: AttachmentErrorCode.ATTACHMENT_LIMIT });
       }
-      const file = demoFiles.find((item) => item.id === fileId);
+      const file = 'fileId' in body ? demoFiles.find((item) => item.id === body.fileId) : undefined;
       const attachment: Attachment = {
         id: makeId('attachment'),
+        kind: 'fileId' in body ? 'FILE' : 'url' in body ? 'LINK' : 'TEXT',
         entityType: parent.entityType,
         entityId: parent.entityId ?? 'brand-profile',
-        label: label?.trim() || null,
+        label: cleanLabel ?? null,
+        url: 'url' in body ? body.url : null,
+        text: 'text' in body ? body.text : null,
         uploadedById: demoUser.id,
         uploadedBy: { id: demoUser.id, fullName: demoUser.fullName },
         createdAt: new Date().toISOString(),
-        file: { id: fileId, originalName: file?.originalName, mimeType: file?.mimeType, size: file?.size },
+        file: 'fileId' in body ? { id: body.fileId, originalName: file?.originalName, mimeType: file?.mimeType, size: file?.size } : null,
       };
       demoAttachments.unshift(attachment);
       return demoDelay(attachment);
     }
-    const response = await http.post(apiRoutes.attachments.list(companyId, parent), {
-      fileId,
-      label: label?.trim() || undefined,
-    });
+    const response = await http.post(apiRoutes.attachments.list(companyId, parent), { ...body, label: cleanLabel });
     return normalizeAttachment(unwrap<RawAttachment>(response.data), parent);
+  },
+
+  /** Demo-only: what the API does in one transaction with a create. */
+  async addAllDemo(companyId: string, parent: AttachmentParent, fields: AttachmentCreateFields): Promise<void> {
+    for (const fileId of fields.attachmentFileIds ?? []) await attachmentsService.add(companyId, parent, { fileId });
+    for (const link of fields.attachmentLinks ?? []) await attachmentsService.add(companyId, parent, link);
+    for (const note of fields.attachmentTexts ?? []) await attachmentsService.add(companyId, parent, note);
   },
 
   async remove(companyId: string, parent: AttachmentParent, attachmentId: string): Promise<void> {

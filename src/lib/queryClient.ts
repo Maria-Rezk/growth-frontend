@@ -81,8 +81,11 @@ export const queryKeys = {
   approvalQueue: (companyId: string, params?: Record<string, unknown>) =>
     ['companies', companyId, 'tasks', 'approval-queue', params ?? {}] as const,
   // Under 'responsibilities' so a matrix edit re-reads who approves what.
-  resolveApprover: (companyId: string, taskType: string) =>
-    ['companies', companyId, 'responsibilities', 'resolve-approver', taskType] as const,
+  resolveApprover: (companyId: string, taskTypes: string) =>
+    ['companies', companyId, 'responsibilities', 'resolve-approver', taskTypes] as const,
+  // The area-name dropdown. Under 'responsibilities' so creating or deleting an area refreshes which names are in use.
+  responsibilityAreaOptions: (companyId: string) => ['companies', companyId, 'responsibilities', 'area-options'] as const,
+  taskDrafts: (companyId: string) => ['companies', companyId, 'tasks', 'drafts'] as const,
   reports: (companyId: string) => ['companies', companyId, 'reports'] as const,
   reportShare: (companyId: string, reportId: string) => ['companies', companyId, 'reports', reportId, 'share'] as const,
   attachments: (companyId: string, entityType: string, entityId?: string) =>

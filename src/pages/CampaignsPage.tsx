@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
-import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
+import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { usePermission } from '@/hooks/usePermission';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -165,13 +165,13 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
     onError: (error) => applyServerFieldErrors(form, error),
   });
 
-  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachments>(NO_PENDING_ATTACHMENTS);
   const [uploading, setUploading] = useState(false);
 
   const close = () => {
     form.reset();
     create.reset();
-    setPendingFiles([]);
+    setPendingFiles(NO_PENDING_ATTACHMENTS);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
@@ -193,7 +193,7 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
       currency: values.currency?.trim() || undefined,
       targetAudience: values.targetAudience?.trim() || undefined,
       notes: values.notes?.trim() || undefined,
-      attachmentFileIds: pendingFiles.map((file) => file.fileId),
+      ...pendingPayload(pendingFiles),
     });
     if (result) {
       toast.success('Campaign created.');

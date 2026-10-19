@@ -14,7 +14,7 @@ import {
   makeId,
   pushNotification,
 } from '@/services/demoStore';
-import { attachmentsService } from '@/services/attachments';
+import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
 import { PostReviewErrorCode } from '@/types/domain';
 import type {
   ContentPlan,
@@ -184,7 +184,7 @@ export const contentService = {
     return unwrap<ContentPost>(response.data);
   },
 
-  async createPost(companyId: string, payload: Partial<ContentPost> & { attachmentFileIds?: string[] }): Promise<ContentPost> {
+  async createPost(companyId: string, payload: Partial<ContentPost> & AttachmentCreateFields): Promise<ContentPost> {
     if (env.demoMode) {
       const post: ContentPost = {
         id: makeId('post'),
@@ -200,15 +200,13 @@ export const contentService = {
         updatedAt: new Date().toISOString(),
       };
       demoPosts.unshift(post);
-      for (const fileId of payload.attachmentFileIds ?? []) {
-        await attachmentsService.add(companyId, { entityType: 'POST', entityId: post.id }, fileId);
-      }
+      await attachmentsService.addAllDemo(companyId, { entityType: 'POST', entityId: post.id }, payload);
       return demoDelay(post);
     }
-    const { attachmentFileIds, ...rest } = payload;
+    const { attachmentFileIds, attachmentLinks, attachmentTexts, ...rest } = payload;
     const response = await http.post(apiRoutes.posts.list(companyId), {
       ...rest,
-      attachmentFileIds: attachmentFileIds?.length ? attachmentFileIds : undefined,
+      ...attachmentFieldsForWire({ attachmentFileIds, attachmentLinks, attachmentTexts }),
     });
     return unwrap<ContentPost>(response.data);
   },

@@ -14,7 +14,9 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { ApprovalQueue } from '@/components/domain/ApprovalQueue';
 import { ApproverPicker } from '@/components/domain/ApproverPicker';
-import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
+import { TaskDrafts } from '@/components/domain/TaskDrafts';
+import { TaskTypeChips, TaskTypePicker } from '@/components/domain/TaskTypes';
+import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
@@ -28,6 +30,7 @@ import { responsibilitiesService } from '@/services/responsibilities';
 import { queryKeys } from '@/lib/queryClient';
 import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { fromInputDateTime, formatDateTime, humanize } from '@/utils/format';
+import { TASK_TYPE_OPTIONS } from '@/utils/taskTypes';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
 import { TASK_BOARD, isOverdue } from '@/utils/workflow';
 import { formatWaiting, isInReview, isWaitingLong, needsApprover, userLabel } from '@/utils/taskReview';
@@ -39,13 +42,15 @@ import { BoardSkeleton } from '@/components/ui/Skeleton';
 
 type ViewMode = 'board' | 'table';
 /** `approvals` is the review queue — what is waiting on *me* — and reads a different endpoint. */
-type Scope = 'all' | 'mine' | 'approvals';
+type Scope = 'all' | 'mine' | 'approvals' | 'drafts';
 type AssigneeNameFn = (id?: string | null) => string;
 
 const taskSchema = z.object({
   title: z.string().trim().min(3, 'Task title is required.'),
   description: z.string().optional(),
-  type: z.nativeEnum(TaskType),
+  // Any number, none included: a draft may have no type yet.
+  taskTypes: z.array(z.nativeEnum(TaskType)),
+  customTaskType: z.string().optional(),
   priority: z.nativeEnum(TaskPriority),
   assignedToId: z.string().optional(),
   approverId: z.string().optional(),
@@ -55,6 +60,11 @@ const taskSchema = z.object({
     .string()
     .optional()
     .refine((value) => !value || (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 50), 'A whole number from 1 to 50.'),
+}).superRefine((values, context) => {
+  // Mirrors the API's 422 CUSTOM_TASK_TYPE_REQUIRED, so the field is flagged before a round trip.
+  if (values.taskTypes.includes(TaskType.OTHER) && !values.customTaskType?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['customTaskType'], message: 'Say what the other type of work is.' });
+  }
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
@@ -74,7 +84,7 @@ function TasksInner({ companyId }: { companyId: string }) {
   // Filters live in the URL: a filtered list is a shareable link, and a
   // reload or Back does not snap the page back to "all".
   const [urlFilters, setUrlFilters] = useUrlFilters<Record<keyof typeof TASK_FILTER_DEFAULTS, string>>(TASK_FILTER_DEFAULTS);
-  const scope = (['all', 'mine', 'approvals'].includes(urlFilters.scope) ? urlFilters.scope : 'all') as Scope;
+  const scope = (['all', 'mine', 'approvals', 'drafts'].includes(urlFilters.scope) ? urlFilters.scope : 'all') as Scope;
   const view = (urlFilters.view === 'table' ? 'table' : 'board') as ViewMode;
   const { status, priority, type, search } = urlFilters;
   const setScope = (value: Scope) => setUrlFilters({ scope: value });
@@ -89,11 +99,13 @@ function TasksInner({ companyId }: { companyId: string }) {
   const [createOpen, setCreateOpen] = useState(false);
 
   const filters = { status: status || undefined, priority: priority || undefined, type: type || undefined, search: debouncedSearch || undefined };
-  const listScope = scope === 'approvals' ? 'all' : scope;
+  // Approvals and drafts are their own lists; the filters and the board/table switch do not apply to them.
+  const ownList = scope === 'approvals' || scope === 'drafts';
+  const listScope = ownList ? 'all' : scope;
   const tasks = useAsync(
     () => (listScope === 'mine' ? tasksService.listMine(companyId, filters) : tasksService.list(companyId, filters)),
     [companyId, listScope, status, priority, type, debouncedSearch],
-    { queryKey: [...queryKeys.tasks(companyId, filters), listScope], enabled: scope !== 'approvals' },
+    { queryKey: [...queryKeys.tasks(companyId, filters), listScope], enabled: !ownList },
   );
   const members = useAssignableMembers(companyId);
 
@@ -111,7 +123,7 @@ function TasksInner({ companyId }: { companyId: string }) {
   const alertTasks = useAsync(
     () => (listScope === 'mine' ? tasksService.listMine(companyId) : tasksService.list(companyId)),
     [companyId, listScope],
-    { queryKey: [...queryKeys.tasks(companyId, alertScope), 'alerts'], enabled: scope !== 'approvals' },
+    { queryKey: [...queryKeys.tasks(companyId, alertScope), 'alerts'], enabled: !ownList },
   );
 
   // Resolve assignedToId (a user id) to a display name using company members.
@@ -133,7 +145,7 @@ function TasksInner({ companyId }: { companyId: string }) {
   const needsApproverCount = alertRows.filter(needsApprover).length;
 
   const columns = useMemo<Column<Task>[]>(() => [
-    { key: 'title', header: 'Task', sortValue: (task) => task.title, render: (task) => <div><Link className="table-link" to={`/tasks/${task.id}`}>{task.title}</Link><p className="muted">{humanize(task.type)}</p></div> },
+    { key: 'title', header: 'Task', sortValue: (task) => task.title, render: (task) => <div><Link className="table-link" to={`/tasks/${task.id}`}>{task.title}</Link><p><TaskTypeChips task={task} /></p></div> },
     { key: 'status', header: 'Status', sortValue: (task) => task.status, render: (task) => <ReviewStatusCell task={task} /> },
     { key: 'priority', header: 'Priority', sortValue: (task) => task.priority, render: (task) => <StatusBadge value={task.priority} /> },
     { key: 'assignee', header: 'Assigned', sortValue: (task) => assigneeName(task.assignedToId), render: (task) => assigneeName(task.assignedToId) },
@@ -146,7 +158,7 @@ function TasksInner({ companyId }: { companyId: string }) {
     <>
       <PageHeader
         title="Tasks"
-        subtitle="Internal work across copywriting, design, publishing, reporting and sales follow-up."
+        subtitle="Internal work across plans, design, captions, reels, shoots, IT, operations and PR."
         action={
           <RoleGate permission="tasks:edit" fallback={<Button size="sm" disabled>New task</Button>}>
             <Button size="sm" onClick={() => setCreateOpen(true)}>New task</Button>
@@ -173,7 +185,7 @@ function TasksInner({ companyId }: { companyId: string }) {
       </div>
 
       <div className="toolbar card">
-        <div className={scope === 'approvals' ? 'toolbar__filters' : 'toolbar__filters toolbar__filters--wide'}>
+        <div className={ownList ? 'toolbar__filters' : 'toolbar__filters toolbar__filters--wide'}>
           {/* A <label htmlFor> pointing at a role="group" that has no id is a
               dangling association. SegmentedControl already names itself with
               aria-label, so this just needs a visual heading. */}
@@ -187,17 +199,18 @@ function TasksInner({ companyId }: { companyId: string }) {
                 { label: 'All tasks', value: 'all' },
                 { label: 'My tasks', value: 'mine' },
                 { label: 'Awaiting my approval', value: 'approvals' },
+                { label: 'My drafts', value: 'drafts' },
               ]}
             />
           </div>
-          {scope === 'approvals' ? null : (<>
+          {ownList ? null : (<>
           <Field label="Search" htmlFor="task-search"><Input id="task-search" placeholder="Search task title" value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
           <Field label="Status" htmlFor="task-filter"><Select id="task-filter" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{Object.values(TaskStatus).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
           <Field label="Priority" htmlFor="task-priority-filter"><Select id="task-priority-filter" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">All priorities</option>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
-          <Field label="Type" htmlFor="task-type-filter"><Select id="task-type-filter" value={type} onChange={(event) => setType(event.target.value)}><option value="">All types</option>{Object.values(TaskType).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select></Field>
+          <Field label="Type" htmlFor="task-type-filter"><Select id="task-type-filter" value={type} onChange={(event) => setType(event.target.value)}><option value="">All types</option>{TASK_TYPE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></Field>
           </>)}
         </div>
-        {scope === 'approvals' ? null : (
+        {ownList ? null : (
           <SegmentedControl<ViewMode>
             label="Task view"
             value={view}
@@ -209,6 +222,8 @@ function TasksInner({ companyId }: { companyId: string }) {
 
       {scope === 'approvals' ? (
         <ApprovalQueue companyId={companyId} compact />
+      ) : scope === 'drafts' ? (
+        <TaskDrafts companyId={companyId} onCreate={() => setCreateOpen(true)} />
       ) : view === 'board' ? (
         <TaskBoardView
           loading={tasks.loading}
@@ -310,7 +325,7 @@ function TaskBoardCard({ task, assigneeName }: { task: Task; assigneeName: strin
       </div>
       <p>{task.description || 'No description added yet.'}</p>
       <div className="kanban-card__meta">
-        <span>{humanize(task.type)}</span>
+        <TaskTypeChips task={task} />
         <span>{assigneeName}</span>
       </div>
       {isInReview(task) ? (
@@ -375,8 +390,10 @@ export interface TaskLink {
   relatedEntityId: string;
   /** Pre-fills the title, e.g. the post's name. */
   label?: string;
-  /** Pre-selects the type, e.g. DESIGN for the design stage of a post. */
-  type?: TaskType;
+  /** Pre-selects the types, e.g. DESIGN for the design stage of a post. */
+  taskTypes?: TaskType[];
+  /** The text for `OTHER`, when pre-selected. */
+  customTaskType?: string;
   /** Pre-fills the stage number. Posts only. */
   sequence?: number;
 }
@@ -402,7 +419,8 @@ export function TaskModal({
     defaultValues: {
       title: link?.label ? `${link.label} — ` : '',
       description: '',
-      type: link?.type ?? TaskType.GENERAL,
+      taskTypes: link?.taskTypes ?? [],
+      customTaskType: link?.customTaskType ?? '',
       priority: TaskPriority.MEDIUM,
       assignedToId: '',
       approverId: '',
@@ -412,7 +430,7 @@ export function TaskModal({
     mode: 'onBlur',
   });
   const onPost = link?.relatedEntityType === 'POST';
-  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachments>(NO_PENDING_ATTACHMENTS);
   const [uploading, setUploading] = useState(false);
 
   // Stable, so the picker's pre-fill effect does not re-run on every render.
@@ -420,7 +438,8 @@ export function TaskModal({
     (userId: string) => form.setValue('approverId', userId, { shouldDirty: true }),
     [form],
   );
-  const watchedType = form.watch('type');
+  const watchedTypes = form.watch('taskTypes');
+  const watchedCustomType = form.watch('customTaskType') ?? '';
 
   /*
     The responsibility matrix decides who this work belongs to.
@@ -463,6 +482,10 @@ export function TaskModal({
         form.setError('sequence', { message: errorMessage(error) });
         return;
       }
+      if (code === TaskReviewErrorCode.CUSTOM_TASK_TYPE_REQUIRED) {
+        form.setError('customTaskType', { message: 'Say what the other type of work is.' });
+        return;
+      }
       applyServerFieldErrors(form, error);
     },
   });
@@ -472,17 +495,19 @@ export function TaskModal({
     form.reset();
     create.reset();
     setAreaId('');
-    setPendingFiles([]);
+    setPendingFiles(NO_PENDING_ATTACHMENTS);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
   const cancel = discard(close);
 
-  const submit = form.handleSubmit(async (values) => {
+  const save = (asDraft: boolean) => form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
       title: values.title.trim(),
       description: values.description,
-      type: values.type,
+      taskTypes: values.taskTypes,
+      customTaskType: values.customTaskType,
+      isDraft: asDraft,
       priority: values.priority,
       assignedToId: values.assignedToId || undefined,
       // Empty means "let the matrix decide" — the backend resolves it again on create.
@@ -491,17 +516,19 @@ export function TaskModal({
       relatedEntityType: link?.relatedEntityType,
       relatedEntityId: link?.relatedEntityId,
       sequence: onPost && values.sequence ? Number(values.sequence) : undefined,
-      attachmentFileIds: pendingFiles.map((file) => file.fileId),
+      ...pendingPayload(pendingFiles),
     });
     if (result) {
-      toast.success('Task created.');
+      toast.success(asDraft ? 'Draft saved. Find it under My drafts.' : 'Task created.');
       onCreated?.(result);
       close();
     }
   });
+  const submit = save(false);
+  const saveDraft = save(true);
 
   return (
-    <Modal open={open} onClose={cancel} title="Create task" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create task</Button></>}>
+    <Modal open={open} onClose={cancel} title="Create task" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button variant="secondary" type="button" onClick={saveDraft} disabled={uploading || create.loading}>Save draft</Button><Button type="submit" form="task-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create task</Button></>}>
       <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
           <Input id="task-title" {...form.register('title')} />
@@ -509,14 +536,18 @@ export function TaskModal({
         <Field label="Description" htmlFor="task-description" error={form.formState.errors.description?.message}>
           <Textarea id="task-description" rows={4} {...form.register('description')} />
         </Field>
-        <div className="grid-2">
-          <Field label="Type" htmlFor="task-type" error={form.formState.errors.type?.message}>
-            <Select id="task-type" {...form.register('type')}>{Object.values(TaskType).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select>
-          </Field>
-          <Field label="Priority" htmlFor="task-priority" error={form.formState.errors.priority?.message}>
-            <Select id="task-priority" {...form.register('priority')}>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select>
-          </Field>
-        </div>
+        <TaskTypePicker
+          value={watchedTypes}
+          customValue={watchedCustomType}
+          onChange={(next) => form.setValue('taskTypes', next, { shouldDirty: true })}
+          onCustomChange={(next) => form.setValue('customTaskType', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })}
+          error={form.formState.errors.taskTypes?.message}
+          customError={form.formState.errors.customTaskType?.message}
+          disabled={create.loading}
+        />
+        <Field label="Priority" htmlFor="task-priority" error={form.formState.errors.priority?.message}>
+          <Select id="task-priority" {...form.register('priority')}>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select>
+        </Field>
         <Field
           label="Responsibility area"
           htmlFor="task-area"
@@ -564,7 +595,7 @@ export function TaskModal({
         {open ? (
           <ApproverPicker
             companyId={companyId}
-            taskType={watchedType}
+            taskTypes={watchedTypes}
             members={members}
             value={form.watch('approverId') ?? ''}
             onChange={setApprover}

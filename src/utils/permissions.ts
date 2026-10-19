@@ -14,7 +14,7 @@ export type Permission =
   | 'leads:manage'
   /** Status changes and comments: every internal role. */
   | 'tasks:manage'
-  /** Create a task, reassign it, set its stage. Account Manager and Social Media Manager. */
+  /** Create a task, reassign it, set its stage. Account Manager, Social Media Manager and Art Director. */
   | 'tasks:edit'
   /** Create and manage campaigns and what is attached to them. Account Manager and Social Media Manager. */
   | 'campaigns:manage'
@@ -103,6 +103,8 @@ const ROLE_PERMISSIONS: Record<CompanyMembershipRole, Permission[]> = {
   */
   [CompanyMembershipRole.COPYWRITER]: ['assets:upload', 'tasks:manage', 'ai:generate'],
   [CompanyMembershipRole.DESIGNER]: ['assets:upload', 'postAssets:manage', 'tasks:manage'],
+  // A Designer who also hands design work out: creates and assigns tasks.
+  [CompanyMembershipRole.ART_DIRECTOR]: ['assets:upload', 'postAssets:manage', 'tasks:manage', 'tasks:edit'],
   [CompanyMembershipRole.CLIENT_OWNER]: ['posts:approve', 'reports:view'],
   [CompanyMembershipRole.CLIENT_REVIEWER]: ['posts:approve'],
   [CompanyMembershipRole.SALES_AGENT]: ['leads:manage', 'assets:upload', 'tasks:manage'],
@@ -113,10 +115,10 @@ const R = CompanyMembershipRole;
 /** The roles that edit each parent, which are the roles that may attach to it. */
 const ATTACH_ROLES: Record<AttachmentEntityType, CompanyMembershipRole[] | 'ANY_INTERNAL'> = {
   TASK: 'ANY_INTERNAL',
-  POST: [R.ACCOUNT_MANAGER, R.SOCIAL_MEDIA_MANAGER, R.DESIGNER, R.COPYWRITER],
+  POST: [R.ACCOUNT_MANAGER, R.SOCIAL_MEDIA_MANAGER, R.DESIGNER, R.ART_DIRECTOR, R.COPYWRITER],
   LEAD: [R.ACCOUNT_MANAGER, R.SALES_AGENT],
   CAMPAIGN: [R.ACCOUNT_MANAGER, R.SOCIAL_MEDIA_MANAGER],
-  BRAND_PROFILE: [R.ACCOUNT_MANAGER, R.DESIGNER],
+  BRAND_PROFILE: [R.ACCOUNT_MANAGER, R.DESIGNER, R.ART_DIRECTOR],
 };
 
 /** Mirrors the API's add rule. Platform admins may attach anywhere. */

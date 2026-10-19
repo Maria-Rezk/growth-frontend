@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import type { CompanyMembershipRole } from '@/types/domain';
-import { AGENCY_ROLES, CLIENT_SIDE_ROLES, humanizeRole } from '@/utils/roles';
+import { AGENCY_ROLES, CLIENT_SIDE_ROLES, ROLE_LABELS_AR, humanizeRole } from '@/utils/roles';
 
 /**
  * Picks the roles somebody holds on one client.
@@ -60,7 +60,7 @@ export function RoleChecklist({
             checked={value.includes(role)}
             onChange={() => toggle(role)}
           />
-          <span>{humanizeRole(role)}</span>
+          <span>{humanizeRole(role)}{ROLE_LABELS_AR[role] ? <> <span className="muted" lang="ar" dir="rtl">· {ROLE_LABELS_AR[role]}</span></> : null}</span>
         </label>
       ))}
     </fieldset>

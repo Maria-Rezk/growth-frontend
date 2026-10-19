@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { taskTypeSummary } from '@/utils/taskTypes';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
@@ -134,7 +135,7 @@ function CampaignDetailInner({ companyId, campaignId }: { companyId: string; cam
             closed={closed}
             itemKey={(task) => task.id}
             label={(task) => task.title}
-            meta={(task) => [humanize(task.type), task.dueDate ? `due ${formatDate(task.dueDate)}` : null].filter(Boolean).join(' · ')}
+            meta={(task) => [taskTypeSummary(task), task.dueDate ? `due ${formatDate(task.dueDate)}` : null].filter(Boolean).join(' · ')}
             status={(task) => task.status}
             to={(task) => appRoutes.task(task.id)}
             attach={(taskId) => campaignsService.attachTask(companyId, campaignId, taskId)}

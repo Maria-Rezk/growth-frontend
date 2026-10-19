@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { AttachmentList } from '@/components/domain/AttachmentList';
+import { LinkOrNoteForm } from '@/components/domain/LinkOrNoteForm';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Field, Input } from '@/components/ui/Fields';
@@ -12,7 +13,7 @@ import { useAsync, useMutation } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { attachmentsService, type AttachmentParent } from '@/services/attachments';
 import { fileTooLargeError } from '@/services/files';
-import { ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_RECORD, isPlatformAdmin } from '@/types/domain';
+import { ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_RECORD, isPlatformAdmin, type AttachmentInput } from '@/types/domain';
 import { formatBytes } from '@/utils/format';
 import { canAddAttachment, canRemoveAttachment } from '@/utils/permissions';
 
@@ -46,8 +47,8 @@ export function useAttachmentAccess(entityType: AttachmentParent['entityType']) 
 }
 
 /**
- * Attachments on one record: list, upload with an optional label, remove.
- * The same component for tasks, posts, campaigns, leads and the brand profile.
+ * Attachments on one record: list, upload a file, paste a link or write a
+ * note (each with an optional label), remove. The same component for tasks, posts, campaigns, leads and the brand profile.
  */
 export function AttachmentsPanel({
   companyId,
@@ -67,6 +68,7 @@ export function AttachmentsPanel({
   const access = useAttachmentAccess(parent.entityType);
   const list = useAsync(() => attachmentsService.list(companyId, parent), [companyId, parent.entityType, parent.entityId], { queryKey: key });
   const add = useMutation(attachmentsService.uploadAndAttach, { invalidateKeys: [key] });
+  const addEntry = useMutation(attachmentsService.add, { invalidateKeys: [key] });
   const remove = useMutation(attachmentsService.remove, { invalidateKeys: [key] });
   const [staged, setStaged] = useState<File | null>(null);
   const [label, setLabel] = useState('');
@@ -99,9 +101,18 @@ export function AttachmentsPanel({
     if (result) {
       setStaged(null);
       setLabel('');
-      toast.success(`Attached ${result.file.originalName ?? 'file'}.`);
+      toast.success(`Attached ${result.file?.originalName ?? 'file'}.`);
       onChanged?.();
     }
+  };
+
+  const attachEntry = async (input: Extract<AttachmentInput, { url: string } | { text: string }>) => {
+    addEntry.reset();
+    const result = await addEntry.mutate(companyId, parent, input);
+    if (!result) return false;
+    toast.success('url' in input ? 'Link added.' : 'Note added.');
+    onChanged?.();
+    return true;
   };
 
   const onRemove = async (attachmentId: string) => {
@@ -158,6 +169,7 @@ export function AttachmentsPanel({
                 onFiles={([file]) => stage(file)}
               />
               {pickError ? <p className="error-box" role="alert">{pickError}</p> : null}
+              <LinkOrNoteForm onAdd={attachEntry} busy={addEntry.loading} error={addEntry.error} labelExample={LABEL_EXAMPLES[parent.entityType]} />
             </>
           )
         ) : null}

@@ -4828,3 +4828,188 @@ fieldset.field > legend {
     align-items: center;
   }
 }
+
+/* ------------------------------------------------- Task types & drafts */
+/* Several types per task: toggle pills rather than a multi-select, so what is
+   chosen is always visible and each one is a single tap. */
+.type-picker {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.type-picker__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.type-picker__option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.type-picker__option:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.type-picker__option input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: inherit;
+}
+
+.type-picker__option svg {
+  display: none;
+  flex: none;
+}
+
+.type-picker__option:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.type-picker__option:has(input:checked) svg {
+  display: block;
+}
+
+.type-picker__option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.type-picker__option:has(input:disabled) {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.type-picker__custom {
+  margin-top: var(--s-3);
+}
+
+.type-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.type-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.type-chip--none {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+}
+
+/* The link/note adder sits under the upload dropzone and reads as part of it. */
+.link-note {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+}
+
+.attachment-row__title {
+  display: block;
+  font-weight: 500;
+}
+
+.attachment-row .attachment-row__note {
+  font-size: 13px;
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+}
+
+.attachment-row--text,
+.attachment-row--link {
+  align-items: flex-start;
+}
+
+.attachment-row a.attachment-row__name {
+  text-decoration: none;
+}
+
+.attachment-row__more {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-top: 2px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.attachment-row__more:hover {
+  text-decoration: underline;
+}
+
+.draft-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.draft-row:last-child {
+  border-bottom: 0;
+}
+
+.draft-row__main {
+  min-width: 0;
+}
+
+.draft-row__main p {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.draft-row__actions {
+  display: flex;
+  flex: none;
+  gap: var(--s-2);
+}
+
+@media (max-width: 640px) {
+  .draft-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .draft-row__actions .btn {
+    flex: 1;
+  }
+}

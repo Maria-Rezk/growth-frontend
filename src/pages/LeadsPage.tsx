@@ -10,7 +10,7 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
-import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
+import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
 import { Pagination } from '@/components/ui/Pagination';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
@@ -400,13 +400,13 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
 
   // Clear both the form and the mutation, otherwise a previous error is still
   // on screen the next time the modal opens.
-  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachments>(NO_PENDING_ATTACHMENTS);
   const [uploading, setUploading] = useState(false);
 
   const close = () => {
     form.reset();
     create.reset();
-    setPendingFiles([]);
+    setPendingFiles(NO_PENDING_ATTACHMENTS);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
@@ -414,7 +414,7 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
-      attachmentFileIds: pendingFiles.map((file) => file.fileId),
+      ...pendingPayload(pendingFiles),
       name: values.name.trim(),
       email: values.email || undefined,
       phone: values.phone,

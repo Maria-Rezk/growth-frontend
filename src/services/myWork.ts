@@ -3,6 +3,7 @@ import { apiRoutes } from '@/config/apiRoutes';
 import { errorMessage, http, isRouteMissing } from '@/lib/http';
 import { demoCompany, demoDelay, demoTasks, demoUser } from '@/services/demoStore';
 import { tasksService } from '@/services/tasks';
+import { readTaskTypes } from '@/utils/taskTypes';
 import type { Company, ListParams, Paginated, Task, TaskType } from '@/types/domain';
 
 /**
@@ -114,7 +115,7 @@ export const myReviewsService = {
     const source = Array.isArray(data.items) ? data : (data.data ?? data);
     const items = (Array.isArray(source.items) ? source.items : []).map((raw) => ({
       ...raw,
-      type: raw.type ?? raw.taskType ?? 'GENERAL',
+      taskTypes: readTaskTypes(raw),
       clientId: raw.company?.id ?? raw.companyId,
       clientName: raw.company?.name ?? 'Unknown client',
     }));

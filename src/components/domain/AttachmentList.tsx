@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClass } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/State';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { ArrowUpRightIcon, CloseIcon } from '@/components/ui/icons';
@@ -10,7 +10,8 @@ import type { Attachment } from '@/types/domain';
 import { formatBytes, formatDateTime } from '@/utils/format';
 
 /**
- * Files attached to a record, each one openable.
+ * What is attached to a record: files, links and notes, in one list. Read
+ * `kind` first: `file` is null for a link or a note.
  *
  * Files live behind a signed URL minted per request, asked for with
  * `disposition=inline` so images and PDFs open in the tab instead of
@@ -45,6 +46,8 @@ export function AttachmentList({
   const confirm = useConfirm();
 
   const open = async (attachment: Attachment) => {
+    if (!attachment.file) return;
+    const fileId = attachment.file.id;
     setOpening(attachment.id);
     /*
       Open the tab synchronously, inside the click, so popup blockers allow
@@ -56,7 +59,7 @@ export function AttachmentList({
     const tab = window.open('about:blank', '_blank');
     if (tab) tab.opener = null;
     try {
-      const url = await filesService.downloadUrl(companyId, attachment.file.id, 'inline');
+      const url = await filesService.downloadUrl(companyId, fileId, 'inline');
       if (tab && !tab.closed) tab.location.href = url;
       else window.open(url, '_blank');
     } catch (cause) {
@@ -74,34 +77,56 @@ export function AttachmentList({
   return (
     <ul className="attachment-list">
       {data.map((attachment) => {
-        const name = attachment.file.originalName ?? 'Untitled file';
+        const kind = attachment.kind ?? 'FILE';
+        const name = attachmentName(attachment);
         const meta = [
-          attachment.label,
-          formatBytes(attachment.file.size),
+          kind === 'LINK' ? hostOf(attachment.url) : kind === 'TEXT' ? 'Note' : formatBytes(attachment.file?.size),
           attachment.uploadedBy?.fullName ? `by ${attachment.uploadedBy.fullName}` : '',
           attachment.createdAt ? formatDateTime(attachment.createdAt) : '',
         ]
           .filter(Boolean)
           .join(' · ');
         const removable = Boolean(onRemove) && (canRemove ? canRemove(attachment) : true);
+        const href = kind === 'LINK' ? safeHref(attachment.url) : null;
         return (
-          <li key={attachment.id} className="attachment-row">
+          <li key={attachment.id} className={`attachment-row attachment-row--${kind.toLowerCase()}`}>
             <div className="attachment-row__main">
-              <button
-                type="button"
-                className="attachment-row__name"
-                onClick={() => open(attachment)}
-                disabled={opening === attachment.id}
-                title="Open in a new tab"
-              >
-                {name}
-              </button>
+              {kind === 'LINK' ? (
+                href ? (
+                  <a className="attachment-row__name" href={href} target="_blank" rel="noopener noreferrer" title={attachment.url ?? undefined}>{name}</a>
+                ) : (
+                  <span className="attachment-row__name" title="This link is not a web address, so it is not clickable.">{name}</span>
+                )
+              ) : kind === 'TEXT' ? (
+                <>
+                  {attachment.label ? <strong className="attachment-row__title">{attachment.label}</strong> : null}
+                  <NoteBody text={attachment.text ?? ''} />
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="attachment-row__name"
+                  onClick={() => open(attachment)}
+                  disabled={opening === attachment.id}
+                  title="Open in a new tab"
+                >
+                  {name}
+                </button>
+              )}
+              {kind === 'FILE' && attachment.label ? <p className="muted">{attachment.label}</p> : null}
               {meta ? <p className="muted">{meta}</p> : null}
             </div>
             <div className="attachment-row__actions">
-              <Button size="sm" variant="secondary" onClick={() => open(attachment)} loading={opening === attachment.id} aria-label={`Open ${name}`}>
-                <ArrowUpRightIcon size={14} /> Open
-              </Button>
+              {kind === 'FILE' ? (
+                <Button size="sm" variant="secondary" onClick={() => open(attachment)} loading={opening === attachment.id} aria-label={`Open ${name}`}>
+                  <ArrowUpRightIcon size={14} /> Open
+                </Button>
+              ) : null}
+              {kind === 'LINK' && href ? (
+                <a className={buttonClass({ variant: 'secondary', size: 'sm' })} href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${name} in a new tab`}>
+                  <ArrowUpRightIcon size={14} /> Open
+                </a>
+              ) : null}
               {removable && onRemove ? (
                 <Button
                   size="sm"
@@ -111,8 +136,10 @@ export function AttachmentList({
                   disabled={removing !== null && removing !== undefined}
                   onClick={async () => {
                     const ok = await confirm({
-                      title: 'Remove attachment',
-                      message: <>Remove <strong>{name}</strong> from this record? The file is kept while anything else still uses it.</>,
+                      title: kind === 'FILE' ? 'Remove attachment' : kind === 'LINK' ? 'Remove link' : 'Remove note',
+                      message: kind === 'FILE'
+                        ? <>Remove <strong>{name}</strong> from this record? The file is kept while anything else still uses it.</>
+                        : <>Remove <strong>{name}</strong> from this record?</>,
                       confirmLabel: 'Remove',
                       tone: 'danger',
                     });
@@ -128,4 +155,54 @@ export function AttachmentList({
       })}
     </ul>
   );
+}
+
+const NOTE_PREVIEW = 240;
+
+/** A note, shown whole when short and folded behind "Show more" when long. */
+function NoteBody({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > NOTE_PREVIEW;
+  return (
+    <>
+      <p className="attachment-row__note pre-wrap">{long && !expanded ? `${text.slice(0, NOTE_PREVIEW).trimEnd()}…` : text}</p>
+      {long ? (
+        <button type="button" className="attachment-row__more" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+/** The label when there is one, else what the thing is: the file name, the link, the start of the note. */
+function attachmentName(attachment: Attachment): string {
+  switch (attachment.kind ?? 'FILE') {
+    case 'LINK':
+      return attachment.label || attachment.url || 'Link';
+    case 'TEXT':
+      return attachment.label || `${(attachment.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Note'}`;
+    default:
+      return attachment.file?.originalName ?? 'Untitled file';
+  }
+}
+
+function hostOf(url: string | null): string {
+  if (!url) return '';
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
+}
+
+/** Only http(s) is ever made clickable, whatever the server sent. */
+function safeHref(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
+  } catch {
+    return null;
+  }
 }

@@ -27,9 +27,12 @@ function asAttachment(asset: PostAsset): Attachment {
   const label = [humanize(asset.assetType), asset.label].filter(Boolean).join(' · ');
   return {
     id: asset.id,
+    kind: 'FILE',
     entityType: 'POST',
     entityId: asset.postId,
     label,
+    url: null,
+    text: null,
     uploadedById: asset.uploadedById ?? '',
     uploadedBy: asset.uploadedBy,
     createdAt: asset.createdAt,

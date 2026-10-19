@@ -96,7 +96,7 @@ export function TaskReviewPanel({
           <ApproverPicker
             id="task-approver-change"
             companyId={companyId}
-            taskType={task.type}
+            taskTypes={task.taskTypes ?? []}
             members={members}
             value={task.approverId ?? ''}
             onChange={setApprover}

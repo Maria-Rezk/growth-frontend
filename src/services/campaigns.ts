@@ -11,7 +11,7 @@ import {
   demoTasks,
   makeId,
 } from '@/services/demoStore';
-import { attachmentsService } from '@/services/attachments';
+import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
 import type {
   Campaign,
   CampaignObjective,
@@ -31,8 +31,7 @@ type CampaignCreateInput = {
   currency?: string;
   targetAudience?: string;
   notes?: string;
-  attachmentFileIds?: string[];
-};
+} & AttachmentCreateFields;
 
 type CampaignUpdateInput = {
   name?: string;
@@ -89,16 +88,14 @@ export const campaignsService = {
         updatedAt: new Date().toISOString(),
       };
       demoCampaigns.unshift(campaign);
-      for (const fileId of payload.attachmentFileIds ?? []) {
-        await attachmentsService.add(companyId, { entityType: 'CAMPAIGN', entityId: campaign.id }, fileId);
-      }
+      await attachmentsService.addAllDemo(companyId, { entityType: 'CAMPAIGN', entityId: campaign.id }, payload);
       return demoDelay(campaign);
     }
     // No status on create — backend assigns DRAFT.
-    const { attachmentFileIds, ...rest } = payload;
+    const { attachmentFileIds, attachmentLinks, attachmentTexts, ...rest } = payload;
     const response = await http.post(apiRoutes.campaigns.list(companyId), {
       ...rest,
-      attachmentFileIds: attachmentFileIds?.length ? attachmentFileIds : undefined,
+      ...attachmentFieldsForWire({ attachmentFileIds, attachmentLinks, attachmentTexts }),
     });
     return unwrap<Campaign>(response.data);
   },

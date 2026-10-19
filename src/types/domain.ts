@@ -89,6 +89,8 @@ export const CompanyMembershipRole = {
   ACCOUNT_MANAGER: 'ACCOUNT_MANAGER',
   COPYWRITER: 'COPYWRITER',
   DESIGNER: 'DESIGNER',
+  /** A Designer who can also create and assign tasks — hands design work to the designers. */
+  ART_DIRECTOR: 'ART_DIRECTOR',
   SOCIAL_MEDIA_MANAGER: 'SOCIAL_MEDIA_MANAGER',
   CLIENT_OWNER: 'CLIENT_OWNER',
   CLIENT_REVIEWER: 'CLIENT_REVIEWER',
@@ -357,27 +359,63 @@ export const AttachmentEntityType = {
 } as const;
 export type AttachmentEntityType = (typeof AttachmentEntityType)[keyof typeof AttachmentEntityType];
 
-/** Every attachment list item, on every parent. */
+/** What an attachment is. Files carry a `file`; links carry a `url`; notes carry `text`. */
+export const AttachmentKind = {
+  FILE: 'FILE',
+  LINK: 'LINK',
+  TEXT: 'TEXT',
+} as const;
+export type AttachmentKind = (typeof AttachmentKind)[keyof typeof AttachmentKind];
+
+/** Every attachment list item, on every parent. Check `kind` before reading `file`. */
 export interface Attachment {
   id: UUID;
+  kind: AttachmentKind;
   entityType: AttachmentEntityType;
   entityId: UUID;
   label: string | null;
+  /** Set for LINK, else null. */
+  url: string | null;
+  /** Set for TEXT, else null. */
+  text: string | null;
   uploadedById: UUID;
   uploadedBy?: { id: UUID; fullName?: string | null } | null;
   createdAt?: ISODate;
+  /** Null for LINK and TEXT. */
   file: {
     id: UUID;
     originalName?: string;
     mimeType?: string;
     size?: number;
-  };
+  } | null;
+}
+
+/** What may be sent to add one attachment: exactly one of the three. */
+export type AttachmentInput =
+  | { fileId: UUID; label?: string }
+  | { url: string; label?: string }
+  | { text: string; label?: string };
+
+/** The pending links and notes sent with a create form, beside `attachmentFileIds`. */
+export interface PendingLink {
+  url: string;
+  label?: string;
+}
+export interface PendingText {
+  text: string;
+  label?: string;
 }
 
 export const AttachmentErrorCode = {
   FILE_TOO_LARGE: 'FILE_TOO_LARGE',
   ATTACHMENT_LIMIT: 'ATTACHMENT_LIMIT',
+  ATTACHMENT_PAYLOAD_INVALID: 'ATTACHMENT_PAYLOAD_INVALID',
 } as const;
+
+/** Mirrors the API: a link is at most 2,048 characters, a note 1–5,000, a label 180. */
+export const ATTACHMENT_URL_MAX = 2048;
+export const ATTACHMENT_TEXT_MAX = 5000;
+export const ATTACHMENT_LABEL_MAX = 180;
 
 /** Mirrors the API: 25MB per file, 20 attachments per record, 20 ids on a create. */
 export const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
@@ -489,14 +527,23 @@ export const TaskPriority = {
 } as const;
 export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
 
+/**
+ * What kind of work a task is. A task carries one or more (`taskTypes`);
+ * `OTHER` is the free-text one and travels with `customTaskType`.
+ *
+ * The same keys name the responsibility areas, which is how a Design task
+ * finds the Design area, its approver and its supervisor.
+ */
 export const TaskType = {
-  COPYWRITING: 'COPYWRITING',
+  PLAN: 'PLAN',
   DESIGN: 'DESIGN',
-  CLIENT_REVIEW: 'CLIENT_REVIEW',
-  FOLLOW_UP: 'FOLLOW_UP',
-  PUBLISHING: 'PUBLISHING',
-  REPORTING: 'REPORTING',
-  GENERAL: 'GENERAL',
+  CAPTIONS: 'CAPTIONS',
+  REELS: 'REELS',
+  PHOTO_SHOOT: 'PHOTO_SHOOT',
+  IT: 'IT',
+  OPERATIONS: 'OPERATIONS',
+  PR: 'PR',
+  OTHER: 'OTHER',
 } as const;
 export type TaskType = (typeof TaskType)[keyof typeof TaskType];
 
@@ -507,7 +554,14 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   priority: TaskPriority;
-  type: TaskType;
+  /** One or more kinds of work. Empty is allowed (a draft); show it as "no type". */
+  taskTypes: TaskType[];
+  /** What `OTHER` stands for. Null unless `taskTypes` includes OTHER. */
+  customTaskType?: string | null;
+  /** A draft is visible only to its author and admins, and notifies nobody until published. */
+  isDraft?: boolean;
+  /** First time the task moved to IN_PROGRESS. Null until work starts. */
+  startedAt?: ISODate | null;
   /** The doer. Stays on the same person through every round of review. */
   assignedToId?: UUID | null;
   assignedTo?: User | null;
@@ -557,6 +611,14 @@ export const TaskReviewErrorCode = {
   SEQUENCE_NEEDS_POST: 'SEQUENCE_NEEDS_POST',
   /** 409 on create/update: another task on the post holds that number. */
   SEQUENCE_TAKEN: 'SEQUENCE_TAKEN',
+  /** 422 on create/update: OTHER ticked without `customTaskType`. */
+  CUSTOM_TASK_TYPE_REQUIRED: 'CUSTOM_TASK_TYPE_REQUIRED',
+  /** 422: the compatibility `taskType` field carried a value the API does not know. */
+  UNKNOWN_TASK_TYPE: 'UNKNOWN_TASK_TYPE',
+  /** 409 on status change / submit: the task is still a draft. */
+  TASK_IS_DRAFT: 'TASK_IS_DRAFT',
+  /** 409 on publish / discard: the task has already been issued. */
+  NOT_A_DRAFT: 'NOT_A_DRAFT',
 } as const;
 export type TaskReviewErrorCode = (typeof TaskReviewErrorCode)[keyof typeof TaskReviewErrorCode];
 
@@ -568,14 +630,22 @@ export type ApproverResolutionReason =
   | 'NO_MATCHING_AREA'
   | 'UNMAPPED_TASK_TYPE';
 
-export interface ApproverResolution {
+/** One area a chosen task type found, with the people who approve there. */
+export interface ApproverResolutionArea {
   taskType: TaskType;
-  /** Set only when exactly one active person holds TO_APPROVE in the matching area. */
+  areaId: UUID;
+  areaName: string;
+  userIds: UUID[];
+}
+
+export interface ApproverResolution {
+  taskTypes: TaskType[];
+  /** Set only when the matrix gives exactly one person across all chosen types. */
   approverId: UUID | null;
   reason: ApproverResolutionReason;
-  areaId: UUID | null;
-  areaName: string | null;
-  /** Everybody holding TO_APPROVE in that area — the choices when there are several. */
+  /** One entry per chosen type that found an area. */
+  areas: ApproverResolutionArea[];
+  /** Everybody holding TO_APPROVE in those areas — the choices when there are several. */
   candidateUserIds: UUID[];
 }
 
@@ -753,6 +823,7 @@ export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELED';
  * existing member to any role.
  */
 export const INVITABLE_ROLES = [
+  CompanyMembershipRole.ART_DIRECTOR,
   CompanyMembershipRole.CLIENT_REVIEWER,
   CompanyMembershipRole.SALES_AGENT,
 ] as const;
@@ -796,6 +867,8 @@ export type NotificationType =
   | 'TASK_SUBMITTED_FOR_REVIEW'
   | 'TASK_APPROVED'
   | 'TASK_CHANGES_REQUESTED'
+  /** First time a task moves to IN_PROGRESS. Goes to the supervisor, or the approver when nobody supervises. */
+  | 'TASK_STARTED'
   /** Ageing nudges (backend digest): a review has waited a day on the approver, two days escalates to the Account Manager. */
   | 'REVIEW_WAITING_24H'
   | 'REVIEW_WAITING_48H'
@@ -838,10 +911,13 @@ export interface NotificationPreferences {
 export interface ListParams {
   status?: string;
   priority?: string;
+  /** Filters on `taskTypes` — sent to the API as `?taskType=`. */
   type?: string;
   source?: string;
   assignedToId?: string;
   search?: string;
+  /** The caller's own drafts only. */
+  drafts?: boolean;
 }
 // ===========================================================================
 // APPEND TO: src/types/domain.ts
@@ -876,12 +952,26 @@ export const RESPONSIBILITY_TYPE_LABELS: Record<ResponsibilityType, string> = {
 };
 
 /**
- * The keys the backend matches a task type against. Area *names* are free text
- * and differ per client ("Design", "Creative", «تصميم»), so the key is what
- * actually routes a task to its approver.
+ * The keys a responsibility area can carry — the same as the task types, minus
+ * `OTHER`. A Design task finds the Design area by this key, and that is how the
+ * approver and the supervisor are found. `OTHER` is not a key: an area created
+ * as "Other" is stored with no key and a name of the user's own.
  */
-export const AREA_KEYS = ['DESIGN', 'COPYWRITING', 'PUBLISHING', 'REPORTING', 'CLIENT_REVIEW', 'FOLLOW_UP'] as const;
+export const AREA_KEYS = ['PLAN', 'DESIGN', 'CAPTIONS', 'REELS', 'PHOTO_SHOOT', 'IT', 'OPERATIONS', 'PR'] as const;
 export type AreaKey = (typeof AREA_KEYS)[number];
+
+/** `GET /responsibility-areas/options` — builds the area-name dropdown. */
+export interface ResponsibilityAreaOption {
+  /** An area key, or `OTHER`. */
+  key: AreaKey | 'OTHER';
+  name: string;
+  nameAr: string;
+  /** An area can exist once per client; disable the option when true. */
+  inUse: boolean;
+  areaId: UUID | null;
+  /** True for `OTHER`: the user types the name. */
+  custom: boolean;
+}
 
 export interface ResponsibilityArea {
   id: UUID;
@@ -899,9 +989,10 @@ export interface ResponsibilityArea {
 }
 
 export interface ResponsibilityAreaPayload {
-  name: string;
-  /** Send `null` to clear it. */
-  areaKey?: AreaKey | null;
+  /** Required with `OTHER`; leave out with a listed area — the list names it. */
+  name?: string;
+  /** One of the listed keys, or `OTHER` for a name of your own. */
+  areaKey?: AreaKey | 'OTHER';
   description?: string;
   sortOrder?: number;
   isActive?: boolean;

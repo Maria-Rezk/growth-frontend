@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { taskTypeSummary } from '@/utils/taskTypes';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -103,7 +104,7 @@ function Palette({ onClose }: { onClose: () => void }) {
         .forEach((company) => list.push({ kind: 'client', id: company.id, title: company.name, meta: company.id === activeCompanyId ? 'Current client' : 'Switch to this client', companyId: company.id }));
     }
     visibleToViewer(posts.data ?? [], isClient).slice(0, MAX_PER_KIND).forEach((post) => list.push({ kind: 'post', id: post.id, title: post.title, meta: [post.platform, post.contentType].filter(Boolean).map((v) => humanize(v)).join(' · '), status: post.status, to: appRoutes.post(post.id) }));
-    (tasks.data ?? []).slice(0, MAX_PER_KIND).forEach((task) => list.push({ kind: 'task', id: task.id, title: task.title, meta: humanize(task.type), status: task.status, to: appRoutes.task(task.id) }));
+    (tasks.data ?? []).slice(0, MAX_PER_KIND).forEach((task) => list.push({ kind: 'task', id: task.id, title: task.title, meta: taskTypeSummary(task), status: task.status, to: appRoutes.task(task.id) }));
     (leads.data ?? []).slice(0, MAX_PER_KIND).forEach((lead) => list.push({ kind: 'lead', id: lead.id, title: lead.name, meta: [lead.source, lead.email].filter(Boolean).join(' · '), status: lead.status, to: `/leads/${lead.id}` }));
     (plans.data ?? []).filter((plan) => plan.title.toLowerCase().includes(needle)).slice(0, MAX_PER_KIND).forEach((plan) => list.push({ kind: 'plan', id: plan.id, title: plan.title, meta: plan.month && plan.year ? `${plan.month}/${plan.year}` : undefined, to: `/content-plans/${plan.id}` }));
     (campaigns.data ?? []).filter((campaign) => campaign.name.toLowerCase().includes(needle)).slice(0, MAX_PER_KIND).forEach((campaign) => list.push({ kind: 'campaign', id: campaign.id, title: campaign.name, meta: humanize(campaign.objective), status: campaign.status, to: `/campaigns/${campaign.id}` }));

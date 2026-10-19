@@ -22,6 +22,7 @@ import { tasksService } from '@/services/tasks';
 import { TaskModal, type TaskLink } from '@/pages/TasksPage';
 import { queryKeys } from '@/lib/queryClient';
 import { useAssignableMembers } from '@/hooks/useAssignableMembers';
+import { taskTypeSummary } from '@/utils/taskTypes';
 import { formatAmount, formatDateTime, fromInputDateTime, humanize, toInputDateTime } from '@/utils/format';
 import { LeadStatus, TaskStatus, TaskType, type LeadNote, type LostReason } from '@/types/domain';
 import {
@@ -263,7 +264,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
               subtitle="Work someone has to do for this lead — a proposal, a call, a demo."
               action={(
                 <RoleGate permission="tasks:edit">
-                  <Button variant="secondary" size="sm" onClick={() => setTaskLink({ relatedEntityType: 'LEAD', relatedEntityId: leadId, label: current.name, type: TaskType.FOLLOW_UP })}>
+                  <Button variant="secondary" size="sm" onClick={() => setTaskLink({ relatedEntityType: 'LEAD', relatedEntityId: leadId, label: current.name, taskTypes: [TaskType.OTHER], customTaskType: 'Follow up' })}>
                     <PlusIcon size={14} /> Add task
                   </Button>
                 </RoleGate>
@@ -277,7 +278,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                 <div className="list-row" key={task.id}>
                   <div>
                     <Link className="table-link" to={appRoutes.task(task.id)}>{task.title}</Link>
-                    <p className="muted">{humanize(task.type)} · {userLabel(task.assignedTo, 'unassigned')}{task.dueDate ? ` · due ${formatDateTime(task.dueDate)}` : ''}</p>
+                    <p className="muted">{taskTypeSummary(task)} · {userLabel(task.assignedTo, 'unassigned')}{task.dueDate ? ` · due ${formatDateTime(task.dueDate)}` : ''}</p>
                   </div>
                   <StatusBadge value={task.status === TaskStatus.DONE ? 'DONE' : task.status} />
                 </div>

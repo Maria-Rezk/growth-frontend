@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
@@ -12,6 +12,9 @@ import { Timeline } from '@/components/domain/Timeline';
 import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskReviewPanel';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { Badge } from '@/components/ui/Badge';
+import { TaskTypeChips } from '@/components/domain/TaskTypes';
+import { appRoutes } from '@/config/appRoutes';
+import { errorCode } from '@/lib/http';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { useTaskActor } from '@/hooks/useTaskActor';
@@ -21,7 +24,7 @@ import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
-import { TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
+import { TaskReviewErrorCode, TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
 import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 
@@ -43,6 +46,13 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   // Was a bare service call — no pending state, errors swallowed, and a double
   // click filed the comment twice.
   const addCommentMutation = useMutation(tasksService.addComment);
+  // 409 NOT_A_DRAFT: it was published (or discarded) from somewhere else. Reload rather than retry.
+  const staleDraft = (error: unknown) => {
+    if (errorCode(error) === TaskReviewErrorCode.NOT_A_DRAFT) void task.refetch();
+  };
+  const publishDraft = useMutation(tasksService.publishDraft, { invalidateKeys: tasksPrefix, onError: staleDraft });
+  const discardDraft = useMutation(tasksService.discardDraft, { invalidateKeys: tasksPrefix, onError: staleDraft });
+  const navigate = useNavigate();
 
   const [comment, setComment] = useState('');
   const { userId: actorId } = useTaskActor();
@@ -79,6 +89,30 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
     }
   };
 
+  const onPublish = async () => {
+    const result = await publishDraft.mutate(companyId, taskId);
+    if (result) {
+      task.setData(result);
+      toast.success('Published. The assignee has been told.');
+      await logs.refetch();
+    }
+  };
+
+  const onDiscard = async () => {
+    const ok = await confirm({
+      title: 'Discard this draft?',
+      message: 'It is deleted for good. Nobody has been told about it.',
+      confirmLabel: 'Discard draft',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    const done = await discardDraft.mutate(companyId, taskId);
+    if (done !== null) {
+      toast.success('Draft discarded.');
+      navigate(`${appRoutes.tasks}?scope=drafts`);
+    }
+  };
+
   const addComment = async (event: FormEvent) => {
     event.preventDefault();
     const body = comment.trim();
@@ -100,6 +134,18 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
 
       <div className="detail-grid">
         <section className="detail-main">
+          {current.isDraft ? (
+            <Card className="draft-banner">
+              <div className="content-card__body stack-list">
+                <p><Badge tone="neutral">Draft</Badge> Only you can see this. Nobody has been told, and it cannot change status until it is published.</p>
+                <div className="button-row">
+                  <Button size="sm" onClick={() => void onPublish()} loading={publishDraft.loading} disabled={discardDraft.loading}>Publish</Button>
+                  <Button size="sm" variant="ghost" onClick={() => void onDiscard()} loading={discardDraft.loading} disabled={publishDraft.loading}>Discard draft</Button>
+                </div>
+                {publishDraft.error || discardDraft.error ? <p className="error-box" role="alert">{publishDraft.error ?? discardDraft.error}</p> : null}
+              </div>
+            </Card>
+          ) : null}
           <ReviewNoteBanner task={current} />
 
           <Card>
@@ -108,7 +154,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
               <p className="pre-wrap">{current.description || 'No description.'}</p>
               <div className="key-values">
                 <div><span>Priority</span><strong><StatusBadge value={current.priority} /></strong></div>
-                <div><span>Type</span><strong>{humanize(current.type)}</strong></div>
+                <div><span>Type</span><strong><TaskTypeChips task={current} /></strong></div>
                 {current.sequence ? <div><span>Stage on post</span><strong>{current.sequence}</strong></div> : null}
                 <div><span>Assigned</span><strong>{resolveName(current.assignedToId)}</strong></div>
                 <div>
@@ -118,6 +164,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                     {approverIsInactive(current) ? <> <Badge tone="danger">Deactivated</Badge></> : null}
                   </strong>
                 </div>
+                {current.startedAt ? <div><span>Started</span><strong>{formatDateTime(current.startedAt)}</strong></div> : null}
                 <div>
                   <span>{overdue ? 'Overdue' : 'Due'}</span>
                   <strong className={overdue ? 'danger-text' : undefined}>{formatDateTime(current.dueDate)}</strong>
@@ -154,18 +201,21 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
         </section>
 
         <aside className="detail-side">
-          <TaskReviewPanel
-            companyId={companyId}
-            task={current}
-            members={members.data ?? []}
-            membersLoading={members.loading}
-            onTask={task.setData}
-            onActivity={() => void logs.refetch()}
-          />
+          {current.isDraft ? null : (
+            <TaskReviewPanel
+              companyId={companyId}
+              task={current}
+              members={members.data ?? []}
+              membersLoading={members.loading}
+              onTask={task.setData}
+              onActivity={() => void logs.refetch()}
+            />
+          )}
 
           <Card>
             <CardHeader title="Status" />
             <div className="content-card__body">
+              {current.isDraft ? <p className="muted">Publish this draft to start moving it through the board.</p> : (
               <RoleGate permission="tasks:manage" fallback={<p className="muted">Your role cannot change task status.</p>}>
                 {/*
                   `IN_REVIEW` is not on offer in either direction: the status
@@ -210,6 +260,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 )}
                 {setStatus.error ? <p className="error-box" role="alert">{setStatus.error}</p> : null}
               </RoleGate>
+              )}
             </div>
           </Card>
 
@@ -283,9 +334,9 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
         body: `${typeof meta.from === 'string' ? resolveName(meta.from) : 'Nobody'} → ${typeof meta.to === 'string' ? resolveName(meta.to) : 'Nobody'}`,
       };
     case 'ATTACHMENT_ADDED':
-      return { title: 'Attachment added', body: typeof meta.originalName === 'string' ? meta.originalName : undefined };
+      return { title: 'Attachment added', body: attachmentSummary(meta) };
     case 'ATTACHMENT_REMOVED':
-      return { title: 'Attachment removed', body: typeof meta.originalName === 'string' ? meta.originalName : undefined };
+      return { title: 'Attachment removed', body: attachmentSummary(meta) };
     case 'CREATED':
     case 'TASK_CREATED':
       return {
@@ -295,6 +346,14 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
     default:
       return { title: humanize(log.action) };
   }
+}
+
+/** A file's name, else a link's label or address: whichever the log row carries. */
+function attachmentSummary(meta: Record<string, unknown>): string | undefined {
+  for (const key of ['originalName', 'label', 'url']) {
+    if (typeof meta[key] === 'string' && meta[key]) return meta[key] as string;
+  }
+  return undefined;
 }
 
 /** Previously `comments.data?.map()` with no empty and no error branch. */

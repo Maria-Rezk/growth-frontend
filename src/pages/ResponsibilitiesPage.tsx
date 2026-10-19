@@ -17,6 +17,7 @@ import {
   RESPONSIBILITY_TYPE_LABELS,
   type AreaKey,
   type ResponsibilityArea,
+
   type ResponsibilityMatrix,
   type ResponsibilityMatrixCell,
   type ResponsibilityType,
@@ -24,11 +25,9 @@ import {
 import { rolesLabel } from '@/utils/roles';
 import { humanize } from '@/utils/format';
 
-/** What each key routes: the task type that lands on this area's approver. */
-const AREA_KEY_OPTIONS: Array<{ value: AreaKey; label: string }> = AREA_KEYS.map((key) => ({
-  value: key,
-  label: `${humanize(key)} — ${humanize(key).toLowerCase()} tasks`,
-}));
+/** The dropdown value for a custom name: stored with no key. */
+const OTHER = 'OTHER';
+const isListedKey = (value: string | null | undefined): value is AreaKey => AREA_KEYS.includes(value as AreaKey);
 
 const TYPE_OPTIONS = Object.entries(RESPONSIBILITY_TYPE_LABELS) as Array<[ResponsibilityType, string]>;
 
@@ -320,11 +319,17 @@ function CellEditorModal({
 // Manage areas — list + create/edit form + delete (cascades to assignments).
 // ---------------------------------------------------------------------------
 function ManageAreasModal({ companyId, open, onClose }: { companyId: string; open: boolean; onClose: () => void }) {
-  const invalidate = [queryKeys.responsibilityAreas(companyId), queryKeys.responsibilityMatrix(companyId)];
+  const invalidate = [queryKeys.responsibilityAreas(companyId), queryKeys.responsibilityMatrix(companyId), queryKeys.responsibilityAreaOptions(companyId)];
   const areas = useAsync(
     () => responsibilitiesService.listAreas(companyId, { limit: 100 }),
     [companyId],
     { queryKey: queryKeys.responsibilityAreas(companyId), enabled: open },
+  );
+  // Which listed names this client already has; refreshed by the same invalidation as the areas.
+  const options = useAsync(
+    () => responsibilitiesService.areaOptions(companyId),
+    [companyId],
+    { queryKey: queryKeys.responsibilityAreaOptions(companyId), enabled: open },
   );
   const create = useMutation(responsibilitiesService.createArea, { invalidateKeys: invalidate });
   const update = useMutation(responsibilitiesService.updateArea, { invalidateKeys: invalidate });
@@ -355,7 +360,8 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
   const startEdit = (area: ResponsibilityArea) => {
     setEditing(area);
     setName(area.name);
-    setAreaKey(area.areaKey ?? '');
+    // A listed key picks its row in the dropdown; anything else (an old free-text area) is a name of its own.
+    setAreaKey(isListedKey(area.areaKey) ? area.areaKey : OTHER);
     setDescription(area.description ?? '');
     setSortOrder(String(area.sortOrder));
     setIsActive(area.isActive);
@@ -367,8 +373,13 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setValidationError(null);
+    if (!areaKey) {
+      setValidationError('Choose a service area.');
+      return;
+    }
+    const custom = areaKey === OTHER;
     const trimmedName = name.trim();
-    if (trimmedName.length < 2 || trimmedName.length > 120) {
+    if (custom && (trimmedName.length < 2 || trimmedName.length > 120)) {
       setValidationError('Name must be between 2 and 120 characters.');
       return;
     }
@@ -378,13 +389,12 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
       return;
     }
     const payload = {
-      name: trimmedName,
       /*
-        The key is what task routing matches on — names are free text and
-        differ per client. Send `null` on edit to clear a key; omit it on
-        create when none was picked so the backend's name fallback applies.
+        The key is what task routing matches on, and a listed area is named by
+        the list: send the key alone. `OTHER` is the one case with a name of
+        the user's own, stored with no key.
       */
-      ...(areaKey ? { areaKey: areaKey as AreaKey } : editing?.areaKey ? { areaKey: null } : {}),
+      ...(custom ? { areaKey: 'OTHER' as const, name: trimmedName } : { areaKey: areaKey as AreaKey }),
       description: description.trim() || undefined,
       sortOrder: order,
       isActive,
@@ -459,19 +469,30 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
 
         <form className="form-grid" onSubmit={submit}>
           <h3>{editing ? `Edit "${editing.name}"` : 'New area'}</h3>
-          <Field label="Name" htmlFor="area-name" hint="Unique per company, 2–120 characters.">
-            <Input id="area-name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={120} required />
-          </Field>
           <Field
-            label="Task routing key"
+            label="Service area"
             htmlFor="area-key"
-            hint="Which kind of task this area approves. Without a key the backend matches on common names only; set it and “change one cell instead of forty tasks” actually works."
+            hint={areaHint(areaKey)}
           >
-            <Select id="area-key" value={areaKey} onChange={(event) => setAreaKey(event.target.value)}>
-              <option value="">No key — match by name</option>
-              {AREA_KEY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            <Select id="area-key" value={areaKey} onChange={(event) => setAreaKey(event.target.value)} disabled={options.loading} required>
+              <option value="" disabled>{options.loading ? 'Loading areas…' : 'Choose a service area…'}</option>
+              {(options.data ?? []).map((option) => {
+                // An area exists once per client, but the one being edited keeps its own name.
+                const taken = option.inUse && option.areaId !== editing?.id;
+                return (
+                  <option key={option.key} value={option.key} disabled={taken}>
+                    {option.name} · {option.nameAr}{taken ? ' (already added)' : ''}
+                  </option>
+                );
+              })}
             </Select>
           </Field>
+          {options.error ? <ErrorState message={options.error} onRetry={options.refetch} /> : null}
+          {areaKey === OTHER ? (
+            <Field label="Area name" htmlFor="area-name" hint="Your own name, 2–120 characters. It is not tied to a task type, so tasks will not route to it by themselves.">
+              <Input id="area-name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={120} required autoFocus />
+            </Field>
+          ) : null}
           <Field label="Description (optional)" htmlFor="area-description">
             <Textarea id="area-description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} rows={2} />
           </Field>
@@ -491,6 +512,13 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
       </div>
     </Modal>
   );
+}
+
+/** What the chosen option means, in words, under the dropdown. */
+function areaHint(areaKey: string): string {
+  if (!areaKey) return 'An area exists once per client. “Other” lets you name one yourself.';
+  if (areaKey === OTHER) return 'A name of your own.';
+  return `Named by the list. ${humanize(areaKey)} tasks go to this row's approver and supervisor.`;
 }
 
 /**

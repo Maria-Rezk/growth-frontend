@@ -1,11 +1,15 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
+import { AREA_KEYS } from '@/types/domain';
+import { TASK_TYPE_OPTIONS } from '@/utils/taskTypes';
 import type {
+  AreaKey,
   AssignResponsibilityPayload,
   BulkAssignResult,
   Paginated,
   ResponsibilityArea,
+  ResponsibilityAreaOption,
   ResponsibilityAreaPayload,
   ResponsibilityAssignment,
   ResponsibilityMatrix,
@@ -17,7 +21,7 @@ import type {
 // Demo store (in-file: keeps demoStore.ts untouched). Only used in demo mode.
 // ---------------------------------------------------------------------------
 const demoAreas: ResponsibilityArea[] = [
-  { id: 'demo-area-1', companyId: 'demo-company', name: 'Social Media', areaKey: 'PUBLISHING', description: null, sortOrder: 1, isActive: true, createdById: null, updatedById: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'demo-area-1', companyId: 'demo-company', name: 'Design', areaKey: 'DESIGN', description: null, sortOrder: 1, isActive: true, createdById: null, updatedById: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'demo-area-2', companyId: 'demo-company', name: 'Marketing', description: null, sortOrder: 2, isActive: true, createdById: null, updatedById: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 const demoMatrix: ResponsibilityMatrix = {
@@ -30,6 +34,11 @@ const demoMatrix: ResponsibilityMatrix = {
     { assignmentId: 'demo-cell-1', areaId: 'demo-area-1', memberUserId: 'demo-user-1', type: 'TO_SUPPORT', customLabel: null, note: null },
   ],
 };
+/** The names the list gives each key. Demo-only: the API sends these. */
+function listedName(key: AreaKey): { name: string; nameAr: string } {
+  const option = TASK_TYPE_OPTIONS.find((item) => item.value === key);
+  return { name: option?.label ?? key, nameAr: option?.labelAr ?? key };
+}
 const demoDelay = <T>(value: T): Promise<T> => new Promise((resolve) => setTimeout(() => resolve(value), 250));
 
 // ---------------------------------------------------------------------------
@@ -79,12 +88,41 @@ export const responsibilitiesService = {
     return normalizePaginated<ResponsibilityArea>(response.data);
   },
 
+  /**
+   * The dropdown behind the area name: the eight listed areas (each marked when
+   * this client already has it) and `OTHER`, last, always available.
+   */
+  async areaOptions(companyId: string): Promise<ResponsibilityAreaOption[]> {
+    if (env.demoMode) {
+      return demoDelay<ResponsibilityAreaOption[]>([
+        ...AREA_KEYS.map((key) => {
+          const holder = demoAreas.find((area) => area.areaKey === key);
+          return { key, ...listedName(key), inUse: Boolean(holder), areaId: holder?.id ?? null, custom: false };
+        }),
+        { key: 'OTHER', name: 'Other', nameAr: 'أخرى', inUse: false, areaId: null, custom: true },
+      ]);
+    }
+    const response = await http.get(apiRoutes.responsibilities.areaOptions(companyId));
+    const raw = unwrap<ResponsibilityAreaOption[]>(response.data);
+    const options = Array.isArray(raw) ? raw : [];
+    // OTHER is always last, whatever order it arrived in.
+    return [...options.filter((option) => option.key !== 'OTHER'), ...options.filter((option) => option.key === 'OTHER')];
+  },
+
   async createArea(companyId: string, payload: ResponsibilityAreaPayload): Promise<ResponsibilityArea> {
     if (env.demoMode) {
+      const listed = payload.areaKey && payload.areaKey !== 'OTHER' ? payload.areaKey : null;
+      if (listed && demoAreas.some((area) => area.areaKey === listed)) {
+        throw Object.assign(new Error('This client already has that area.'), { statusCode: 409 });
+      }
+      if (!listed && !payload.name?.trim()) {
+        throw Object.assign(new Error('Name the area: a name is required with OTHER.'), { statusCode: 400 });
+      }
       const area: ResponsibilityArea = {
         id: `demo-area-${Date.now()}`,
         companyId,
-        name: payload.name,
+        name: listed ? listedName(listed).name : payload.name!.trim(),
+        areaKey: listed,
         description: payload.description ?? null,
         sortOrder: payload.sortOrder ?? 0,
         isActive: payload.isActive ?? true,
@@ -105,7 +143,13 @@ export const responsibilitiesService = {
     if (env.demoMode) {
       const area = demoAreas.find((item) => item.id === areaId);
       if (!area) throw new Error('Area not found.');
-      Object.assign(area, payload, { updatedAt: new Date().toISOString() });
+      const { areaKey, name, ...rest } = payload;
+      Object.assign(area, rest, { updatedAt: new Date().toISOString() });
+      if (areaKey) {
+        const listed = areaKey === 'OTHER' ? null : areaKey;
+        area.areaKey = listed;
+        area.name = listed ? listedName(listed).name : name?.trim() || area.name;
+      }
       return demoDelay(area);
     }
     const response = await http.patch(apiRoutes.responsibilities.area(companyId, areaId), payload);

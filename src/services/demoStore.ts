@@ -181,12 +181,12 @@ export let demoFiles: StoredFile[] = [
 
 export let demoAttachments: Attachment[] = [
   {
-    id: 'attachment-1', entityType: 'POST', entityId: 'post-1', label: null,
+    id: 'attachment-1', kind: 'FILE', entityType: 'POST', entityId: 'post-1', label: null, url: null, text: null,
     uploadedById: 'demo-designer', uploadedBy: { id: 'demo-designer', fullName: 'Demo Designer' }, createdAt: iso(-1),
     file: { id: 'file-1', originalName: 'launch-carousel-v1.png', mimeType: 'image/png', size: 248000 },
   },
   {
-    id: 'attachment-2', entityType: 'TASK', entityId: 'task-1', label: 'Wireframe',
+    id: 'attachment-2', kind: 'FILE', entityType: 'TASK', entityId: 'task-1', label: 'Wireframe', url: null, text: null,
     uploadedById: 'demo-user', uploadedBy: { id: 'demo-user', fullName: 'Demo User' }, createdAt: iso(-1),
     file: { id: 'file-2', originalName: 'approval-flow-wireframe.pdf', mimeType: 'application/pdf', size: 512000 },
   },
@@ -213,9 +213,9 @@ export function demoMemberUser(userId: string): User | null {
 }
 
 export let demoTasks: Task[] = [
-  { id: 'task-1', companyId: demoCompany.id, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_REVIEW', priority: 'HIGH', type: 'DESIGN', assignedToId: 'demo-designer', assignedTo: demoMemberships[1].user, approverId: demoUser.id, approver: demoUser, submittedForReviewAt: iso(-1), reviewedAt: null, reviewNote: null, relatedEntityType: 'POST', relatedEntityId: 'post-1', sequence: 1, dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
-  { id: 'task-2', companyId: demoCompany.id, title: 'Follow up with Nour Clinic', description: 'Send proposal summary and confirm decision timeline.', status: 'IN_PROGRESS', priority: 'URGENT', type: 'FOLLOW_UP', assignedToId: 'demo-user', assignedTo: demoUser, approverId: 'demo-designer', approver: demoMemberships[1].user, submittedForReviewAt: null, reviewedAt: iso(-1), reviewNote: 'Add the pricing table before it goes out.', relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', dueDate: iso(2), createdAt: iso(-1), updatedAt: iso(-1) },
-  { id: 'task-3', companyId: demoCompany.id, title: 'Prepare monthly report notes', description: 'Write recommendations based on content and lead conversion performance.', status: 'TODO', priority: 'MEDIUM', type: 'REPORTING', assignedToId: 'demo-user', assignedTo: demoUser, approverId: null, approver: null, submittedForReviewAt: null, reviewedAt: null, reviewNote: null, dueDate: iso(4), createdAt: iso(-3), updatedAt: iso(-3) },
+  { id: 'task-1', companyId: demoCompany.id, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_REVIEW', priority: 'HIGH', taskTypes: ['DESIGN'], customTaskType: null, isDraft: false, startedAt: iso(-2), assignedToId: 'demo-designer', assignedTo: demoMemberships[1].user, approverId: demoUser.id, approver: demoUser, submittedForReviewAt: iso(-1), reviewedAt: null, reviewNote: null, relatedEntityType: 'POST', relatedEntityId: 'post-1', sequence: 1, dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
+  { id: 'task-2', companyId: demoCompany.id, title: 'Follow up with Nour Clinic', description: 'Send proposal summary and confirm decision timeline.', status: 'IN_PROGRESS', priority: 'URGENT', taskTypes: ['OTHER'], customTaskType: 'Follow up', isDraft: false, startedAt: iso(-1), assignedToId: 'demo-user', assignedTo: demoUser, approverId: 'demo-designer', approver: demoMemberships[1].user, submittedForReviewAt: null, reviewedAt: iso(-1), reviewNote: 'Add the pricing table before it goes out.', relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', dueDate: iso(2), createdAt: iso(-1), updatedAt: iso(-1) },
+  { id: 'task-3', companyId: demoCompany.id, title: 'Prepare monthly report notes', description: 'Write recommendations based on content and lead conversion performance.', status: 'TODO', priority: 'MEDIUM', taskTypes: ['OTHER'], customTaskType: 'Reporting', isDraft: false, startedAt: null, assignedToId: 'demo-user', assignedTo: demoUser, approverId: null, approver: null, submittedForReviewAt: null, reviewedAt: null, reviewNote: null, dueDate: iso(4), createdAt: iso(-3), updatedAt: iso(-3) },
 ];
 
 export let demoTaskComments: TaskComment[] = [
@@ -378,11 +378,12 @@ export function buildMetrics(): ReportMetrics {
   };
 }
 
-export function filterList<T extends { status?: string; priority?: string; type?: string; source?: string; title?: string; name?: string }>(items: T[], params?: ListParams): T[] {
+export function filterList<T extends { status?: string; priority?: string; type?: string; taskTypes?: string[]; source?: string; title?: string; name?: string }>(items: T[], params?: ListParams): T[] {
   return items.filter((item) => {
     if (params?.status && item.status !== params.status) return false;
     if (params?.priority && item.priority !== params.priority) return false;
-    if (params?.type && item.type !== params.type) return false;
+    // Tasks carry several types; anything else carries one `type`.
+    if (params?.type && !(item.taskTypes ? item.taskTypes.includes(params.type) : item.type === params.type)) return false;
     if (params?.source && item.source !== params.source) return false;
     if (params?.search) {
       const value = `${item.title ?? ''} ${item.name ?? ''}`.toLowerCase();
@@ -424,6 +425,8 @@ export function moveLeadStatus(leadId: string, status: LeadStatus) {
 export function moveTaskStatus(taskId: string, status: TaskStatus) {
   const task = demoTasks.find((item) => item.id === taskId);
   if (!task) throw new Error('Task not found.');
+  // The first move to IN_PROGRESS stamps `startedAt`; going back and on again never changes it.
+  if ((status === 'IN_PROGRESS' || status === 'IN_REVIEW') && !task.startedAt) task.startedAt = new Date().toISOString();
   task.status = status;
   task.updatedAt = new Date().toISOString();
   demoTaskLogs = [

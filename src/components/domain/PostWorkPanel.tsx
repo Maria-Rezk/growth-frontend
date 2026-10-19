@@ -16,16 +16,18 @@ import { useAssignableMembers } from '@/hooks/useAssignableMembers';
 import { tasksService } from '@/services/tasks';
 import { TaskModal, type TaskLink } from '@/pages/TasksPage';
 import { TaskStatus, TaskType, type ContentPost, type Task } from '@/types/domain';
-import { formatDate, humanize } from '@/utils/format';
+import { formatDate } from '@/utils/format';
+import { TaskTypeChips } from '@/components/domain/TaskTypes';
+import { taskTypeLabel, typesOf } from '@/utils/taskTypes';
 import { formatWaiting, isInReview, needsApprover, userLabel } from '@/utils/taskReview';
 
 /*
   The stages a post normally goes through, in order. Used to sort the
-  post's tasks into a pipeline and to suggest the next one: after copy comes
-  design, after design comes publishing. Anything else (GENERAL, FOLLOW_UP)
-  is listed after the stages, not lost.
+  post's tasks into a pipeline and to suggest the next one: after captions
+  comes design, after design comes reels. Anything else is listed after the
+  stages, not lost.
 */
-const STAGES: TaskType[] = [TaskType.COPYWRITING, TaskType.DESIGN, TaskType.CLIENT_REVIEW, TaskType.PUBLISHING];
+const STAGES: TaskType[] = [TaskType.CAPTIONS, TaskType.DESIGN, TaskType.REELS];
 
 /**
  * The work behind a post, as a pipeline.
@@ -50,7 +52,7 @@ export function PostWorkPanel({ companyId, post }: { companyId: string; post: Co
     // Sequenced stages first, in their order; unsequenced work after, by type.
     return rows.sort((a, b) =>
       (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER)
-      || stageIndex(a.type) - stageIndex(b.type)
+      || stageIndex(a) - stageIndex(b)
       || (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
   }, [post.id, tasks.data]);
 
@@ -76,9 +78,9 @@ export function PostWorkPanel({ companyId, post }: { companyId: string; post: Co
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => setCreateLink({ relatedEntityType: 'POST', relatedEntityId: post.id, label: post.title, type: nextStage, sequence: nextSequence })}
+              onClick={() => setCreateLink({ relatedEntityType: 'POST', relatedEntityId: post.id, label: post.title, taskTypes: nextStage ? [nextStage] : undefined, sequence: nextSequence })}
             >
-              <PlusIcon size={14} /> {nextStage ? `Add ${humanize(nextStage).toLowerCase()} stage` : 'Add task'}
+              <PlusIcon size={14} /> {nextStage ? `Add ${taskTypeLabel(nextStage).toLowerCase()} stage` : 'Add task'}
             </Button>
           </RoleGate>
         )}
@@ -113,7 +115,7 @@ export function PostWorkPanel({ companyId, post }: { companyId: string; post: Co
                   <Link className="table-link" to={appRoutes.task(task.id)}>{task.title}</Link>
                   <p className="muted">
                     {task.sequence ? <>Stage {task.sequence} · </> : null}
-                    {humanize(task.type)}
+                    <TaskTypeChips task={task} />
                     {task.assignedTo ? <> · {userLabel(task.assignedTo)}</> : <> · unassigned</>}
                     {task.approverId ? <> · approver {userLabel(task.approver)}</> : null}
                     {task.dueDate ? <> · due {formatDate(task.dueDate)}</> : null}
@@ -132,7 +134,7 @@ export function PostWorkPanel({ companyId, post }: { companyId: string; post: Co
       </div>
 
       <TaskModal
-        key={createLink ? `${createLink.type ?? 'task'}-${createLink.sequence ?? ''}` : 'none'}
+        key={createLink ? `${createLink.taskTypes?.join('+') ?? 'task'}-${createLink.sequence ?? ''}` : 'none'}
         open={createLink !== null}
         companyId={companyId}
         onClose={() => setCreateLink(null)}
@@ -144,9 +146,10 @@ export function PostWorkPanel({ companyId, post }: { companyId: string; post: Co
   );
 }
 
-function stageIndex(type: TaskType): number {
-  const index = STAGES.indexOf(type);
-  return index === -1 ? STAGES.length : index;
+/** Where a task sits in the pipeline: its earliest stage, or after all of them. */
+function stageIndex(task: Task): number {
+  const indexes = typesOf(task).map((type) => STAGES.indexOf(type)).filter((index) => index !== -1);
+  return indexes.length ? Math.min(...indexes) : STAGES.length;
 }
 
 /**
@@ -155,9 +158,10 @@ function stageIndex(type: TaskType): number {
  * "Add copywriting stage" is never offered as stage 2 behind the design.
  */
 function suggestNext(linked: Task[]): TaskType | undefined {
-  const have = new Set(linked.map((task) => task.type));
+  const have = new Set(linked.flatMap((task) => typesOf(task)));
   const last = linked.reduce<Task | undefined>((top, task) => ((task.sequence ?? 0) > (top?.sequence ?? 0) ? task : top), undefined);
-  const after = last?.sequence ? STAGES.indexOf(last.type) : -1;
+  const lastIndexes = last?.sequence ? typesOf(last).map((type) => STAGES.indexOf(type)) : [];
+  const after = Math.max(-1, ...lastIndexes);
   return STAGES.find((stage, index) => !have.has(stage) && index > after);
 }
 

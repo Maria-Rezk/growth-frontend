@@ -14,7 +14,7 @@ import {
   moveTaskStatus,
   pushNotification,
 } from '@/services/demoStore';
-import { attachmentsService } from '@/services/attachments';
+import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
 import type {
   ApproverResolution,
   ListParams,
@@ -25,15 +25,32 @@ import type {
   TaskStatus,
   TaskType,
 } from '@/types/domain';
-import { TaskReviewErrorCode } from '@/types/domain';
+import { TaskReviewErrorCode, TaskType as TaskTypeValue } from '@/types/domain';
+import { readTaskTypes } from '@/utils/taskTypes';
 
-export type TaskCreatePayload = Partial<Task> & {
+/** Files are uploaded on selection and attached in the same transaction as the create. Files, links and notes together: max 20. */
+export type TaskCreatePayload = Partial<Task> & AttachmentCreateFields & {
   relatedEntityType?: string;
   relatedEntityId?: string;
   notes?: string;
-  /** Uploaded on selection, attached in the same transaction as the create. Max 20. */
-  attachmentFileIds?: string[];
 };
+
+/**
+ * `OTHER` needs its text and every other selection must not carry any: the
+ * backend clears a leftover on its own, but sending it would be a lie on the wire.
+ */
+function typeFields(taskTypes: TaskType[] | undefined, customTaskType: string | null | undefined) {
+  if (!taskTypes) return {};
+  const hasOther = taskTypes.includes(TaskTypeValue.OTHER);
+  return { taskTypes, customTaskType: hasOther ? customTaskType?.trim() || undefined : undefined };
+}
+
+/** List filters as the API spells them: `type` is `taskType` on the wire, and drafts are a flag. */
+function wireParams(params?: ListParams): Record<string, unknown> | undefined {
+  if (!params) return undefined;
+  const { type, drafts, ...rest } = params;
+  return { ...rest, ...(type ? { taskType: type } : {}), ...(drafts ? { drafts: true } : {}) };
+}
 
 /** Demo-only: the same sequence rules the API enforces on create and update. */
 function demoCheckSequence(companyId: string, taskId: string | null, relatedEntityType?: string, relatedEntityId?: string, sequence?: number | null) {
@@ -54,13 +71,26 @@ function demoOpenEarlierStages(task: Task): Task[] {
     && other.sequence < (task.sequence ?? 0) && other.status !== 'DONE' && other.status !== 'CANCELED');
 }
 
-// The backend read model returns `taskType`, but the app reads `task.type`.
-// Normalize inbound so the wire difference stays isolated in this service.
-function normalizeTask(raw: Task & { taskType?: TaskType }): Task {
-  return { ...raw, type: raw.type ?? raw.taskType ?? 'GENERAL' };
+/*
+  The API sends `taskTypes`. A backend that has not shipped it yet sends the
+  single `taskType`; wrap it so the rest of the app only ever reads the list.
+*/
+type WireTask = Task & { taskType?: TaskType };
+
+function normalizeTask(raw: WireTask): Task {
+  const { taskType: _legacy, ...task } = raw;
+  return {
+    ...task,
+    taskTypes: readTaskTypes(raw),
+    customTaskType: raw.customTaskType ?? null,
+    isDraft: raw.isDraft ?? false,
+    startedAt: raw.startedAt ?? null,
+  };
 }
 
-type WireTask = Task & { taskType?: TaskType };
+function demoDraftError(): Error & { statusCode: number; code: string } {
+  return demoReviewError(409, TaskReviewErrorCode.TASK_IS_DRAFT, 'This task is still a draft. Publish it first.');
+}
 
 /** The paginated envelope `approval-queue` returns. `unwrap` would strip it down to the array. */
 function normalizePaginated(raw: unknown): Paginated<Task> {
@@ -119,8 +149,13 @@ function demoLog(taskId: string, action: string, metadata?: Record<string, unkno
 
 export const tasksService = {
   async list(companyId: string, params?: ListParams): Promise<Task[]> {
-    if (env.demoMode) return demoDelay(filterList(demoTasks.filter((task) => task.companyId === companyId), params));
-    return (await getAllItems<WireTask>(apiRoutes.tasks.list(companyId), params as Record<string, unknown>)).map(normalizeTask);
+    if (env.demoMode) return demoDelay(filterList(demoTasks.filter((task) => task.companyId === companyId && !task.isDraft), params));
+    return (await getAllItems<WireTask>(apiRoutes.tasks.list(companyId), wireParams(params))).map(normalizeTask);
+  },
+  /** The caller's own drafts. Nobody else's are ever listed. */
+  async listDrafts(companyId: string): Promise<Task[]> {
+    if (env.demoMode) return demoDelay(demoTasks.filter((task) => task.companyId === companyId && task.isDraft && task.createdById === demoUser.id));
+    return (await getAllItems<WireTask>(apiRoutes.tasks.list(companyId), wireParams({ drafts: true }))).map(normalizeTask);
   },
   async get(companyId: string, taskId: string): Promise<Task> {
     if (env.demoMode) {
@@ -141,7 +176,11 @@ export const tasksService = {
         description: payload.description,
         status: payload.status ?? 'TODO',
         priority: payload.priority ?? 'MEDIUM',
-        type: payload.type ?? 'GENERAL',
+        taskTypes: payload.taskTypes ?? [],
+        customTaskType: payload.taskTypes?.includes(TaskTypeValue.OTHER) ? payload.customTaskType?.trim() || null : null,
+        isDraft: payload.isDraft ?? false,
+        startedAt: null,
+        createdById: demoUser.id,
         assignedToId: payload.assignedToId,
         assignedTo: payload.assignedTo,
         approverId: payload.approverId ?? null,
@@ -156,18 +195,22 @@ export const tasksService = {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      demoTasks.unshift(task);
-      for (const fileId of payload.attachmentFileIds ?? []) {
-        await attachmentsService.add(companyId, { entityType: 'TASK', entityId: task.id }, fileId);
+      if (payload.taskTypes?.includes(TaskTypeValue.OTHER) && !task.customTaskType) {
+        throw demoReviewError(422, TaskReviewErrorCode.CUSTOM_TASK_TYPE_REQUIRED, 'Say what the other type of work is: customTaskType is required with OTHER');
       }
+      demoTasks.unshift(task);
+      await attachmentsService.addAllDemo(companyId, { entityType: 'TASK', entityId: task.id }, payload);
       demoTaskLogs.unshift({ id: makeId('task-log'), taskId: task.id, action: 'TASK_CREATED', createdAt: new Date().toISOString() });
-      pushNotification({ type: 'TASK_ASSIGNED', title: 'Task created', message: task.title, readAt: null, relatedEntityType: 'TASK', relatedEntityId: task.id });
+      // A draft tells nobody anything until it is published.
+      if (!task.isDraft) pushNotification({ type: 'TASK_ASSIGNED', title: 'Task created', message: task.title, readAt: null, relatedEntityType: 'TASK', relatedEntityId: task.id });
       return demoDelay(task);
     }
     const body = {
       title: payload.title,
       description: payload.description,
-      taskType: payload.type,          // backend expects taskType
+      ...typeFields(payload.taskTypes, payload.customTaskType),
+      // Only ever sent as true: a published task is the default.
+      isDraft: payload.isDraft ? true : undefined,
       priority: payload.priority,
       dueDate: payload.dueDate,
       assignedToId: payload.assignedToId,
@@ -179,7 +222,7 @@ export const tasksService = {
       // 422 SEQUENCE_NEEDS_POST without a POST parent, so never send it otherwise.
       sequence: payload.relatedEntityType === 'POST' && payload.sequence ? payload.sequence : undefined,
       notes: payload.notes,
-      attachmentFileIds: payload.attachmentFileIds?.length ? payload.attachmentFileIds : undefined,
+      ...attachmentFieldsForWire(payload),
       // no status — backend assigns the initial status
     };
 
@@ -196,19 +239,36 @@ export const tasksService = {
         task.approver = payload.approverId ? demoMemberUser(payload.approverId) : null;
       }
       Object.assign(task, payload, { updatedAt: new Date().toISOString() });
+      if (payload.taskTypes && !payload.taskTypes.includes(TaskTypeValue.OTHER)) task.customTaskType = null;
       return demoDelay(task);
     }
-    const response = await http.patch(apiRoutes.tasks.detail(companyId, taskId), payload);
+    // `isDraft` cannot be changed here — publishing goes through `publishDraft`, which is what notifies the assignee.
+    const { isDraft: _isDraft, taskTypes, customTaskType, ...rest } = payload;
+    const response = await http.patch(apiRoutes.tasks.detail(companyId, taskId), { ...rest, ...typeFields(taskTypes, customTaskType) });
     return normalizeTask(unwrap<Task & { taskType?: TaskType }>(response.data));
   },
   async setStatus(companyId: string, taskId: string, status: TaskStatus, note?: string): Promise<Task> {
     if (env.demoMode) {
       const before = demoTask(companyId, taskId);
+      if (before.isDraft) throw demoDraftError();
       if (status === 'IN_REVIEW' || (before.status === 'IN_REVIEW' && status !== 'CANCELED')) {
         throw demoReviewError(409, TaskReviewErrorCode.REVIEW_ACTIONS_ONLY, 'IN_REVIEW is managed by the review actions. Use submit-for-review, approve or request-changes.');
       }
+      const firstStart = status === 'IN_PROGRESS' && !before.startedAt;
       const task = moveTaskStatus(taskId, status);
       if (status === 'CANCELED') task.submittedForReviewAt = null;
+      // The first start goes to the supervisor (the approver when nobody supervises), never to the person who pressed it.
+      if (firstStart) {
+        pushNotification({
+          type: 'TASK_STARTED',
+          title: 'Work has started',
+          message: `${demoUser.fullName} started working on "${task.title}"`,
+          readAt: null,
+          relatedEntityType: 'TASK',
+          relatedEntityId: taskId,
+          metadata: { startedAt: task.startedAt, startedById: demoUser.id, assignedToId: task.assignedToId, taskTypes: task.taskTypes, notifiedAs: 'SUPERVISOR' },
+        });
+      }
       pushNotification({ type: 'TASK_STATUS_CHANGED', title: 'Task status changed', message: `${task.title} moved to ${status}`, readAt: null, relatedEntityType: 'TASK', relatedEntityId: taskId });
       return demoDelay(task);
     }
@@ -224,6 +284,7 @@ export const tasksService = {
   async submitForReview(companyId: string, taskId: string): Promise<Task> {
     if (env.demoMode) {
       const task = demoTask(companyId, taskId);
+      if (task.isDraft) throw demoDraftError();
       if (!task.approverId) throw demoReviewError(422, TaskReviewErrorCode.APPROVER_REQUIRED, 'This task has no approver. Set one before submitting it for review.');
       if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS') {
         throw demoReviewError(409, TaskReviewErrorCode.INVALID_TRANSITION, `A task in ${task.status} cannot take the action submit-for-review`);
@@ -289,28 +350,53 @@ export const tasksService = {
     return normalizePaginated(response.data);
   },
   /** Who the responsibility matrix says approves this kind of work on this client. */
-  async resolveApprover(companyId: string, taskType: TaskType): Promise<ApproverResolution> {
+  async resolveApprover(companyId: string, taskTypes: TaskType[]): Promise<ApproverResolution> {
     if (env.demoMode) {
-      const resolved = taskType !== 'GENERAL';
+      const mapped = taskTypes.filter((type) => type !== TaskTypeValue.OTHER);
+      const resolved = mapped.length > 0;
       return demoDelay({
-        taskType,
+        taskTypes,
         approverId: resolved ? demoUser.id : null,
         reason: resolved ? 'RESOLVED' : 'UNMAPPED_TASK_TYPE',
-        areaId: resolved ? 'demo-area-1' : null,
-        areaName: resolved ? 'Social Media' : null,
+        areas: mapped.map((taskType) => ({ taskType, areaId: 'demo-area-1', areaName: 'Social Media', userIds: [demoUser.id] })),
         candidateUserIds: resolved ? [demoUser.id] : [],
       });
     }
-    const response = await http.get(apiRoutes.tasks.resolveApprover(companyId), { params: { taskType } });
+    // Comma-separated; the API also accepts the key repeated.
+    const response = await http.get(apiRoutes.tasks.resolveApprover(companyId), { params: { taskTypes: taskTypes.join(',') } });
     const data = unwrap<Partial<ApproverResolution>>(response.data) ?? {};
     return {
-      taskType,
+      taskTypes,
       approverId: data.approverId ?? null,
       reason: data.reason ?? 'NO_MATCHING_AREA',
-      areaId: data.areaId ?? null,
-      areaName: data.areaName ?? null,
+      areas: Array.isArray(data.areas) ? data.areas : [],
       candidateUserIds: Array.isArray(data.candidateUserIds) ? data.candidateUserIds : [],
     };
+  },
+  /**
+   * Issue a draft: it joins the lists, the assignee is told, and the matrix is
+   * asked again for an approver if none was set.
+   */
+  async publishDraft(companyId: string, taskId: string): Promise<Task> {
+    if (env.demoMode) {
+      const task = demoTask(companyId, taskId);
+      if (!task.isDraft) throw demoReviewError(409, TaskReviewErrorCode.NOT_A_DRAFT, 'This task has already been published');
+      task.isDraft = false;
+      pushNotification({ type: 'TASK_ASSIGNED', title: 'Task created', message: task.title, readAt: null, relatedEntityType: 'TASK', relatedEntityId: taskId });
+      return demoDelay(task);
+    }
+    const response = await http.post(apiRoutes.tasks.publishDraft(companyId, taskId));
+    return normalizeTask(unwrap<WireTask>(response.data));
+  },
+  /** Drafts only; an issued task answers 409 NOT_A_DRAFT — cancel it instead. */
+  async discardDraft(companyId: string, taskId: string): Promise<void> {
+    if (env.demoMode) {
+      const task = demoTask(companyId, taskId);
+      if (!task.isDraft) throw demoReviewError(409, TaskReviewErrorCode.NOT_A_DRAFT, 'This task has already been published');
+      demoTasks.splice(demoTasks.indexOf(task), 1);
+      return demoDelay(undefined);
+    }
+    await http.delete(apiRoutes.tasks.detail(companyId, taskId));
   },
   async comments(companyId: string, taskId: string): Promise<TaskComment[]> {
     if (env.demoMode) return demoDelay(demoTaskComments.filter((comment) => comment.taskId === taskId));

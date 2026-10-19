@@ -13,7 +13,7 @@ import {
   moveLeadStatus,
   pushNotification,
 } from '@/services/demoStore';
-import { attachmentsService } from '@/services/attachments';
+import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
 import type { Lead, LeadNote, LeadStatus, LeadStatusHistory, ListParams, LostReason } from '@/types/domain';
 
 export interface LeadStatusOutcome {
@@ -155,7 +155,7 @@ export const leadsService = {
     return unwrap<Lead>(response.data);
   },
 
-  async create(companyId: string, payload: Partial<Lead> & { attachmentFileIds?: string[] }): Promise<Lead> {
+  async create(companyId: string, payload: Partial<Lead> & AttachmentCreateFields): Promise<Lead> {
     if (env.demoMode) {
       const lead: Lead = {
         id: makeId('lead'),
@@ -174,9 +174,7 @@ export const leadsService = {
         updatedAt: new Date().toISOString(),
       };
       demoLeads.unshift(lead);
-      for (const fileId of payload.attachmentFileIds ?? []) {
-        await attachmentsService.add(companyId, { entityType: 'LEAD', entityId: lead.id }, fileId);
-      }
+      await attachmentsService.addAllDemo(companyId, { entityType: 'LEAD', entityId: lead.id }, payload);
       pushNotification({ type: 'LEAD_ASSIGNED', title: 'New lead created', message: lead.name, readAt: null, relatedEntityType: 'LEAD', relatedEntityId: lead.id });
       return demoDelay(lead);
     }
@@ -190,7 +188,7 @@ export const leadsService = {
       notes: payload.notes || undefined,
       nextFollowUpAt: payload.nextFollowUpAt || undefined,
       assignedToId: payload.assignedToId || undefined,
-      attachmentFileIds: payload.attachmentFileIds?.length ? payload.attachmentFileIds : undefined,
+      ...attachmentFieldsForWire(payload),
     };
     const response = await http.post(apiRoutes.leads.list(companyId), body);
     return unwrap<Lead>(response.data);

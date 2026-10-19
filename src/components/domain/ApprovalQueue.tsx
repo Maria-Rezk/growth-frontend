@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { TaskTypeChips } from '@/components/domain/TaskTypes';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { RequestChangesModal } from '@/components/domain/RequestChangesModal';
@@ -146,7 +147,7 @@ export function ApprovalQueueList({
                     {task.title}
                   </Link>
                   <p className="queue-row__meta">
-                    <span>{humanize(task.type)}</span>
+                    <TaskTypeChips task={task} />
                     <span aria-hidden="true">·</span>
                     <span>by {userLabel(task.assignedTo, 'unassigned')}</span>
                     {task.submittedForReviewAt ? (

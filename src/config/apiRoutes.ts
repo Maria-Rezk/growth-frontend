@@ -166,6 +166,8 @@ export const apiRoutes = {
     approvalQueue: (companyId: string) => `/companies/${companyId}/tasks/approval-queue`,
     /** Who the matrix says approves a task type on this client. Pre-fills the approver picker. */
     resolveApprover: (companyId: string) => `/companies/${companyId}/tasks/resolve-approver`,
+    /** Issue a draft: author or admin, no body. */
+    publishDraft: (companyId: string, taskId: string) => `/companies/${companyId}/tasks/${taskId}/publish-draft`,
   },
   invitations: {
     list: (companyId: string) => `/companies/${companyId}/invitations`,
@@ -199,6 +201,8 @@ export const apiRoutes = {
   },
   responsibilities: {
     areas: (companyId: string) => `/companies/${companyId}/responsibility-areas`,
+    /** The dropdown of listed area names, with which are already in use. */
+    areaOptions: (companyId: string) => `/companies/${companyId}/responsibility-areas/options`,
     area: (companyId: string, areaId: string) => `/companies/${companyId}/responsibility-areas/${areaId}`,
     assignments: (companyId: string) => `/companies/${companyId}/responsibility-assignments`,
     assignment: (companyId: string, assignmentId: string) => `/companies/${companyId}/responsibility-assignments/${assignmentId}`,

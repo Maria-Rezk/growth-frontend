@@ -10,7 +10,7 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
-import { PendingAttachmentsField, type PendingUpload } from '@/components/domain/PendingAttachmentsField';
+import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
 import { KanbanBoard } from '@/components/domain/KanbanBoard';
@@ -293,13 +293,13 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
     onError: (error) => applyServerFieldErrors(form, error),
   });
 
-  const [pendingFiles, setPendingFiles] = useState<PendingUpload[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachments>(NO_PENDING_ATTACHMENTS);
   const [uploading, setUploading] = useState(false);
 
   const close = () => {
     form.reset();
     create.reset();
-    setPendingFiles([]);
+    setPendingFiles(NO_PENDING_ATTACHMENTS);
     onClose();
   };
   const discard = useDiscardGuard(form, open);
@@ -307,7 +307,7 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
 
   const submit = form.handleSubmit(async (values) => {
     const result = await create.mutate(companyId, {
-      attachmentFileIds: pendingFiles.map((file) => file.fileId),
+      ...pendingPayload(pendingFiles),
       title: values.title.trim(),
       contentPlanId: values.contentPlanId || undefined,
       caption: values.caption,

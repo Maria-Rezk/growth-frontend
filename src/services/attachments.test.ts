@@ -5,11 +5,18 @@ import { normalizeAttachment } from './attachments';
 describe('attachments', () => {
   it('keeps the documented shape as-is', () => {
     const raw = {
-      id: 'a1', entityType: 'LEAD' as const, entityId: 'l1', label: 'Brief', uploadedById: 'u1',
+      id: 'a1', kind: 'FILE' as const, url: null, text: null, entityType: 'LEAD' as const, entityId: 'l1', label: 'Brief', uploadedById: 'u1',
       uploadedBy: { id: 'u1', fullName: 'Maria Haddad' }, createdAt: '2026-09-27T10:00:00Z',
       file: { id: 'f1', originalName: 'brief.pdf', mimeType: 'application/pdf', size: 182000 },
     };
     expect(normalizeAttachment(raw, { entityType: 'LEAD', entityId: 'l1' })).toEqual(raw);
+  });
+
+  it('reads a link and a note without a file', () => {
+    const link = normalizeAttachment({ id: 'a3', kind: 'LINK', url: 'https://drive.google.com/x', label: 'Brief', file: null }, { entityType: 'TASK', entityId: 't1' });
+    expect(link).toMatchObject({ kind: 'LINK', url: 'https://drive.google.com/x', text: null, file: null });
+    const note = normalizeAttachment({ id: 'a4', kind: 'TEXT', text: 'Logo bigger', file: null }, { entityType: 'TASK', entityId: 't1' });
+    expect(note).toMatchObject({ kind: 'TEXT', text: 'Logo bigger', url: null, file: null });
   });
 
   it('reads a pre-migration task row without crashing', () => {

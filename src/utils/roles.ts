@@ -45,9 +45,15 @@ export const AGENCY_ROLES: CompanyMembershipRole[] = [
   CompanyMembershipRole.ACCOUNT_MANAGER,
   CompanyMembershipRole.COPYWRITER,
   CompanyMembershipRole.DESIGNER,
+  CompanyMembershipRole.ART_DIRECTOR,
   CompanyMembershipRole.SOCIAL_MEDIA_MANAGER,
   CompanyMembershipRole.SALES_AGENT,
 ];
+
+/** Arabic names, for the pickers that show a role beside its English label. Roles without one show English only. */
+export const ROLE_LABELS_AR: Partial<Record<CompanyMembershipRole, string>> = {
+  [CompanyMembershipRole.ART_DIRECTOR]: 'المدير الفني',
+};
 
 export const CLIENT_SIDE_ROLES: CompanyMembershipRole[] = [
   CompanyMembershipRole.CLIENT_OWNER,

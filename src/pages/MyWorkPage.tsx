@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { TaskTypeChips } from '@/components/domain/TaskTypes';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -309,7 +310,7 @@ function DueGroup({
                   {task.title}
                 </button>
                 <p className="work-row__meta">
-                  <span>{humanize(task.type)}</span>
+                  <TaskTypeChips task={task} />
                   <span aria-hidden="true">·</span>
                   <span className={bucket === 'overdue' ? 'danger-text' : undefined}>
                     {task.dueDate ? formatDate(task.dueDate) : 'No due date'}
