@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { useLocale } from '@/context/LocaleContext';
 import type { CompanyMembershipRole } from '@/types/domain';
 import { AGENCY_ROLES, CLIENT_SIDE_ROLES, ROLE_LABELS_AR, humanizeRole } from '@/utils/roles';
 
@@ -35,6 +36,7 @@ export function RoleChecklist({
   available?: readonly CompanyMembershipRole[];
 }) {
   const name = useId();
+  const { lang } = useLocale();
 
   /*
     Appends rather than re-sorting: the API keeps the order it is given and
@@ -60,7 +62,7 @@ export function RoleChecklist({
             checked={value.includes(role)}
             onChange={() => toggle(role)}
           />
-          <span>{humanizeRole(role)}{ROLE_LABELS_AR[role] ? <> <span className="muted" lang="ar" dir="rtl">· {ROLE_LABELS_AR[role]}</span></> : null}</span>
+          <span>{lang === 'ar' && ROLE_LABELS_AR[role] ? ROLE_LABELS_AR[role] : humanizeRole(role)}</span>
         </label>
       ))}
     </fieldset>

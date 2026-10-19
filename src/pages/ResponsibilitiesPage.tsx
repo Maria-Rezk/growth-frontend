@@ -23,6 +23,7 @@ import {
   type ResponsibilityType,
 } from '@/types/domain';
 import { rolesLabel } from '@/utils/roles';
+import { useLocale } from '@/context/LocaleContext';
 import { humanize } from '@/utils/format';
 
 /** The dropdown value for a custom name: stored with no key. */
@@ -319,6 +320,8 @@ function CellEditorModal({
 // Manage areas — list + create/edit form + delete (cascades to assignments).
 // ---------------------------------------------------------------------------
 function ManageAreasModal({ companyId, open, onClose }: { companyId: string; open: boolean; onClose: () => void }) {
+  // One language at a time: the list carries both names, the app's language picks.
+  const { lang } = useLocale();
   const invalidate = [queryKeys.responsibilityAreas(companyId), queryKeys.responsibilityMatrix(companyId), queryKeys.responsibilityAreaOptions(companyId)];
   const areas = useAsync(
     () => responsibilitiesService.listAreas(companyId, { limit: 100 }),
@@ -481,7 +484,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
                 const taken = option.inUse && option.areaId !== editing?.id;
                 return (
                   <option key={option.key} value={option.key} disabled={taken}>
-                    {option.name} · {option.nameAr}{taken ? ' (already added)' : ''}
+                    {lang === 'ar' ? option.nameAr : option.name}{taken ? ' (already added)' : ''}
                   </option>
                 );
               })}
