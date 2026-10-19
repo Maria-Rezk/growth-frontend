@@ -421,9 +421,9 @@ export const tasksService = {
   },
   async listMine(companyId: string, params?: ListParams): Promise<Task[]> {
     if (env.demoMode) {
-      return demoDelay(filterList(demoTasks.filter((t) => t.companyId === companyId && t.assignedToId === demoUser.id), params));
+      return demoDelay(filterList(demoTasks.filter((t) => t.companyId === companyId && !t.isDraft && t.assignedToId === demoUser.id), params));
     }
-    const response = await http.get(apiRoutes.tasks.myTasks(companyId), { params });
-    return unwrap<Array<Task & { taskType?: TaskType }>>(response.data).map(normalizeTask);
+    const response = await http.get(apiRoutes.tasks.myTasks(companyId), { params: wireParams(params) });
+    return unwrap<WireTask[]>(response.data).map(normalizeTask);
   },
 };

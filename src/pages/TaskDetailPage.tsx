@@ -12,6 +12,7 @@ import { Timeline } from '@/components/domain/Timeline';
 import { ReviewNoteBanner, TaskReviewPanel } from '@/components/domain/TaskReviewPanel';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { Badge } from '@/components/ui/Badge';
+import { EditTaskModal } from '@/components/domain/EditTaskModal';
 import { TaskTypeChips } from '@/components/domain/TaskTypes';
 import { appRoutes } from '@/config/appRoutes';
 import { errorCode } from '@/lib/http';
@@ -53,6 +54,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const publishDraft = useMutation(tasksService.publishDraft, { invalidateKeys: tasksPrefix, onError: staleDraft });
   const discardDraft = useMutation(tasksService.discardDraft, { invalidateKeys: tasksPrefix, onError: staleDraft });
   const navigate = useNavigate();
+  const [editing, setEditing] = useState(false);
 
   const [comment, setComment] = useState('');
   const { userId: actorId } = useTaskActor();
@@ -132,6 +134,17 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
         action={<ButtonLink to="/tasks" variant="secondary" size="sm">Back to tasks</ButtonLink>}
       />
 
+      {editing ? (
+        <EditTaskModal
+          open
+          companyId={companyId}
+          task={current}
+          invalidateKeys={tasksPrefix}
+          onClose={() => setEditing(false)}
+          onSaved={(saved) => { task.setData(saved); void logs.refetch(); }}
+        />
+      ) : null}
+
       <div className="detail-grid">
         <section className="detail-main">
           {current.isDraft ? (
@@ -149,7 +162,17 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
           <ReviewNoteBanner task={current} />
 
           <Card>
-            <CardHeader title="Task" action={<StatusBadge value={current.status} />} />
+            <CardHeader
+              title="Task"
+              action={(
+                <span className="button-row">
+                  <RoleGate permission="tasks:edit">
+                    <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit</Button>
+                  </RoleGate>
+                  <StatusBadge value={current.status} />
+                </span>
+              )}
+            />
             <div className="content-card__body">
               <p className="pre-wrap">{current.description || 'No description.'}</p>
               <div className="key-values">
