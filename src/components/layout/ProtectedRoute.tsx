@@ -7,8 +7,9 @@ export function ProtectedRoute() {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
-  if (env.demoMode) return <Outlet />;
-  if (loading) return <main className="auth-shell"><LoadingState label="Restoring session…" /></main>;
+  // Demo mode starts signed in and never restores a session, so there is no
+  // loading state, but signing out must still lead to the login screen.
+  if (loading && !env.demoMode) return <main className="auth-shell"><LoadingState label="Restoring session…" /></main>;
   if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location }} />;
   return <Outlet />;
 }

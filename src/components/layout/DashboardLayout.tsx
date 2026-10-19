@@ -1,5 +1,5 @@
-import { Suspense, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Suspense, useEffect, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { CompanyProvider } from '@/context/CompanyContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -13,6 +13,17 @@ export function DashboardLayout() {
   // One place for every authenticated page: a refresh or Back returns to
   // where the person was on that exact URL instead of snapping to the top.
   useScrollRestoration();
+
+  // The mobile drawer closes on any navigation (not only a sidebar click: the
+  // command palette, a toast link, Back) and on Escape, like any other overlay.
+  const { pathname } = useLocation();
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (!sidebarOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSidebarOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sidebarOpen]);
   return (
     <CompanyProvider>
       <NotificationsProvider>

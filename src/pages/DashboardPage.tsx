@@ -20,6 +20,7 @@ import { groupByStatus, needsLeadAction, needsPostAction, needsTaskAction, TASK_
 import { formatDate, formatPercent, humanize } from '@/utils/format';
 import { LeadStatus, PostStatus, TaskStatus, type ContentPost, type Task } from '@/types/domain';
 import { ReportDueNotice } from '@/components/domain/ReportDueNotice';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 /** Statuses that make a post "in the approval queue" — mirrors needsPostAction. */
 const POST_ACTION_STATUSES = [PostStatus.READY_FOR_CLIENT, PostStatus.CHANGES_REQUESTED, PostStatus.APPROVED];
@@ -126,6 +127,7 @@ function DashboardInner({ companyId }: { companyId: string }) {
   const failing = [overview, posts, leads, tasks].find((state) => state.error && state.errorStatus !== 403);
   const anyError = failing?.error ?? null;
 
+  usePageTitle('Client overview');
   return (
     <>
       <div className="page-header">
@@ -134,10 +136,15 @@ function DashboardInner({ companyId }: { companyId: string }) {
           <p className="page-header__subtitle">
             What needs action now across content approvals, lead follow-up and task execution.
           </p>
+          {/* Who you are here is context, not an action: it sits with the title, not among the buttons. One badge per role. */}
+          {roles.length ? (
+            <p className="page-header__meta">
+              <span className="muted">Your role</span>
+              {roles.map((role) => <Badge key={role} tone="neutral">{humanizeRole(role)}</Badge>)}
+            </p>
+          ) : null}
         </div>
         <div className="page-header__action">
-          {/* One badge per role — two hats should read as two hats. */}
-          {roles.map((role) => <Badge key={role} tone="neutral">{humanizeRole(role)}</Badge>)}
           <RoleGate permission="leads:manage">
             <ButtonLink to="/leads" variant="secondary" size="sm">Add lead</ButtonLink>
           </RoleGate>

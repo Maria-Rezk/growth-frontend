@@ -29,7 +29,7 @@ export function InternalApprovalsCard({ filters }: { filters: DashboardFilters }
     <WidgetCard title="Waiting on the team" subtitle="Internal approvals, longest wait first." state={state} rows={6}>
       {(data: TaskHealth) => {
         if (data.waitingInternalApproval === undefined) {
-          return <EmptyState title="Not available yet" description="This backend does not report internal approvals." />;
+          return <EmptyState title="Not connected yet" description="Internal approval figures appear here once the server reports them." />;
         }
         const rows = data.internalApprovalByApprover ?? [];
         const orphaned = data.internalApprovalWithoutApprover ?? 0;

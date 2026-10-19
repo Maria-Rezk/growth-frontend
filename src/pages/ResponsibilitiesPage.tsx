@@ -530,8 +530,8 @@ function areaHint(areaKey: string): string {
  * form will ask — say so here, where the fix is one cell away.
  */
 function RoutingHint({ areaKey, approvers }: { areaKey: string; approvers: string[] }) {
-  const kind = humanize(areaKey).toLowerCase();
+  const kind = humanize(areaKey);
   if (approvers.length === 1) return <span className="raci__routing">{kind} tasks → {approvers[0]}</span>;
-  if (approvers.length === 0) return <span className="raci__routing raci__routing--warn">{kind} tasks have no approver — set a “To Approve” cell</span>;
-  return <span className="raci__routing raci__routing--warn">{approvers.length} approve {kind} — each task will ask which</span>;
+  if (approvers.length === 0) return <span className="raci__routing raci__routing--warn">{kind} tasks have no approver. Set a “To Approve” cell.</span>;
+  return <span className="raci__routing raci__routing--warn">{approvers.length} people approve {kind.toLowerCase()}. Each task will ask which.</span>;
 }

@@ -244,6 +244,14 @@ body {
   transition: background-color .16s ease, border-color .16s ease, color .16s ease;
 }
 
+/* One quiet scrollbar style everywhere (board columns, tables, modals) instead
+   of the platform's arrowed default. Standard properties: Chromium, Firefox
+   and Safari 18+ honour them. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -286,6 +294,15 @@ hr {
   border: 0;
   border-top: 1px solid var(--line);
   margin: var(--s-5) 0;
+}
+
+.page-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--s-2);
+  font-size: 12px;
 }
 
 .muted,
@@ -370,9 +387,39 @@ hr {
   gap: 2px;
   align-content: start;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   margin: 0 calc(var(--s-1) * -1);
   padding: 0 var(--s-1);
+  /* A slim, quiet track instead of the platform's arrowed scrollbar. It only
+     takes colour while the pointer is over the navigation. */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
+}
+
+.sidebar__nav:hover,
+.sidebar__nav:focus-within {
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.sidebar__nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar__nav::-webkit-scrollbar-button {
+  display: none;
+}
+
+.sidebar__nav::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.sidebar__nav:hover::-webkit-scrollbar-thumb,
+.sidebar__nav:focus-within::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
 }
 
 .sidebar__group {
@@ -410,12 +457,21 @@ hr {
   color: var(--muted);
 }
 
-.sidebar__link span {
+.sidebar__link .sidebar__label {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebar__link .sidebar__badge {
+  flex: none;
+}
+
+.sidebar__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .sidebar__link:hover {
@@ -1159,6 +1215,12 @@ select.input {
   grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px));
 }
 
+/* A scope switch reads as the frame for the filters below it, not one more
+   filter squeezed into a column: give it the whole first row. */
+.toolbar__filters .toolbar__scope {
+  grid-column: 1 / -1;
+}
+
 /* Tablets and small laptops: the fixed filter columns plus the view switcher
    no longer fit one row, so the filters take the full width and reflow, and
    the switcher wraps underneath instead of running off-screen. */
@@ -1468,18 +1530,34 @@ a.list-row:hover strong {
   margin-top: var(--s-4);
 }
 
-.key-values div {
+/* Direct children only: a value can hold badges, chips or an inline form, and
+   those must keep their own styling rather than become boxed grey labels. */
+.key-values > div {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   padding: var(--s-3);
   background: var(--surface-subtle);
+  min-width: 0;
 }
 
-.key-values span {
+.key-values > div > span:first-child {
   display: block;
   color: var(--muted);
   font-size: 12px;
   margin-bottom: var(--s-1);
+}
+
+.key-values > div > strong {
+  overflow-wrap: anywhere;
+}
+
+.key-values .link-button {
+  display: block;
+  margin-top: var(--s-1);
+}
+
+.key-values .inline-form {
+  margin-top: var(--s-2);
 }
 
 .recommendation {
@@ -2197,6 +2275,8 @@ a.list-row:hover strong {
 .kanban-card__head {
   display: grid;
   gap: 6px;
+  /* Badges keep their own width instead of stretching across the card. */
+  justify-items: start;
 }
 
 .kanban-card__head strong {
@@ -2221,7 +2301,11 @@ a.list-row:hover strong {
   gap: var(--s-1);
 }
 
-.kanban-card__meta span {
+.kanban-card__meta {
+  align-items: center;
+}
+
+.kanban-card__meta > span:not(.type-chips) {
   color: var(--ink-secondary);
   background: var(--n-100);
   border-radius: var(--r-sm);
@@ -3830,6 +3914,12 @@ fieldset.field > legend {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  /* The single-client label is bare text: ellipsis only applies to a block
+     box, not to a flex container's anonymous text item. */
+  span.company-switcher {
+    display: block;
   }
 
   .company-switcher .input {

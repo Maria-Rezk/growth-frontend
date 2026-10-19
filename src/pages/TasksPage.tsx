@@ -189,7 +189,7 @@ function TasksInner({ companyId }: { companyId: string }) {
           {/* A <label htmlFor> pointing at a role="group" that has no id is a
               dangling association. SegmentedControl already names itself with
               aria-label, so this just needs a visual heading. */}
-          <div className="field">
+          <div className="field toolbar__scope">
             <span className="field__label">Scope</span>
             <SegmentedControl<Scope>
               label="Task scope"

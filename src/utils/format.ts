@@ -10,8 +10,15 @@ function appLocale(): string | undefined {
   return lang === 'ar' ? 'ar-EG' : lang || undefined;
 }
 
+/**
+ * `IN_PROGRESS` → `In Progress`. Only for constants: a value somebody typed
+ * ("Instagram DM", "LinkedIn") is already readable and is returned as it is —
+ * lower-casing it would mangle the user's own words.
+ */
 export function humanize(value?: string | null): string {
   if (!value) return '—';
+  const isConstant = /^[A-Z0-9_]+$/.test(value) || /^[a-z0-9_]+$/.test(value);
+  if (!isConstant) return value;
   return value
     .toLowerCase()
     .split('_')

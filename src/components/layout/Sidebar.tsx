@@ -151,7 +151,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                 className={({ isActive }) => (isActive ? 'sidebar__link sidebar__link--active' : 'sidebar__link')}
               >
                 <Icon />
-                <span>{t(key)}</span>
+                <span className="sidebar__label">{t(key)}</span>
                 {to === '/notifications' && unreadCount > 0 ? (
                   <span className="sidebar__badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                 ) : null}

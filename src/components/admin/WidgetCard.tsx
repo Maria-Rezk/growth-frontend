@@ -76,8 +76,8 @@ export function WidgetBody<T>({
   if (state.data === null) {
     return (
       <EmptyState
-        title="Not available yet"
-        description="This part of the API has not shipped. The screen is built against the agreed contract and will fill in once the endpoint is live."
+        title="Not connected yet"
+        description="This view fills in automatically once its data source is switched on for this workspace."
       />
     );
   }

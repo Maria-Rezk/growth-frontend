@@ -93,11 +93,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /** The person's own "Logout" action: revoke the session, not just forget it locally, and tell other tabs. */
   const logout = useCallback(() => {
+    // Demo mode: a Logout button that does nothing reads as broken. Sign out
+    // locally; the demo login accepts any credentials to come back in.
+    if (env.demoMode) {
+      adoptIdentity(null);
+      setToken(null);
+      setUser(null);
+      return;
+    }
     clearSession();
-    if (env.demoMode) return;
     void authService.logout();
     broadcastAuthEvent('signed-out');
-  }, [clearSession]);
+  }, [adoptIdentity, clearSession]);
 
   const applyAuth = useCallback(
     (auth: AuthResponse) => {

@@ -76,6 +76,8 @@ function MembersInner({ companyId }: { companyId: string }) {
     invalidateKeys: [queryKeys.companyMembers(companyId)],
   });
   const [inviteOpen, setInviteOpen] = useState(false);
+  // One row's roles open at a time; every other row reads as pills.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const columns = useMemo<Column<Membership>[]>(() => [
     {
@@ -92,25 +94,63 @@ function MembersInner({ companyId }: { companyId: string }) {
       // Full enum on purpose. This hits PATCH /members/:id, which can set any
       // roles on an existing member — unlike the invite endpoint, which is
       // restricted to INVITABLE_ROLES.
-      render: (member) => isAdmin ? (
-        <RoleChecklist
-          value={membershipRoles(member)}
-          /*
-            The list sent is the list they end up with, and an empty one is a
-            400. Removing the last role means removing the person, which is the
-            Suspend control beside this — so the final tick cannot be cleared
-            here.
-          */
-          onChange={(roles) => {
-            if (roles.length === 0) return;
-            updateMember.mutate(companyId, member.id, { roles });
-          }}
-        />
-      ) : <RolePills roles={membershipRoles(member)} />,
+      render: (member) => {
+        if (!isAdmin) return <RolePills roles={membershipRoles(member)} />;
+        const name = member.user?.fullName ?? member.user?.email ?? 'member';
+        if (editingId !== member.id) {
+          return (
+            <button type="button" className="role-pills-button" aria-label={`Change roles for ${name}`} onClick={() => setEditingId(member.id)}>
+              <RolePills roles={membershipRoles(member)} />
+            </button>
+          );
+        }
+        return (
+          <div className="role-editor">
+            <RoleChecklist
+              value={membershipRoles(member)}
+              disabled={updateMember.loading}
+              /*
+                The list sent is the list they end up with, and an empty one is a
+                400. Removing the last role means removing the person, which is the
+                Suspend control beside this — so the final tick cannot be cleared
+                here.
+              */
+              onChange={(roles) => {
+                if (roles.length === 0) {
+                  toast.error('A member needs at least one role. Suspend them instead.');
+                  return;
+                }
+                void updateMember.mutate(companyId, member.id, { roles }).then((updated) => { if (updated) toast.success('Roles updated.'); });
+              }}
+            />
+            <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>Done</Button>
+          </div>
+        );
+      },
     },
     { key: 'status', header: 'Status', render: (member) => <Badge tone={member.status === 'ACTIVE' ? 'success' : 'warning'}>{humanize(member.status)}</Badge> },
     { key: 'actions', header: '', className: 'cell-right', render: (member) => {
-        if (isAdmin) return <Button variant="secondary" size="sm" onClick={() => updateMember.mutate(companyId, member.id, { status: member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}>{member.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}</Button>;
+        if (isAdmin) {
+          const suspending = member.status === 'ACTIVE';
+          const name = member.user?.fullName ?? member.user?.email ?? 'this person';
+          return (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={async () => {
+                // Suspending cuts somebody's access on the spot: confirm it. Reactivating restores it and needs no guard.
+                if (suspending) {
+                  const ok = await confirm({ title: 'Suspend member', message: <>Suspend <strong>{name}</strong>? They lose access to this client until reactivated. Nothing they did is deleted.</>, confirmLabel: 'Suspend', tone: 'danger' });
+                  if (!ok) return;
+                }
+                const updated = await updateMember.mutate(companyId, member.id, { status: suspending ? 'SUSPENDED' : 'ACTIVE' });
+                if (updated) toast.success(suspending ? `${name} suspended.` : `${name} reactivated.`);
+              }}
+            >
+              {suspending ? 'Suspend' : 'Reactivate'}
+            </Button>
+          );
+        }
         if (!canManage || member.status !== 'ACTIVE') return null;
         const name = member.user?.fullName ?? member.user?.email ?? 'this person';
         return (
@@ -127,13 +167,13 @@ function MembersInner({ companyId }: { companyId: string }) {
         );
       },
     },
-  ], [canManage, companyId, confirm, isAdmin, removeMember, updateMember]);
+  ], [canManage, companyId, confirm, editingId, isAdmin, removeMember, updateMember]);
 
   return (
     <>
       <PageHeader
         title="Members"
-        subtitle="Client-side people are invited here. Your own team is assigned from Platform admin › Employees, which is why the invite list offers client roles only."
+        subtitle="Client-side people are invited here. Your own team is assigned from Platform admin › Employees, which is why the invite list offers a limited set of roles."
         action={canManage ? <Button size="sm" onClick={() => setInviteOpen(true)}>Invite member</Button> : undefined}
       />
 

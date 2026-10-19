@@ -80,7 +80,7 @@ function describeFailure(rejection: unknown): string | undefined {
     is accurate and meaningless to anyone not reading the router.
   */
   if (isRouteMissing(rejection)) {
-    return 'The per-client task list has not shipped on this backend yet.';
+    return 'Task lists are not available from this server yet.';
   }
   return errorMessage(rejection);
 }

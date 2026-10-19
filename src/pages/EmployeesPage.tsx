@@ -88,7 +88,7 @@ function EmployeesInner() {
             has moved it to its own route.
           */}
           {superAdmin ? (
-            <Button variant="ghost" size="sm" onClick={() => setRoleTarget(employee)}>Role…</Button>
+            <Button variant="ghost" size="sm" onClick={() => setRoleTarget(employee)}>Platform role</Button>
           ) : null}
         </div>
       ),
