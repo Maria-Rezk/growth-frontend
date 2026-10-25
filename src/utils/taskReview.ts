@@ -1,4 +1,5 @@
 import { TaskStatus, type Task, type User } from '@/types/domain';
+import { isOnTask } from '@/utils/taskAssignees';
 
 /*
   Who may do what to a task in the review flow.
@@ -49,9 +50,14 @@ export function isApprover(task: Pick<Task, 'approverId'>, actor: Actor): boolea
   return Boolean(actor.userId) && task.approverId === actor.userId;
 }
 
-/** The assignee or an admin, on a task that is TODO or IN_PROGRESS. Approver may still be missing — that is a 422 the UI handles by asking for one. */
-export function canSubmitForReview(task: Pick<Task, 'status' | 'assignedToId'>, actor: Actor): boolean {
-  return SUBMITTABLE_STATUSES.includes(task.status) && (actor.isAdmin || isAssignee(task, actor));
+/**
+ * Anybody on the task — the lead or any of `assignees`, in any role — or an
+ * admin, on a task that is TODO or IN_PROGRESS. The designer hands over the
+ * design even when the account manager is the lead. Approver may still be
+ * missing — that is a 422 the UI handles by asking for one.
+ */
+export function canSubmitForReview(task: Pick<Task, 'status' | 'assignedToId'> & Partial<Pick<Task, 'assignees'>>, actor: Actor): boolean {
+  return SUBMITTABLE_STATUSES.includes(task.status) && (actor.isAdmin || isOnTask(task, actor.userId));
 }
 
 /** The approver or an admin, on a task that is in review. */

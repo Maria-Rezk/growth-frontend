@@ -29,6 +29,10 @@ export interface ApiErrorShape {
   openTaskIds?: string[];
   /** On STAGES_OPEN: the post's full stages object. */
   stages?: PostStages;
+  /** On ASSIGNEE_NOT_A_MEMBER / DUPLICATE_ASSIGNEE: the person the API refused. */
+  userId?: string;
+  /** On DUPLICATE_ASSIGNEE: the role they were listed in twice. */
+  role?: string;
 }
 
 /** Same rule for creating a user, accepting an invitation and resetting a password. */
@@ -147,11 +151,24 @@ export interface Membership {
  * managing people and is never used to decide what the current person may do.
  * Authentication (`/auth/me`) knows nothing about these.
  */
-export type SessionMembership = Pick<Membership, 'id' | 'companyId' | 'roles' | 'status'>;
+export type SessionMembership = Pick<Membership, 'id' | 'companyId' | 'roles' | 'status'> & {
+  /** The client, as the endpoint embeds it. `status` may be INACTIVE or ARCHIVED — the UI decides whether to show those. */
+  company?: Pick<Company, 'id' | 'name' | 'status'>;
+  createdAt?: ISODate;
+};
 
-/** `GET /me/memberships`. Empty for a person who belongs to no client, such as a platform admin. */
-export interface MyMembershipsResponse {
-  memberships: SessionMembership[];
+/**
+ * One row of `GET /me/memberships` as it travels: a bare array, newest first,
+ * keyed by `membershipId`. Read through `parseMyMemberships`, which maps it to
+ * `SessionMembership` (and still accepts the older `{ memberships }` envelope).
+ */
+export interface MyMembershipWire {
+  membershipId: UUID;
+  companyId: UUID;
+  company?: Pick<Company, 'id' | 'name' | 'status'>;
+  roles: CompanyMembershipRole[];
+  status: MembershipStatus;
+  createdAt?: ISODate;
 }
 
 export interface BrandColor {
@@ -547,6 +564,41 @@ export const TaskType = {
 } as const;
 export type TaskType = (typeof TaskType)[keyof typeof TaskType];
 
+/**
+ * The part somebody plays on one task — separate from their roles on the
+ * client, which is why CONTENT_CREATOR is here though no company role backs
+ * it. Any active member of the client may be given any of them.
+ */
+export const TaskAssigneeRole = {
+  ACCOUNT_MANAGER: 'ACCOUNT_MANAGER',
+  ART_DIRECTOR: 'ART_DIRECTOR',
+  DESIGNER: 'DESIGNER',
+  COPYWRITER: 'COPYWRITER',
+  CONTENT_CREATOR: 'CONTENT_CREATOR',
+  SOCIAL_MEDIA_MANAGER: 'SOCIAL_MEDIA_MANAGER',
+  SALES_AGENT: 'SALES_AGENT',
+} as const;
+export type TaskAssigneeRole = (typeof TaskAssigneeRole)[keyof typeof TaskAssigneeRole];
+
+/** One person on a task in one role. `id` is the assignment, not the user. */
+export interface TaskAssignee {
+  id: UUID;
+  userId: UUID;
+  role: TaskAssigneeRole;
+  assignedById?: UUID | null;
+  createdAt?: ISODate;
+  user?: User | null;
+}
+
+/** What create and update send: the whole list, replacing the old one. Max 20. */
+export interface TaskAssigneeInput {
+  userId: UUID;
+  role: TaskAssigneeRole;
+}
+
+/** Most people on one task the API accepts. */
+export const MAX_TASK_ASSIGNEES = 20;
+
 export interface Task {
   id: UUID;
   companyId: UUID;
@@ -562,9 +614,17 @@ export interface Task {
   isDraft?: boolean;
   /** First time the task moved to IN_PROGRESS. Null until work starts. */
   startedAt?: ISODate | null;
-  /** The doer. Stays on the same person through every round of review. */
+  /**
+   * The lead: who dashboards count the work against. Stays on the same person
+   * through every round of review. Defaults to the first of `assignees`.
+   */
   assignedToId?: UUID | null;
   assignedTo?: User | null;
+  /**
+   * Everybody on the task, each in a role. Order is not guaranteed — sort with
+   * `sortAssignees`. Tasks from before this shipped have `[]` and only a lead.
+   */
+  assignees: TaskAssignee[];
   /**
    * Who must say yes. `null` means the task cannot be submitted for review —
    * the UI has to ask for a name first. Resolved from the responsibility
@@ -619,6 +679,10 @@ export const TaskReviewErrorCode = {
   TASK_IS_DRAFT: 'TASK_IS_DRAFT',
   /** 409 on publish / discard: the task has already been issued. */
   NOT_A_DRAFT: 'NOT_A_DRAFT',
+  /** 422 on create/update: somebody in `assignees` is not an active member of this client. Body carries `userId`. */
+  ASSIGNEE_NOT_A_MEMBER: 'ASSIGNEE_NOT_A_MEMBER',
+  /** 400 on create/update: the same person twice in the same role. Body carries `userId` and `role`. */
+  DUPLICATE_ASSIGNEE: 'DUPLICATE_ASSIGNEE',
 } as const;
 export type TaskReviewErrorCode = (typeof TaskReviewErrorCode)[keyof typeof TaskReviewErrorCode];
 

@@ -213,6 +213,8 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
         errors?: Record<string, string | string[]>;
         openTaskIds?: unknown;
         stages?: ApiErrorShape['stages'];
+        userId?: unknown;
+        role?: unknown;
       }
     | undefined;
 
@@ -258,6 +260,8 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
     isApiResponse,
     openTaskIds: Array.isArray(data?.openTaskIds) ? data.openTaskIds.filter((id): id is string => typeof id === 'string') : undefined,
     stages: data?.stages && typeof data.stages === 'object' ? data.stages : undefined,
+    userId: typeof data?.userId === 'string' ? data.userId : undefined,
+    role: typeof data?.role === 'string' ? data.role : undefined,
   };
 }
 

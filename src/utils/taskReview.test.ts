@@ -24,7 +24,7 @@ describe('status control', () => {
 });
 
 describe('canSubmitForReview', () => {
-  it('is the assignee or an admin, from TODO or IN_PROGRESS', () => {
+  it('is the lead or an admin, from TODO or IN_PROGRESS', () => {
     expect(canSubmitForReview(task, assignee)).toBe(true);
     expect(canSubmitForReview({ ...task, status: 'TODO' }, assignee)).toBe(true);
     expect(canSubmitForReview(task, admin)).toBe(true);
@@ -36,6 +36,17 @@ describe('canSubmitForReview', () => {
     expect(canSubmitForReview({ ...task, status: 'DONE' }, assignee)).toBe(false);
     expect(canSubmitForReview({ ...task, status: 'IN_REVIEW' }, assignee)).toBe(false);
     expect(canSubmitForReview({ ...task, status: 'BLOCKED' }, assignee)).toBe(false);
+  });
+
+  it('is anybody on the task in any role, not only the lead', () => {
+    const designer = { userId: 'yasin', isAdmin: false };
+    const withPeople = { ...task, assignees: [
+      { id: 'a1', userId: 'jessika', role: 'ACCOUNT_MANAGER' as const },
+      { id: 'a2', userId: 'yasin', role: 'DESIGNER' as const },
+    ] };
+    expect(canSubmitForReview(withPeople, designer)).toBe(true);
+    expect(canSubmitForReview(withPeople, approver)).toBe(false);
+    expect(canSubmitForReview({ ...withPeople, status: 'DONE' }, designer)).toBe(false);
   });
 
   it('does not depend on an approver being set — that is the 422 the picker handles', () => {

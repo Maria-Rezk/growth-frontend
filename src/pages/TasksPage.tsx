@@ -112,7 +112,7 @@ function TasksInner({ companyId }: { companyId: string }) {
     { key: 'title', header: 'Task', sortValue: (task) => task.title, render: (task) => <div><Link className="table-link" to={`/tasks/${task.id}`}>{task.title}</Link><p><TaskTypeChips task={task} /></p></div> },
     { key: 'status', header: 'Status', sortValue: (task) => task.status, render: (task) => <ReviewStatusCell task={task} /> },
     { key: 'priority', header: 'Priority', sortValue: (task) => task.priority, render: (task) => <StatusBadge value={task.priority} /> },
-    { key: 'assignee', header: 'Assigned', sortValue: (task) => assigneeName(task.assignedToId), render: (task) => assigneeName(task.assignedToId) },
+    { key: 'assignee', header: 'Lead', sortValue: (task) => assigneeName(task.assignedToId), render: (task) => <LeadCell task={task} name={assigneeName(task.assignedToId)} /> },
     { key: 'approver', header: 'Approver', sortValue: (task) => (task.approverId ? userLabel(task.approver, assigneeName(task.approverId)) : ''), render: (task) => <ApproverCell task={task} resolveName={assigneeName} /> },
     { key: 'due', header: 'Due', sortValue: (task) => task.dueDate ?? '', render: (task) => <span className={isTaskOverdue(task) ? 'danger-text' : undefined}>{formatDateTime(task.dueDate)}</span> },
     { key: 'actions', header: '', className: 'cell-right', render: (task) => <ButtonLink to={`/tasks/${task.id}`} variant="secondary" size="sm">Open</ButtonLink> },
@@ -348,3 +348,14 @@ function ApproverCell({ task, resolveName }: { task: Task; resolveName: Assignee
   );
 }
 
+
+/** The lead, and how many more people are on the task. */
+function LeadCell({ task, name }: { task: Task; name: string }) {
+  const others = new Set((task.assignees ?? []).map((row) => row.userId).filter((userId) => userId !== task.assignedToId)).size;
+  return (
+    <span>
+      {name}
+      {others ? <> <span className="muted" title={`${others} more on this task`}>+{others}</span></> : null}
+    </span>
+  );
+}

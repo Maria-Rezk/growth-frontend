@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { ApproverPicker } from '@/components/domain/ApproverPicker';
-import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { TaskPeopleField, type TaskPersonRowError } from '@/components/domain/TaskPeople';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
 import { TaskTypePicker } from '@/components/domain/TaskTypes';
@@ -18,9 +18,19 @@ import { errorCode, errorMessage } from '@/lib/http';
 import { queryKeys } from '@/lib/queryClient';
 import { responsibilitiesService } from '@/services/responsibilities';
 import { tasksService } from '@/services/tasks';
-import { TaskPriority, TaskReviewErrorCode, TaskType, type Membership, type Task } from '@/types/domain';
+import {
+  MAX_TASK_ASSIGNEES,
+  TaskPriority,
+  TaskReviewErrorCode,
+  TaskType,
+  TaskAssigneeRole,
+  type Membership,
+  type Task,
+  type TaskAssigneeInput,
+} from '@/types/domain';
 import { fromInputDateTime, humanize, toInputDateTime } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
+import { duplicateAssigneeIndexes, newPersonRow, sameAssignees, sortAssignees, suggestTaskRole, type TaskPersonRow } from '@/utils/taskAssignees';
 
 const taskSchema = z.object({
   title: z.string().trim().min(3, 'Task title is required.').max(180, 'Up to 180 characters.'),
@@ -29,6 +39,9 @@ const taskSchema = z.object({
   taskTypes: z.array(z.nativeEnum(TaskType)),
   customTaskType: z.string().optional(),
   priority: z.nativeEnum(TaskPriority),
+  /** The people on the task, each in a role. Sent as `assignees`. */
+  assignees: z.array(z.object({ key: z.string(), userId: z.string(), role: z.union([z.nativeEnum(TaskAssigneeRole), z.literal('')]) })).max(MAX_TASK_ASSIGNEES, `Up to ${MAX_TASK_ASSIGNEES} people per task.`),
+  /** The lead. Blank: the first person on the list leads. */
   assignedToId: z.string().optional(),
   approverId: z.string().optional(),
   dueDate: z.string().optional(),
@@ -42,6 +55,14 @@ const taskSchema = z.object({
   if (values.taskTypes.includes(TaskType.OTHER) && !values.customTaskType?.trim()) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['customTaskType'], message: 'Say what the other type of work is.' });
   }
+  values.assignees.forEach((row, index) => {
+    if (!row.userId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'userId'], message: 'Choose a person, or remove the row.' });
+    if (!row.role) context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'role'], message: 'Choose the role they play on this task.' });
+  });
+  // Mirrors the API's 400 DUPLICATE_ASSIGNEE. The role picker already disables a taken role; this catches a person changed afterwards.
+  duplicateAssigneeIndexes(values.assignees).forEach((index) => {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'role'], message: 'This person is already on the task in this role.' });
+  });
 });
 
 type TaskForm = z.infer<typeof taskSchema>;
@@ -60,6 +81,11 @@ export interface TaskLink {
   sequence?: number;
 }
 
+/** The rows as the API takes them. Only complete rows; validation has already refused incomplete ones. */
+function assigneeInputs(rows: TaskForm['assignees']): TaskAssigneeInput[] {
+  return rows.flatMap((row) => (row.userId && row.role ? [{ userId: row.userId, role: row.role }] : []));
+}
+
 /** What the form holds for an existing task: every saved field, nothing defaulted over it. */
 function formValuesFor(task: Task): TaskForm {
   return {
@@ -68,6 +94,7 @@ function formValuesFor(task: Task): TaskForm {
     taskTypes: task.taskTypes ?? [],
     customTaskType: task.customTaskType ?? '',
     priority: task.priority,
+    assignees: sortAssignees(task.assignees ?? [], task.assignedToId).map((row) => newPersonRow(row.userId, row.role)),
     assignedToId: task.assignedToId ?? '',
     approverId: task.approverId ?? '',
     dueDate: toInputDateTime(task.dueDate),
@@ -117,6 +144,7 @@ export function TaskModal({
       taskTypes: link?.taskTypes ?? [],
       customTaskType: link?.customTaskType ?? '',
       priority: TaskPriority.MEDIUM,
+      assignees: [],
       assignedToId: '',
       approverId: '',
       dueDate: '',
@@ -160,14 +188,20 @@ export function TaskModal({
   );
   const routing = useMemo(() => routingForArea(matrix.data, areaId), [areaId, matrix.data]);
 
+  const watchedPeople = form.watch('assignees');
+  const setPeople = (next: TaskPersonRow[]) =>
+    form.setValue('assignees', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
+
   const chooseArea = (nextAreaId: string) => {
     setAreaId(nextAreaId);
     const suggested = routingForArea(matrix.data, nextAreaId).executor;
-    // Only prefill someone the Assign to list actually offers. Selecting a
-    // value with no matching <option> silently falls back to the first one,
-    // which would assign the task to the wrong person.
-    const assignable = suggested && members.some((member) => member.userId === suggested.userId);
-    form.setValue('assignedToId', assignable ? suggested.userId : '', { shouldDirty: true });
+    // Only prefill someone the person picker actually offers: an active member of this client.
+    const member = suggested ? members.find((item) => item.userId === suggested.userId && item.status === 'ACTIVE') : undefined;
+    if (!member) return;
+    const rows = form.getValues('assignees');
+    if (rows.some((row) => row.userId === member.userId)) return;
+    // First on the list, so they lead unless somebody picks otherwise.
+    setPeople([newPersonRow(member.userId, suggestTaskRole(member) ?? ''), ...rows.filter((row) => row.userId || row.role)]);
   };
 
   const onMutationError = (error: unknown) => {
@@ -178,6 +212,17 @@ export function TaskModal({
       }
       if (code === TaskReviewErrorCode.CUSTOM_TASK_TYPE_REQUIRED) {
         form.setError('customTaskType', { message: 'Say what the other type of work is.' });
+        return;
+      }
+      if (code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER || code === TaskReviewErrorCode.DUPLICATE_ASSIGNEE) {
+        // Point at the row the API named; fall back to the list as a whole.
+        const { userId, role } = error as { userId?: string; role?: string };
+        const index = form.getValues('assignees').findIndex((row) => row.userId === userId && (!role || row.role === role));
+        const message = code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER
+          ? 'Not an active member of this client any more. Choose somebody else.'
+          : 'This person is already on the task in this role.';
+        if (index === -1) form.setError('assignees', { message });
+        else form.setError(code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? `assignees.${index}.userId` : `assignees.${index}.role`, { message });
         return;
       }
       applyServerFieldErrors(form, error);
@@ -213,13 +258,24 @@ export function TaskModal({
       form.setError('taskTypes', { message: 'Keep at least one type.' });
       return null;
     }
+    const people = assigneeInputs(values.assignees);
+    const peopleChanged = !sameAssignees(people, existing.assignees ?? []);
+    const leadChanged = (values.assignedToId || '') !== (existing.assignedToId ?? '');
     return update.mutate(companyId, existing.id, {
       title: values.title.trim(),
       description: values.description ?? '',
       taskTypes: values.taskTypes,
       customTaskType: values.customTaskType,
       priority: values.priority,
-      assignedToId: values.assignedToId || null,
+      // The WHOLE list, and only when it changed: left out, the API keeps it as it is.
+      ...(peopleChanged ? { assignees: people } : {}),
+      /*
+        The lead only when somebody picked one. "First person" picked on
+        purpose names that person; with nobody on the list it clears the lead.
+        Left out, the API keeps the lead while they are still on the list and
+        otherwise promotes the first person.
+      */
+      ...(leadChanged ? { assignedToId: values.assignedToId || people[0]?.userId || null } : {}),
       approverId: values.approverId || null,
       dueDate: fromInputDateTime(values.dueDate ?? '') ?? null,
       ...(onPost ? { sequence: values.sequence ? Number(values.sequence) : null } : {}),
@@ -239,7 +295,7 @@ export function TaskModal({
           form.reset(formValuesFor(saved));
           return;
         }
-        toast.success('Published. The assignee has been told.');
+        toast.success('Published. Everybody on it has been told.');
         onSaved?.(published);
       } else {
         toast.success(isDraft ? 'Draft saved.' : 'Task updated.');
@@ -255,6 +311,8 @@ export function TaskModal({
       customTaskType: values.customTaskType,
       isDraft: asDraft,
       priority: values.priority,
+      assignees: assigneeInputs(values.assignees),
+      // Left out unless the user picked a lead: the API makes the first person the lead.
       assignedToId: values.assignedToId || undefined,
       // Empty means "let the matrix decide" — the backend resolves it again on create.
       approverId: values.approverId || undefined,
@@ -291,7 +349,7 @@ export function TaskModal({
         </>
       )}
     >
-      {isDraft ? <p className="muted task-form__note">A draft only you can see. Save it as often as you like; Publish issues it and tells the assignee.</p> : null}
+      {isDraft ? <p className="muted task-form__note">A draft only you can see. Save it as often as you like; Publish issues it and tells everybody on it.</p> : null}
       <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
           <Input id="task-title" maxLength={180} {...form.register('title')} />
@@ -331,21 +389,24 @@ export function TaskModal({
           />
         ) : null}
 
+        <TaskPeopleField
+          value={watchedPeople}
+          onChange={setPeople}
+          members={members}
+          errors={rowErrors(form.formState.errors.assignees)}
+          error={form.formState.errors.assignees?.message ?? form.formState.errors.assignees?.root?.message}
+          disabled={busy}
+        />
+
         <div className="grid-2">
-          <Field label="Assign to" htmlFor="task-assignee" hint="Optional. Leave unassigned if not decided.">
-            {/*
-              The field holds a plain user id; the option values carry a role
-              too so one person can be listed under each of theirs. Assignment
-              itself is per person — the role only helps find them.
-            */}
-            <Select
-              id="task-assignee"
-              value={assigneeValueFor(members, form.watch('assignedToId'))}
-              onChange={(event) => form.setValue('assignedToId', assigneeUserId(event.target.value), { shouldDirty: true })}
-            >
-              <AssigneeOptions members={members} />
-            </Select>
-          </Field>
+          <LeadField
+            people={watchedPeople}
+            members={members}
+            value={form.watch('assignedToId') ?? ''}
+            savedLead={task?.assignedToId ?? null}
+            savedLeadName={task?.assignedTo?.fullName || task?.assignedTo?.email}
+            onChange={(next) => form.setValue('assignedToId', next, { shouldDirty: true })}
+          />
           <Field label="Due date" htmlFor="due" error={form.formState.errors.dueDate?.message}>
             <Input id="due" type="datetime-local" {...form.register('dueDate')} />
           </Field>
@@ -392,6 +453,62 @@ export function TaskModal({
         {mutationError ? <p className="error-box" role="alert">{mutationError}</p> : null}
       </form>
     </Modal>
+  );
+}
+
+/** react-hook-form's per-row errors, flattened to what the people field shows. */
+function rowErrors(errors: unknown): Array<TaskPersonRowError | undefined> | undefined {
+  if (!Array.isArray(errors)) return undefined;
+  return errors.map((entry) => {
+    if (!entry) return undefined;
+    const row = entry as { userId?: { message?: string }; role?: { message?: string } };
+    return { userId: row.userId?.message, role: row.role?.message };
+  });
+}
+
+/**
+ * Who leads: the person dashboards count the work against. Blank lets the
+ * first person on the list lead, which is what the API does without
+ * `assignedToId`. A saved lead who is not on the list (a task from before
+ * task people) stays selectable so editing does not silently drop them.
+ */
+function LeadField({
+  people,
+  members,
+  value,
+  savedLead,
+  savedLeadName,
+  onChange,
+}: {
+  people: TaskPersonRow[];
+  members: Membership[];
+  value: string;
+  savedLead: string | null;
+  savedLeadName?: string;
+  onChange: (userId: string) => void;
+}) {
+  const nameOf = (userId: string) => {
+    const member = members.find((item) => item.userId === userId);
+    return member?.user?.fullName ?? member?.user?.email ?? (userId === savedLead ? savedLeadName : undefined) ?? userId;
+  };
+  const listed = [...new Set(people.map((row) => row.userId).filter(Boolean))];
+  const options = value && !listed.includes(value) ? [value, ...listed] : listed;
+  const first = listed[0];
+  const offList = Boolean(value) && !listed.includes(value) && listed.length > 0;
+
+  return (
+    <Field
+      label="Lead"
+      htmlFor="task-lead"
+      hint={offList
+        ? `${nameOf(value)} is not on the list above but stays the lead.`
+        : 'Who the work is counted against on dashboards.'}
+    >
+      <Select id="task-lead" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">{first ? `First person (${nameOf(first)})` : 'First person on the list'}</option>
+        {options.map((userId) => <option key={userId} value={userId}>{nameOf(userId)}</option>)}
+      </Select>
+    </Field>
   );
 }
 

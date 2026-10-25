@@ -88,7 +88,7 @@ export function TaskDrafts({ companyId, onCreate }: { companyId: string; onCreat
   return (
     <Card>
       <div className="content-card__body">
-        <p className="muted">Only you can see these. Publishing a draft adds it to the task list and tells the assignee.</p>
+        <p className="muted">Only you can see these. Publishing a draft adds it to the task list and tells everybody on it.</p>
         {publish.error || discard.error ? <p className="error-box" role="alert">{publish.error ?? discard.error}</p> : null}
         <ul className="attachment-list">
           {rows.map((task) => (

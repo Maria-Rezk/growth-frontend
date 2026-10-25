@@ -21,22 +21,41 @@ import type {
   Paginated,
   Task,
   TaskActivityLog,
+  TaskAssignee,
+  TaskAssigneeInput,
   TaskComment,
   TaskStatus,
   TaskType,
 } from '@/types/domain';
 import { TaskReviewErrorCode, TaskType as TaskTypeValue } from '@/types/domain';
+import { isOnTask } from '@/utils/taskAssignees';
 import { readTaskTypes } from '@/utils/taskTypes';
 
-/** A PATCH: any subset of the editable fields, with `null` to clear one. */
-export type TaskUpdatePayload = Partial<Omit<Task, 'dueDate' | 'sequence'>> & { dueDate?: string | null; sequence?: number | null };
+/**
+ * A PATCH: any subset of the editable fields, with `null` to clear one.
+ * `assignees` is the WHOLE list and replaces the old one; leave it out to keep it, `[]` clears it.
+ */
+export type TaskUpdatePayload = Partial<Omit<Task, 'dueDate' | 'sequence' | 'assignees'>> & {
+  dueDate?: string | null;
+  sequence?: number | null;
+  assignees?: TaskAssigneeInput[];
+};
 
-/** Files are uploaded on selection and attached in the same transaction as the create. Files, links and notes together: max 20. */
-export type TaskCreatePayload = Partial<Task> & AttachmentCreateFields & {
+/**
+ * Files are uploaded on selection and attached in the same transaction as the create. Files, links and notes together: max 20.
+ * Without `assignedToId`, the first of `assignees` becomes the lead.
+ */
+export type TaskCreatePayload = Partial<Omit<Task, 'assignees'>> & AttachmentCreateFields & {
   relatedEntityType?: string;
   relatedEntityId?: string;
   notes?: string;
+  assignees?: TaskAssigneeInput[];
 };
+
+/** Only `{ userId, role }` goes on the wire; nothing the UI keeps beside a row. */
+function assigneesForWire(assignees: TaskAssigneeInput[] | undefined): TaskAssigneeInput[] | undefined {
+  return assignees?.map(({ userId, role }) => ({ userId, role }));
+}
 
 /**
  * `OTHER` needs its text and every other selection must not carry any: the
@@ -91,7 +110,40 @@ function normalizeTask(raw: WireTask): Task {
     customTaskType: raw.customTaskType ?? null,
     isDraft: raw.isDraft ?? false,
     startedAt: raw.startedAt ?? null,
+    // A backend from before task people sends no list at all.
+    assignees: Array.isArray(raw.assignees) ? raw.assignees : [],
   };
+}
+
+/** Demo-only: the rows the API would store for a list of inputs, keeping who was already there. */
+function demoAssignees(inputs: TaskAssigneeInput[], previous: TaskAssignee[] = []): TaskAssignee[] {
+  const seen = new Set<string>();
+  for (const input of inputs) {
+    const key = `${input.userId}:${input.role}`;
+    if (seen.has(key)) {
+      throw Object.assign(demoReviewError(400, TaskReviewErrorCode.DUPLICATE_ASSIGNEE, 'The same person is listed twice in the same role'), { userId: input.userId, role: input.role });
+    }
+    seen.add(key);
+    if (!demoMemberUser(input.userId)) {
+      throw Object.assign(demoReviewError(422, TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER, 'Everybody on a task must be an active member of this client'), { userId: input.userId });
+    }
+  }
+  return inputs.map((input) => previous.find((row) => row.userId === input.userId && row.role === input.role) ?? {
+    id: makeId('task-assignee'),
+    userId: input.userId,
+    role: input.role,
+    assignedById: demoUser.id,
+    createdAt: new Date().toISOString(),
+    user: demoMemberUser(input.userId),
+  });
+}
+
+/** Demo-only: the lead the API settles on — the one sent, else kept while still on the list, else the first person. */
+function demoLead(explicit: string | null | undefined, current: string | null | undefined, assignees: TaskAssignee[]): string | null | undefined {
+  if (explicit !== undefined) return explicit;
+  if (!assignees.length) return current;
+  if (current && assignees.some((row) => row.userId === current)) return current;
+  return assignees[0].userId;
 }
 
 function demoDraftError(): Error & { statusCode: number; code: string } {
@@ -175,6 +227,8 @@ export const tasksService = {
   async create(companyId: string, payload: TaskCreatePayload): Promise<Task> {
     if (env.demoMode) {
       demoCheckSequence(companyId, null, payload.relatedEntityType, payload.relatedEntityId, payload.sequence);
+      const assignees = demoAssignees(payload.assignees ?? []);
+      const leadId = demoLead(payload.assignedToId, undefined, assignees);
       const task: Task = {
         id: makeId('task'),
         companyId,
@@ -187,8 +241,9 @@ export const tasksService = {
         isDraft: payload.isDraft ?? false,
         startedAt: null,
         createdById: demoUser.id,
-        assignedToId: payload.assignedToId,
-        assignedTo: payload.assignedTo,
+        assignedToId: leadId,
+        assignedTo: leadId ? demoMemberUser(leadId) : payload.assignedTo,
+        assignees,
         approverId: payload.approverId ?? null,
         approver: payload.approverId ? demoMemberUser(payload.approverId) : null,
         submittedForReviewAt: null,
@@ -219,7 +274,9 @@ export const tasksService = {
       isDraft: payload.isDraft ? true : undefined,
       priority: payload.priority,
       dueDate: payload.dueDate,
+      // Left out unless somebody chose a lead: the backend makes the first of `assignees` the lead.
       assignedToId: payload.assignedToId,
+      assignees: payload.assignees?.length ? assigneesForWire(payload.assignees) : undefined,
       // Optional. Omitted, the backend reads the responsibility matrix; sent,
       // it must be an active member of this client (422 APPROVER_REQUIRED).
       approverId: payload.approverId || undefined,
@@ -245,13 +302,31 @@ export const tasksService = {
         demoLog(taskId, 'TASK_APPROVER_CHANGED', { from: task.approverId ?? null, to: payload.approverId ?? null });
         task.approver = payload.approverId ? demoMemberUser(payload.approverId) : null;
       }
-      Object.assign(task, payload, { updatedAt: new Date().toISOString() });
+      const { assignees: nextAssignees, ...fields } = payload;
+      if (nextAssignees) {
+        const before = task.assignees ?? [];
+        const after = demoAssignees(nextAssignees, before);
+        const pair = (row: TaskAssignee) => ({ userId: row.userId, role: row.role });
+        const has = (list: TaskAssignee[], row: TaskAssignee) => list.some((other) => other.userId === row.userId && other.role === row.role);
+        const added = after.filter((row) => !has(before, row)).map(pair);
+        const removed = before.filter((row) => !has(after, row)).map(pair);
+        if (added.length || removed.length) demoLog(taskId, 'ASSIGNEES_CHANGED', { added, removed });
+        task.assignees = after;
+        const leadId = demoLead(payload.assignedToId, task.assignedToId, after);
+        fields.assignedToId = leadId;
+        fields.assignedTo = leadId ? demoMemberUser(leadId) : null;
+      }
+      Object.assign(task, fields, { updatedAt: new Date().toISOString() });
       if (payload.taskTypes && !payload.taskTypes.includes(TaskTypeValue.OTHER)) task.customTaskType = null;
       return demoDelay(task);
     }
     // `isDraft` cannot be changed here — publishing goes through `publishDraft`, which is what notifies the assignee.
-    const { isDraft: _isDraft, taskTypes, customTaskType, ...rest } = payload;
-    const response = await http.patch(apiRoutes.tasks.detail(companyId, taskId), { ...rest, ...typeFields(taskTypes, customTaskType) });
+    const { isDraft: _isDraft, taskTypes, customTaskType, assignees, ...rest } = payload;
+    const response = await http.patch(apiRoutes.tasks.detail(companyId, taskId), {
+      ...rest,
+      ...typeFields(taskTypes, customTaskType),
+      ...(assignees ? { assignees: assigneesForWire(assignees) } : {}),
+    });
     return normalizeTask(unwrap<Task & { taskType?: TaskType }>(response.data));
   },
   async setStatus(companyId: string, taskId: string, status: TaskStatus, note?: string): Promise<Task> {
@@ -428,7 +503,7 @@ export const tasksService = {
   },
   async listMine(companyId: string, params?: ListParams): Promise<Task[]> {
     if (env.demoMode) {
-      return demoDelay(filterList(demoTasks.filter((t) => t.companyId === companyId && !t.isDraft && t.assignedToId === demoUser.id), params));
+      return demoDelay(filterList(demoTasks.filter((t) => t.companyId === companyId && !t.isDraft && isOnTask(t, demoUser.id)), params));
     }
     const response = await http.get(apiRoutes.tasks.myTasks(companyId), { params: wireParams(params) });
     return unwrap<WireTask[]>(response.data).map(normalizeTask);

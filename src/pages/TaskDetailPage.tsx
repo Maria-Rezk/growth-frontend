@@ -26,7 +26,10 @@ import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
 import { TaskReviewErrorCode, TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
-import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { TaskPeopleList } from '@/components/domain/TaskPeople';
+import { useLocale } from '@/context/LocaleContext';
+import type { AppLanguage } from '@/i18n/messages';
+import { readAssigneeChanges, taskRoleLabel } from '@/utils/taskAssignees';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 
 export function TaskDetailPage() {
@@ -43,7 +46,6 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const members = useAssignableMembers(companyId);
 
   const setStatus = useMutation(tasksService.setStatus, { invalidateKeys: tasksPrefix });
-  const update = useMutation(tasksService.update, { invalidateKeys: tasksPrefix });
   // Was a bare service call — no pending state, errors swallowed, and a double
   // click filed the comment twice.
   const addCommentMutation = useMutation(tasksService.addComment);
@@ -59,6 +61,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const [comment, setComment] = useState('');
   const { userId: actorId } = useTaskActor();
   const confirm = useConfirm();
+  const { lang } = useLocale();
 
   if (task.loading) return <DetailSkeleton />;
   if (task.error || !task.data) return <ErrorState message={task.error ?? 'Task not found.'} onRetry={task.refetch} />;
@@ -83,19 +86,11 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
     }
   };
 
-  const changeAssignee = async (assignedToId: string) => {
-    const result = await update.mutate(companyId, taskId, { assignedToId: assignedToId || undefined });
-    if (result) {
-      task.setData(result);
-      await logs.refetch();
-    }
-  };
-
   const onPublish = async () => {
     const result = await publishDraft.mutate(companyId, taskId);
     if (result) {
       task.setData(result);
-      toast.success('Published. The assignee has been told.');
+      toast.success('Published. Everybody on it has been told.');
       await logs.refetch();
     }
   };
@@ -183,7 +178,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <div><span>Priority</span><strong><StatusBadge value={current.priority} /></strong></div>
                 <div><span>Type</span><strong><TaskTypeChips task={current} /></strong></div>
                 {current.sequence ? <div><span>Stage on post</span><strong>{current.sequence}</strong></div> : null}
-                <div><span>Assigned</span><strong>{resolveName(current.assignedToId)}</strong></div>
+                <div><span>Lead</span><strong>{current.assignedToId ? userLabel(current.assignedTo, resolveName(current.assignedToId)) : 'No lead'}</strong></div>
                 <div>
                   <span>Approver</span>
                   <strong>
@@ -292,25 +287,16 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
           </Card>
 
           <Card>
-            <CardHeader title="Assignment" />
+            <CardHeader
+              title="People"
+              action={(
+                <RoleGate permission="tasks:edit">
+                  <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit people</Button>
+                </RoleGate>
+              )}
+            />
             <div className="content-card__body">
-              <RoleGate
-                permission="tasks:edit"
-                fallback={<p className="muted">Assigned to {resolveName(current.assignedToId)}.</p>}
-              >
-                <Field label="Assigned to" htmlFor="task-assignee">
-                  <Select
-                    id="task-assignee"
-                    value={assigneeValueFor(members.data ?? [], current.assignedToId)}
-                    disabled={update.loading || members.loading}
-                    onChange={(event) => changeAssignee(assigneeUserId(event.target.value))}
-                  >
-                    <AssigneeOptions members={members.data ?? []} />
-                  </Select>
-                </Field>
-                {members.error ? <p className="error-text">Could not load members.</p> : null}
-                {update.error ? <p className="error-box" role="alert">{update.error}</p> : null}
-              </RoleGate>
+              <TaskPeopleList task={current} resolveName={resolveName} />
             </div>
           </Card>
 
@@ -328,7 +314,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <ErrorState message={logs.error} onRetry={logs.refetch} />
               ) : (
                 <Timeline
-                  items={(logs.data ?? []).map((item) => ({ id: item.id, ...describeActivity(item, resolveName), createdAt: item.createdAt }))}
+                  items={(logs.data ?? []).map((item) => ({ id: item.id, ...describeActivity(item, resolveName, lang), createdAt: item.createdAt }))}
                   empty={logs.loading ? 'Loading activity…' : 'No activity yet.'}
                 />
               )}
@@ -345,7 +331,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
  * said, which is the whole point of recording them — "Approved by Omar" as a
  * row, not a comment somebody has to scroll for.
  */
-function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null) => string): { title: string; body?: string } {
+function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null) => string, lang: AppLanguage): { title: string; body?: string } {
   const meta = (log.metadata ?? {}) as Record<string, unknown>;
   const approver = typeof meta.approverId === 'string' ? resolveName(meta.approverId) : null;
   switch (log.action) {
@@ -360,6 +346,12 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
         title: 'Approver changed',
         body: `${typeof meta.from === 'string' ? resolveName(meta.from) : 'Nobody'} → ${typeof meta.to === 'string' ? resolveName(meta.to) : 'Nobody'}`,
       };
+    case 'ASSIGNEES_CHANGED': {
+      const { added, removed } = readAssigneeChanges(meta);
+      const list = (rows: typeof added) => rows.map((row) => `${resolveName(row.userId)} (${taskRoleLabel(row.role, lang)})`).join(', ');
+      const parts = [added.length ? `Added ${list(added)}` : null, removed.length ? `Removed ${list(removed)}` : null].filter(Boolean);
+      return { title: 'People changed', body: parts.length ? parts.join(' · ') : undefined };
+    }
     case 'ATTACHMENT_ADDED':
       return { title: 'Attachment added', body: attachmentSummary(meta) };
     case 'ATTACHMENT_REMOVED':

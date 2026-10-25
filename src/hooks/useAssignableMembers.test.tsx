@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import type { Membership } from '@/types/domain';
 
-let allowed = false;
-vi.mock('@/hooks/usePermission', () => ({ useCan: () => (permission: string) => permission === 'members:manage' && allowed }));
+let granted: string[] = [];
+vi.mock('@/hooks/usePermission', () => ({ useCan: () => (permission: string) => granted.includes(permission) }));
 
 const members = vi.fn();
 vi.mock('@/services/companies', () => ({ companiesService: { members: (id: string) => members(id) } }));
@@ -28,7 +28,7 @@ afterEach(cleanup);
 
 describe('useAssignableMembers', () => {
   it('reads the member directory where the person is allowed to', async () => {
-    allowed = true;
+    granted = ['members:manage'];
     const rows = [{ id: 'm1', companyId: 'A', userId: 'u1', roles: ['DESIGNER'], status: 'ACTIVE' }] as Membership[];
     members.mockResolvedValue(rows);
 
@@ -38,8 +38,19 @@ describe('useAssignableMembers', () => {
     expect(matrix).not.toHaveBeenCalled();
   });
 
+  it('reads the member directory for whoever creates tasks (Social Media Manager, Art Director)', async () => {
+    granted = ['tasks:edit'];
+    members.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useAssignableMembers('A'), { wrapper });
+
+    await waitFor(() => expect(result.current.data).toEqual([]));
+    expect(members).toHaveBeenCalledWith('A');
+    expect(matrix).not.toHaveBeenCalled();
+  });
+
   it('uses the responsibility matrix for everybody else, and never asks the directory', async () => {
-    allowed = false;
+    granted = [];
     matrix.mockResolvedValue({
       areas: [],
       cells: [],
