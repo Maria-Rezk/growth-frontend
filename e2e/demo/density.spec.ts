@@ -59,19 +59,15 @@ for (const width of [320, 375]) {
       }
     });
 
-    /*
-      Known bug, not fixed in this phase (audit N-6, P1): on /leads every
-      filter setter calls setUrlFilters twice in one tick (the filter, then
-      page=1), and the second update overwrites the first, so stage chips,
-      Status, Source, Search and the Pipeline/Table switch do nothing. It
-      predates the layout work (45b44a9). Unskip once N-6 is fixed.
-    */
-    test.fixme('a stage chip filters the list (N-6)', async ({ page }) => {
+    test('a stage chip filters the list, and a second press clears it (N-6)', async ({ page }) => {
       await open(page, '/leads');
-      const stages = page.getByRole('group', { name: 'Filter by pipeline stage' }).getByRole('button');
-      await stages.filter({ hasText: 'Interested' }).click();
-      await expect(stages.filter({ hasText: 'Interested' })).toHaveAttribute('aria-pressed', 'true');
+      const interested = page.getByRole('group', { name: 'Filter by pipeline stage' }).getByRole('button').filter({ hasText: 'Interested' });
+      await interested.click();
+      await expect(interested).toHaveAttribute('aria-pressed', 'true');
       await expect(page.locator('#lead-filter')).toHaveValue('INTERESTED');
+      await interested.click();
+      await expect(interested).toHaveAttribute('aria-pressed', 'false');
+      await expect(page.locator('#lead-filter')).toHaveValue('');
     });
 
     test('the helper sentences are hidden from sight but kept for screen readers', async ({ page }) => {

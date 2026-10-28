@@ -87,10 +87,6 @@ function LeadsInner({ companyId }: { companyId: string }) {
   const { userId } = useTaskActor();
   const view = (urlFilters.view === 'table' ? 'table' : 'pipeline') as ViewMode;
   const page = Math.max(1, Number.parseInt(urlFilters.page, 10) || 1);
-  const setStatus = (value: string) => setUrlFilters({ status: value });
-  const setSource = (value: string) => setUrlFilters({ source: value });
-  const setSearch = (value: string) => setUrlFilters({ search: value });
-  const setView = (value: ViewMode) => setUrlFilters({ view: value });
   const setPage = (value: number) => setUrlFilters({ page: String(value) });
   const setScope = (value: Scope) => setUrlFilters({ scope: value, page: '1' });
   const setDue = (value: DueFilter) => setUrlFilters({ due: value, page: '1' });
@@ -145,11 +141,17 @@ function LeadsInner({ companyId }: { companyId: string }) {
     return { overdue: count('overdue'), today: count('today'), week: count('week'), none: open.filter(isAdrift).length };
   }, [allLeads.data]);
 
-  // Any filter or view change restarts from page 1 so offsets stay valid.
-  const setStatusFilter = (value: string) => { setStatus(value); setPage(1); };
-  const setSourceFilter = (value: string) => { setSource(value); setPage(1); };
-  const setSearchFilter = (value: string) => { setSearch(value); setPage(1); };
-  const setViewMode = (value: ViewMode) => { setView(value); setPage(1); };
+  /*
+    Any filter or view change restarts from page 1 so offsets stay valid, in
+    one URL update with the change itself. These used to be two updates (the
+    filter, then the page), and the second erased the first, so none of them
+    applied (N-6).
+  */
+  const setStatusFilter = (value: string) => setUrlFilters({ status: value, page: '1' });
+  const setSourceFilter = (value: string) => setUrlFilters({ source: value, page: '1' });
+  const setSearchFilter = (value: string) => setUrlFilters({ search: value, page: '1' });
+  const setViewMode = (value: ViewMode) => setUrlFilters({ view: value, page: '1' });
+  const clearFilters = () => setUrlFilters({ status: '', source: '', search: '', page: '1' });
 
   const assigneeName = useMemo<AssigneeNameFn>(() => {
     const map = new Map<string, string>();
@@ -258,7 +260,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
           onRetry={leads.refetch}
           assigneeName={assigneeName}
           filtersActive={Boolean(status || source || search)}
-          onClearFilters={() => setUrlFilters({ status: '', source: '', search: '' })}
+          onClearFilters={clearFilters}
           onCreate={() => setCreateOpen(true)}
           page={page}
           totalPages={totalPages}
@@ -276,7 +278,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
             emptyTitle={status || source || search ? 'No leads match these filters' : 'No leads yet'}
             emptyDescription={status || source || search ? undefined : 'Every enquiry from social, the website or a referral becomes a lead here, with a follow-up date so nothing goes cold.'}
             emptyAction={status || source || search
-              ? <Button variant="secondary" size="sm" onClick={() => setUrlFilters({ status: '', source: '', search: '' })}>Clear filters</Button>
+              ? <Button variant="secondary" size="sm" onClick={clearFilters}>Clear filters</Button>
               : <RoleGate permission="leads:manage"><Button size="sm" onClick={() => setCreateOpen(true)}>Add the first lead</Button></RoleGate>}
             defaultSortKey="name"
           />

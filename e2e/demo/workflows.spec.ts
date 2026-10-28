@@ -1,6 +1,55 @@
 import { expect, open, test } from './fixtures';
 
 test.describe('leads', () => {
+  /*
+    REGRESSION (N-6): every Leads filter updated the URL twice in one event
+    (the filter, then page 1) and the second update erased the first, so
+    none of these ever applied.
+  */
+  test('the status filter narrows the list and is kept in the URL', async ({ page }) => {
+    await open(page, '/leads');
+    const main = page.locator('main');
+    await expect(main.getByText('Alpha Retail').first()).toBeVisible();
+    await page.locator('#lead-filter').selectOption('INTERESTED');
+    await expect(page).toHaveURL(/status=INTERESTED/);
+    await expect(page.locator('#lead-filter')).toHaveValue('INTERESTED');
+    await expect(main.getByText('Nour Clinic').first()).toBeVisible();
+    await expect(main.getByText('Alpha Retail')).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Filter by pipeline stage' }).getByRole('button', { name: /Interested/ })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('search narrows the list', async ({ page }) => {
+    await open(page, '/leads');
+    await page.locator('#lead-search').fill('Daleel');
+    await expect(page).toHaveURL(/search=Daleel/);
+    await expect(page.locator('main').getByText('Daleel Chicago').first()).toBeVisible();
+    await expect(page.locator('main').getByText('Nour Clinic')).toHaveCount(0);
+  });
+
+  test('the source filter applies and is kept in the URL', async ({ page }) => {
+    await open(page, '/leads');
+    await page.locator('#lead-source-filter').selectOption('REFERRAL');
+    await expect(page).toHaveURL(/source=REFERRAL/);
+    await expect(page.locator('#lead-source-filter')).toHaveValue('REFERRAL');
+  });
+
+  test('the Pipeline/Table switch changes the view, and Clear filters resets every filter', async ({ page }) => {
+    await open(page, '/leads');
+    const table = page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Table' });
+    await table.click();
+    await expect(table).toHaveAttribute('aria-pressed', 'true');
+    await expect(page).toHaveURL(/view=table/);
+    await expect(page.locator('main .data-table')).toBeVisible();
+
+    await page.locator('#lead-filter').selectOption('WON');
+    await expect(page).toHaveURL(/status=WON/);
+    await page.locator('main').getByRole('button', { name: 'Clear filters' }).click();
+    await expect(page.locator('#lead-filter')).toHaveValue('');
+    await expect(page).not.toHaveURL(/status=/);
+    // Clearing filters keeps the chosen view.
+    await expect(page).toHaveURL(/view=table/);
+  });
+
   test('creating a lead validates the name, then adds it to the pipeline', async ({ page }) => {
     await open(page, '/leads');
     await page.getByRole('button', { name: 'New lead' }).click();

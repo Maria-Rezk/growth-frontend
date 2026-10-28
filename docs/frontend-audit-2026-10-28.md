@@ -30,10 +30,10 @@
 | F-19 mobile density (My work, Tasks, Leads) | ✅ Resolved (Phase 3A); Leads toolbar left as is (N-7) | `bba5048` | `e2e/demo/density.spec.ts` |
 | F-20 repeated My work summary | ✅ Resolved (Phase 3A) | `a2702ae` | `e2e/demo/density.spec.ts` |
 | F-21 detail back navigation, mobile stepper | ✅ Resolved (Phase 3A) | `8d19d24` | `e2e/demo/detail-nav.spec.ts` |
+| N-6 Leads list filters did nothing | ✅ Resolved (after Phase 3A) | see the commit "Make the Leads filters apply" | `hooks/useUrlFilters.test.tsx`, `e2e/demo/workflows.spec.ts`, `e2e/demo/density.spec.ts` |
 
 **Still open:**
-- **P1:** N-6 (Leads list filters do nothing)
-- **P2:** F-06, F-13, F-16, F-17
+- **P2:** F-06, F-13, F-16, F-17, N-8
 - **P3:** F-22 – F-33, N-1, N-5, N-7
 
 **Verification still outstanding (treat as P1):**
@@ -397,8 +397,9 @@ The gaps, in order of user impact:
 | N-1 (P3) | `tsconfig.json` (`include: ["src"]`) | Verified | `vite.config.ts`, `playwright.config.ts` and `e2e/` are never type-checked | Add a `tsconfig.node.json` to `npm run typecheck` | S |
 | N-2 (P3) — ✅ Resolved `bfafe28` | `hooks/useAsync.ts` (`refetch`) | Code-confirmed | `useCallback(…, [query])` changes identity every render | Depend on `query.refetch` | S |
 | N-5 (P3) | `components/layout/NotificationsMenu.tsx` | Verified (0 imports) | A second, unused notifications menu that still shares the `.notifications-menu` rules with the live panel | Delete it with the F-17 cleanup | S |
-| N-6 (**P1**) | `pages/LeadsPage.tsx:149-152` | Verified in the browser and pinned by a `test.fixme` in `e2e/demo/density.spec.ts` | On `/leads` the stage chips, Status, Source, Search and the Pipeline/Table switch do nothing. Each setter calls `setUrlFilters` twice in one tick (the filter, then `page: 1`). React Router's functional `setSearchParams` reads the last-rendered params, so the second call overwrites the first. Follow-up tiles and Scope work because they set everything in one call. Present since `45b44a9`. | Set both in one call, e.g. `setUrlFilters({ status: value, page: '1' })`, for all four setters; then remove the `fixme`. | S |
+| N-6 (**P1**) — ✅ Resolved | `pages/LeadsPage.tsx:149-152` | Verified in the browser and pinned by a `test.fixme` in `e2e/demo/density.spec.ts` | On `/leads` the stage chips, Status, Source, Search and the Pipeline/Table switch do nothing. Each setter calls `setUrlFilters` twice in one tick (the filter, then `page: 1`). React Router's functional `setSearchParams` reads the last-rendered params, so the second call overwrites the first. Follow-up tiles and Scope work because they set everything in one call. Present since `45b44a9`. | Set both in one call, e.g. `setUrlFilters({ status: value, page: '1' })`, for all four setters; then remove the `fixme`. | S |
 | N-7 (P3) | `/leads` toolbar on phones | Verified | After F-19 the first lead at 375 px starts about 120 px below the first screen. The rest is the filter card: Scope, three fields, then the view switch. The Tasks scope-and-view row (F-18) was not applied, because it would add a row on desktop, where the Leads toolbar is already a single 95 px row. | Phone-only rearrangement once N-6 is fixed | S |
+| N-8 (P2) | `.pipeline-summary` (Leads) and `.workflow-summary` (Posts), above 760 px | Verified at about 800 px on Leads; Posts not checked | Between the phone chip layout (F-19) and a wide screen, the `auto-fit` grid of stage tiles leaves empty bordered cells (on Leads at about 800 px, 5 + 2 stages). | Use the same chip row up to the width where all stages fit one row, or balance the columns | S |
 | N-4 (note) | Dialogs | Rule | A field inside a dialog must not use `autoFocus` at open: it takes focus before the trap can record the opener, so focus cannot return on close. `Modal` now focuses the first field itself. `autoFocus` on a field revealed mid-dialog is fine. | — | — |
 
 ---
