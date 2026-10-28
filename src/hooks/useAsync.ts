@@ -59,18 +59,30 @@ export function useAsync<T>(
     placeholderData: options.keepPreviousData ? keepPreviousData : undefined,
   });
 
+  /*
+    Both callbacks keep one identity for the life of the component. They used
+    to depend on `query` (a new result object every render) and on `queryKey`
+    (a new array every render, since callers build it inline), so they changed
+    on every render: any effect, memo or context value listing them re-ran
+    each time — CompanyContext's value was rebuilt on every render through
+    refreshMemberships. React Query's own `refetch` is already stable, and the
+    latest key is read through a ref when setData runs.
+  */
+  const { refetch: refetchQuery } = query;
   const refetch = useCallback(async () => {
-    await query.refetch();
-  }, [query]);
+    await refetchQuery();
+  }, [refetchQuery]);
 
+  const latestKey = useRef(queryKey);
+  latestKey.current = queryKey;
   const setData = useCallback(
     (value: T | ((current: T | null) => T | null)) => {
-      queryClient.setQueryData<T | null>(queryKey, (current) => {
+      queryClient.setQueryData<T | null>(latestKey.current, (current) => {
         if (typeof value === 'function') return (value as (current: T | null) => T | null)(current ?? null);
         return value;
       });
     },
-    [queryClient, queryKey],
+    [queryClient],
   );
 
   return {

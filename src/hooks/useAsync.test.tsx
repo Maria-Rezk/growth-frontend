@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { queryKeys } from '@/lib/queryClient';
 import { useAsync, useMutation } from './useAsync';
 
@@ -87,5 +87,61 @@ describe('useAsync — semantic keys and invalidation', () => {
     expect(result.current.errorStatus).toBe(404);
     expect(result.current.loading).toBe(false);
     expect(result.current.data).toBeNull();
+  });
+});
+
+describe('useAsync — stable callbacks', () => {
+  it('keeps refetch and setData the same across re-renders and data changes', async () => {
+    const client = newClient();
+    let version = 0;
+    const { result, rerender } = renderHook(
+      // A fresh key array on every render, as every caller builds it inline.
+      () => useAsync(async () => `v${++version}`, [], { queryKey: ['companies', 'c1', 'tasks', 't1'] }),
+      { wrapper: wrapperFor(client) },
+    );
+    await waitFor(() => expect(result.current.data).toBe('v1'));
+    const { refetch, setData } = result.current;
+
+    rerender();
+    await act(async () => { await result.current.refetch(); });
+    // React Query notifies on its own scheduler, after act() returns.
+    await waitFor(() => expect(result.current.data).toBe('v2'));
+    rerender();
+
+    expect(result.current.refetch).toBe(refetch);
+    expect(result.current.setData).toBe(setData);
+  });
+
+  it('does not re-run an effect that depends on refetch', async () => {
+    const client = newClient();
+    const effectRuns = vi.fn();
+    const { result, rerender } = renderHook(
+      () => {
+        const query = useAsync(async () => 'data', [], { queryKey: ['test', 'effect'] });
+        useEffect(() => { effectRuns(); }, [query.refetch]);
+        return query;
+      },
+      { wrapper: wrapperFor(client) },
+    );
+    await waitFor(() => expect(result.current.data).toBe('data'));
+    rerender();
+    rerender();
+    expect(effectRuns).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refetches, and setData writes to the current key after the key changes', async () => {
+    const client = newClient();
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string }) => useAsync(async () => `server ${id}`, [id], { queryKey: ['test', 'record', id] }),
+      { wrapper: wrapperFor(client), initialProps: { id: 'a' } },
+    );
+    await waitFor(() => expect(result.current.data).toBe('server a'));
+    rerender({ id: 'b' });
+    await waitFor(() => expect(result.current.data).toBe('server b'));
+
+    act(() => result.current.setData('edited b'));
+    expect(client.getQueryData(['test', 'record', 'b'])).toBe('edited b');
+    expect(client.getQueryData(['test', 'record', 'a'])).toBe('server a');
+    await waitFor(() => expect(result.current.data).toBe('edited b'));
   });
 });
