@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { CompanyProvider } from '@/context/CompanyContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
@@ -24,14 +24,23 @@ export function DashboardLayout() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [sidebarOpen]);
+  // While the drawer is open the page behind it is out of reach: no Tab, no
+  // screen-reader browse. React 18 has no `inert` prop, so it is set directly.
+  // A layout effect so it is lifted before the drawer's focus trap hands focus
+  // back to the menu button — focus cannot land inside an inert subtree.
+  const mainShell = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    mainShell.current?.toggleAttribute('inert', sidebarOpen);
+  }, [sidebarOpen]);
   return (
     <CompanyProvider>
       <NotificationsProvider>
         <div className="app-shell">
           <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          {sidebarOpen ? <button className="sidebar-scrim" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close menu" /> : null}
-          <div className="main-shell">
-            <Topbar onMenuClick={() => setSidebarOpen(true)} />
+          {/* Pointer-only: keyboard and screen-reader users close with the drawer's own Close button or Escape. */}
+          {sidebarOpen ? <button className="sidebar-scrim" type="button" onClick={() => setSidebarOpen(false)} aria-hidden="true" tabIndex={-1} /> : null}
+          <div className="main-shell" ref={mainShell}>
+            <Topbar onMenuClick={() => setSidebarOpen(true)} menuOpen={sidebarOpen} />
             <WaitingBanner />
             <main id="main-content" className="page-container" tabIndex={-1}>
               {/* Inside the shell on purpose: a page chunk loading must not

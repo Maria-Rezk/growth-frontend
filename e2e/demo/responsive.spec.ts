@@ -24,8 +24,40 @@ test.describe('responsive shell', () => {
   test('the scrim closes the drawer', async ({ page }) => {
     await open(page, '/tasks');
     await page.getByRole('button', { name: 'Open menu' }).click();
-    await page.getByRole('button', { name: 'Close menu' }).click({ position: { x: 360, y: 400 } });
+    await page.locator('.sidebar-scrim').click({ position: { x: 360, y: 400 } });
     await expect(page.locator('.sidebar')).not.toHaveClass(/sidebar--open/);
+  });
+
+  test('the closed drawer is out of the tab order', async ({ page }) => {
+    await open(page, '/tasks');
+    const reachable = await page.evaluate(() => {
+      const link = document.querySelector<HTMLAnchorElement>('.sidebar a');
+      link?.focus();
+      return document.activeElement === link;
+    });
+    expect(reachable).toBe(false);
+  });
+
+  test('the open drawer holds focus and hands it back on close', async ({ page }) => {
+    await open(page, '/tasks');
+    const menuButton = page.getByRole('button', { name: 'Open menu' });
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'true');
+    const drawer = page.getByRole('dialog', { name: 'Menu' });
+    await expect(drawer).toBeVisible();
+    await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('.sidebar')))).toBe(true);
+
+    // Shift+Tab from the first control wraps inside the drawer instead of escaping to the page.
+    await page.keyboard.press('Shift+Tab');
+    await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('.sidebar')))).toBe(true);
+    expect(await page.evaluate(() => document.querySelector('.main-shell')?.hasAttribute('inert'))).toBe(true);
+
+    await drawer.getByRole('button', { name: 'Close menu' }).click();
+    await expect(page.locator('.sidebar')).not.toHaveClass(/sidebar--open/);
+    await expect(menuButton).toBeFocused();
+    expect(await page.evaluate(() => document.querySelector('.main-shell')?.hasAttribute('inert'))).toBe(false);
   });
 
   for (const path of ['/my-work', '/dashboard', '/leads', '/tasks', '/tasks/task-1', '/members', '/admin/dashboard']) {
