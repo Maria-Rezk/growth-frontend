@@ -5679,6 +5679,21 @@ fieldset.field > legend {
   }
 }
 
+/* The smallest phones (320px): four step columns are ~59px, and "Approved"
+   and "Published" ran 3-4px past their boxes. Tighter side padding and a
+   size smaller name fit them; hyphenation is the fallback for longer names. */
+@media (max-width: 359px) {
+  .workflow-step {
+    padding-inline: 2px;
+  }
+
+  .workflow-step strong {
+    font-size: 11px;
+    hyphens: auto;
+    overflow-wrap: break-word;
+  }
+}
+
 /* ------------------------------------------------------ Leads filter card */
 /*
   The view switch sits in the filter grid. Wide screens keep their single

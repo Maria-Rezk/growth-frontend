@@ -57,6 +57,17 @@ test.describe('post workflow stepper', () => {
     expect((await steps.nth(0).locator('p').boundingBox())!.width).toBeLessThanOrEqual(1);
   });
 
+  test('on a 320px phone every step name fits inside its box', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await open(page, '/posts/post-1');
+    const steps = page.locator('.workflow-stepper > li');
+    for (let index = 0; index < 4; index += 1) {
+      const fits = await steps.nth(index).evaluate((step) => step.scrollWidth <= step.clientWidth);
+      expect(fits).toBe(true);
+    }
+    expect(await page.locator('.workflow-stepper').evaluate((list) => list.scrollWidth <= list.clientWidth)).toBe(true);
+  });
+
   test('on desktop: the full steps with descriptions, and no summary line', async ({ page }) => {
     await open(page, '/posts/post-1');
     await expect(page.locator('.workflow-stepper__summary')).toBeHidden();
