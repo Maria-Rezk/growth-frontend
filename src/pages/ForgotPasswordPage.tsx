@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Logo } from '@/components/brand/Logo';
 import { Button } from '@/components/ui/Button';
-import { Field, Input } from '@/components/ui/Fields';
+import { Field, Input, ShowPasswordToggle } from '@/components/ui/Fields';
 import { appRoutes } from '@/config/appRoutes';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { errorMessage } from '@/lib/http';
@@ -154,10 +154,7 @@ function ResetForm({ token, onRequestNew }: { token: string; onRequestNew: () =>
         <Field label="Confirm password" htmlFor="confirm-password" error={form.formState.errors.confirm?.message}>
           <Input id="confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" {...form.register('confirm')} />
         </Field>
-        <label className="checkbox-row">
-          <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
-          <span>Show passwords</span>
-        </label>
+        <ShowPasswordToggle checked={showPassword} onChange={setShowPassword} controls="new-password confirm-password" label="Show passwords" />
         {failure ? <p className="error-box" role="alert">{failure}</p> : null}
         <Button type="submit" loading={form.formState.isSubmitting}>Set password</Button>
         <p className="field__hint">You will be signed out on every device, then sign in with the new password.</p>

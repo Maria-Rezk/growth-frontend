@@ -36,7 +36,7 @@ test.describe('routes', () => {
     await expect(page).toHaveURL(/\/login$/);
 
     await page.getByLabel('Email').fill('e2e-demo@example.test');
-    await page.getByLabel('Password').fill('e2e-demo-password');
+    await page.getByLabel('Password', { exact: true }).fill('e2e-demo-password');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/taks$/);
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();

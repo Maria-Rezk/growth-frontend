@@ -81,3 +81,29 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
     return <textarea ref={ref} className={clsx('input', 'textarea', className)} {...props} />;
   },
 );
+/**
+ * "Show password" for one or more password fields: a labelled checkbox that
+ * switches them between hidden and plain text. A checkbox rather than an
+ * eye icon so it has a visible label, a real checked state for assistive
+ * technology, and Space to toggle; it does not move focus out of the form,
+ * and Enter in a password field still submits. `controls` names the fields
+ * it reveals (aria-controls).
+ */
+export function ShowPasswordToggle({
+  checked,
+  onChange,
+  controls,
+  label = 'Show password',
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  controls: string;
+  label?: string;
+}) {
+  return (
+    <label className="checkbox-row">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} aria-controls={controls} />
+      <span>{label}</span>
+    </label>
+  );
+}

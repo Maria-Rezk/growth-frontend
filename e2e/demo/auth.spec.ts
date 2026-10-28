@@ -23,7 +23,7 @@ test.describe('authentication (demo)', () => {
     await expect(page.locator('.field__error').first()).toBeVisible();
 
     await page.getByLabel('Email').fill('e2e-demo@example.test');
-    await page.getByLabel('Password').fill('e2e-demo-password');
+    await page.getByLabel('Password', { exact: true }).fill('e2e-demo-password');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/my-work$/);
     await expect(page.locator('main h1')).toHaveText('My work');
@@ -44,7 +44,7 @@ test.describe('authentication (demo)', () => {
     await expect(page.getByLabel('Invitation token')).toHaveCount(0);
 
     await page.getByLabel('Full name').fill('E2E Invitee');
-    await page.getByLabel('Password').fill('e2e-demo-password');
+    await page.getByLabel('Password', { exact: true }).fill('e2e-demo-password');
     await page.getByRole('button', { name: 'Accept invitation' }).click();
     await expect(page.locator('main h1').first()).toBeVisible();
     await expect(page).not.toHaveURL(/accept-invitation|login/);

@@ -1,10 +1,11 @@
+import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { Field, Input } from '@/components/ui/Fields';
+import { Field, Input, ShowPasswordToggle } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
 import { appRoutes, safeReturnPath } from '@/config/appRoutes';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -21,6 +22,7 @@ export function LoginPage() {
   const { login, isAuthenticated, error } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showPassword, setShowPassword] = useState(false);
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
@@ -51,8 +53,9 @@ export function LoginPage() {
             <Input id="email" type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
           </Field>
           <Field label="Password" htmlFor="password" error={form.formState.errors.password?.message}>
-            <Input id="password" type="password" autoComplete="current-password" aria-invalid={Boolean(form.formState.errors.password)} {...form.register('password')} />
+            <Input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" aria-invalid={Boolean(form.formState.errors.password)} {...form.register('password')} />
           </Field>
+          <ShowPasswordToggle checked={showPassword} onChange={setShowPassword} controls="password" />
           {error ? <p className="error-box" role="alert">{error}</p> : null}
           <Button type="submit" loading={form.formState.isSubmitting}>Sign in</Button>
         </form>
