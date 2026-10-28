@@ -25,10 +25,16 @@
 | F-11 source-text query keys | ✅ Resolved (Phase 2), including two more found when the key became mandatory (lead notes, lead history) | `683f879` | `hooks/useAsync.test.tsx`, `lib/queryClient.test.ts` |
 | F-12 ngrok header on every request | ✅ Resolved (Phase 2) | `d0c98fc` | `lib/httpHeaders.test.ts`, `config/env.test.ts` |
 | N-2 unstable `refetch` (and `setData`) | ✅ Resolved (Phase 2) | `bfafe28` | `hooks/useAsync.test.tsx`, `context/CompanyContext.test.tsx` |
+| F-10 segmented controls clipped on phones | ✅ Resolved (Phase 3A) | `4d116b5` | `e2e/demo/responsive.spec.ts` |
+| F-18 Tasks filter layout | ✅ Resolved (Phase 3A) | `0c9053b` | `e2e/demo/workflows.spec.ts` (768, 1024, 1440, 1920) |
+| F-19 mobile density (My work, Tasks, Leads) | ✅ Resolved (Phase 3A); Leads toolbar left as is (N-7) | `bba5048` | `e2e/demo/density.spec.ts` |
+| F-20 repeated My work summary | ✅ Resolved (Phase 3A) | `a2702ae` | `e2e/demo/density.spec.ts` |
+| F-21 detail back navigation, mobile stepper | ✅ Resolved (Phase 3A) | `8d19d24` | `e2e/demo/detail-nav.spec.ts` |
 
 **Still open:**
-- **P2:** F-06, F-10, F-13, F-16, F-17, F-18, F-19, F-20, F-21
-- **P3:** F-22 – F-33, N-1, N-5
+- **P1:** N-6 (Leads list filters do nothing)
+- **P2:** F-06, F-13, F-16, F-17
+- **P3:** F-22 – F-33, N-1, N-5, N-7
 
 **Verification still outstanding (treat as P1):**
 - **V-1:** live suite on staging
@@ -239,7 +245,7 @@ The gaps, in order of user impact:
 - **Implementation:** In `Modal`, if `initialFocusRef` is not given, pass a ref to the first `input, select, textarea` inside the body.
 - **Effort:** Small.
 
-#### F-10 · Mobile filter controls are cut off with no visible way to scroll
+#### F-10 · Mobile filter controls are cut off with no visible way to scroll — ✅ Resolved
 - **Where:** `.segmented` (`styles/global.css:1253-1270`, scrollbar hidden), on the Tasks scope control at 320–375 px.
 - **Category:** Responsive / UX · **Status:** Confirmed ("Awaiting my app…" is clipped and "My drafts" is not visible).
 - **Problem:** The options scroll sideways inside a container that hides its scrollbar and shows no fade or arrow, so users don't know the hidden options exist.
@@ -324,14 +330,14 @@ The gaps, in order of user impact:
   - Give `DataTable` a `compact` / `paginate={false}` mode, then move the admin widget tables onto it, or onto a shared `SimpleTable` that has the same mobile `data-label` stacking.
 - **Effort:** Small (deletion) + Medium (tables).
 
-#### F-18 · Tasks filter bar wraps awkwardly at 1024 px
+#### F-18 · Tasks filter bar wraps awkwardly at 1024 px — ✅ Resolved
 - **Where:** `/tasks` filter card.
 - **Category:** Responsive / UI · **Status:** Confirmed (screenshot at 1024×768).
 - **Problem:** Search, Status and Priority fill one row. "Type" drops to a second row alone, and the Board/Table toggle sits on a third. About 220 px of filters come before any task.
 - **Fix:** Use `grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))` for the fields, and place the view toggle in the page header actions or the scope row.
 - **Effort:** Small.
 
-#### F-19 · Mobile pages show stat tiles before the work
+#### F-19 · Mobile pages show stat tiles before the work — ✅ Resolved
 - **Where:**
   - `/leads`: 4 follow-up tiles plus 7 pipeline tiles, about 650 px at 375 px wide.
   - `/tasks`: 3 tiles plus the filter panel.
@@ -348,14 +354,14 @@ The gaps, in order of user impact:
   - Hide the empty grid cell (`:empty` / odd-count handling).
 - **Effort:** Medium.
 
-#### F-20 · My Work repeats the same summary
+#### F-20 · My Work repeats the same summary — ✅ Resolved
 - **Where:** `pages/MyWorkPage.tsx:186,251-256`.
 - **Category:** UX · **Status:** Confirmed.
 - **Problem:** The tiles say "This week 3". Below them, a summary line says "3 this week", and the section header says "This week (3)". That is three statements of the same number in about 200 px.
 - **Fix:** Remove the summary line when the tiles are visible, or keep it only on mobile in place of the tiles (see F-19).
 - **Effort:** Small.
 
-#### F-21 · Detail pages: "Back" button below the subtitle; long stepper first on mobile
+#### F-21 · Detail pages: "Back" button below the subtitle; long stepper first on mobile — ✅ Resolved
 - **Where:** `/posts/:id` (also the task and lead detail pages).
 - **Category:** UI / UX · **Status:** Confirmed at 320 px.
 - **Problem:**
@@ -391,6 +397,8 @@ The gaps, in order of user impact:
 | N-1 (P3) | `tsconfig.json` (`include: ["src"]`) | Verified | `vite.config.ts`, `playwright.config.ts` and `e2e/` are never type-checked | Add a `tsconfig.node.json` to `npm run typecheck` | S |
 | N-2 (P3) — ✅ Resolved `bfafe28` | `hooks/useAsync.ts` (`refetch`) | Code-confirmed | `useCallback(…, [query])` changes identity every render | Depend on `query.refetch` | S |
 | N-5 (P3) | `components/layout/NotificationsMenu.tsx` | Verified (0 imports) | A second, unused notifications menu that still shares the `.notifications-menu` rules with the live panel | Delete it with the F-17 cleanup | S |
+| N-6 (**P1**) | `pages/LeadsPage.tsx:149-152` | Verified in the browser and pinned by a `test.fixme` in `e2e/demo/density.spec.ts` | On `/leads` the stage chips, Status, Source, Search and the Pipeline/Table switch do nothing. Each setter calls `setUrlFilters` twice in one tick (the filter, then `page: 1`). React Router's functional `setSearchParams` reads the last-rendered params, so the second call overwrites the first. Follow-up tiles and Scope work because they set everything in one call. Present since `45b44a9`. | Set both in one call, e.g. `setUrlFilters({ status: value, page: '1' })`, for all four setters; then remove the `fixme`. | S |
+| N-7 (P3) | `/leads` toolbar on phones | Verified | After F-19 the first lead at 375 px starts about 120 px below the first screen. The rest is the filter card: Scope, three fields, then the view switch. The Tasks scope-and-view row (F-18) was not applied, because it would add a row on desktop, where the Leads toolbar is already a single 95 px row. | Phone-only rearrangement once N-6 is fixed | S |
 | N-4 (note) | Dialogs | Rule | A field inside a dialog must not use `autoFocus` at open: it takes focus before the trap can record the opener, so focus cannot return on close. `Modal` now focuses the first field itself. `autoFocus` on a field revealed mid-dialog is fine. | — | — |
 
 ---
