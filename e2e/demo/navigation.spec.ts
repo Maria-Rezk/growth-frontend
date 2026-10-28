@@ -53,6 +53,27 @@ test.describe('routes', () => {
 });
 
 test.describe('sidebar navigation', () => {
+  /*
+    A sidebar label names the page it opens: same words as its heading. The
+    two exceptions name a dynamic thing: Client overview and Home are headed
+    by the client's own name.
+  */
+  test('every sidebar label matches the heading of the page it opens', async ({ page }) => {
+    await open(page, '/my-work');
+    const links = sidebar(page).getByRole('link');
+    for (let index = 0; index < await links.count(); index += 1) {
+      const link = links.nth(index);
+      const href = (await link.getAttribute('href'))!;
+      const label = (await link.locator('.sidebar__label').textContent())!.trim();
+      await link.click();
+      await expect(page).toHaveURL(new RegExp(`${href}$`));
+      await expect(link).toHaveClass(/sidebar__link--active/);
+      if (href === '/dashboard' || href === '/home') continue;
+      // Soft, so one run lists every mismatch; waits for the page to replace the last heading.
+      await expect.soft(page.locator('main h1').first(), `${href}`).toHaveText(label);
+    }
+  });
+
   test('every sidebar link opens its page and marks itself active', async ({ page }) => {
     await open(page, '/my-work');
     const links = sidebar(page).getByRole('link');

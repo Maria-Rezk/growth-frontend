@@ -16,7 +16,7 @@ test.describe('responsive shell', () => {
     await expect(drawer).not.toHaveClass(/sidebar--open/);
 
     await page.getByRole('button', { name: 'Open menu' }).click();
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Leads CRM' }).click();
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Leads', exact: true }).click();
     await expect(page).toHaveURL(/\/leads$/);
     await expect(drawer).not.toHaveClass(/sidebar--open/);
   });

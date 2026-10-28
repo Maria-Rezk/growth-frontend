@@ -118,7 +118,7 @@ test.describe('task drafts', () => {
 
   test('a draft survives navigating away and back', async ({ page }) => {
     await createDraft(page);
-    await sidebar(page).getByRole('link', { name: 'Leads CRM' }).click();
+    await sidebar(page).getByRole('link', { name: 'Leads', exact: true }).click();
     await expect(page).toHaveURL(/\/leads$/);
     await sidebar(page).getByRole('link', { name: 'Tasks' }).click();
     await openMyDrafts(page);

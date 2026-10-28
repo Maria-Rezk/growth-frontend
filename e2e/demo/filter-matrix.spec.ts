@@ -115,7 +115,7 @@ test.describe('Leads filters', () => {
 
   test('changing filters replaces the history entry: Back leaves the list instead of undoing each filter', async ({ page }) => {
     await open(page, '/my-work');
-    await page.locator('aside').getByRole('link', { name: 'Leads CRM' }).click();
+    await page.locator('aside').getByRole('link', { name: 'Leads', exact: true }).click();
     await expect(page).toHaveURL(/\/leads$/);
     await page.locator('#lead-filter').selectOption('NEW');
     await page.locator('#lead-source-filter').selectOption('REFERRAL');
