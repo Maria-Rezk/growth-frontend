@@ -129,6 +129,10 @@ export function DotIcon(props: IconProps) {
   return <IconShell {...props}><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" /></IconShell>;
 }
 
+export function ArrowLeftIcon(props: IconProps) {
+  return <IconShell {...props}><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></IconShell>;
+}
+
 export function ChevronDownIcon(props: IconProps) {
   return <IconShell {...props}><path d="m6 9 6 6 6-6" /></IconShell>;
 }

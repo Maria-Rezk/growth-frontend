@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
@@ -72,9 +72,9 @@ function ReportDetailInner({ companyId, reportId }: { companyId: string; reportI
       <PageHeader
         title={title}
         subtitle={`${activeCompany?.name ?? ''} · ${monthName(current.month)} ${current.year} · generated ${formatDate(current.createdAt)}`}
+        back={{ to: appRoutes.reports, label: 'Back to reports' }}
         action={(
           <span className="button-row no-print">
-            <ButtonLink to={appRoutes.reports} variant="secondary" size="sm">All reports</ButtonLink>
             <Button variant="secondary" size="sm" onClick={copyLink} title="For people who already sign in to this client">{copied ? 'Copied' : 'Copy app link'}</Button>
             {canShare ? <Button variant="secondary" size="sm" onClick={() => setSharing(true)}>Share publicly</Button> : null}
             <Button size="sm" onClick={() => window.print()}>Print / Save as PDF</Button>

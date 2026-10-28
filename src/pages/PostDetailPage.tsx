@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { appRoutes } from '@/config/appRoutes';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
 import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { Badge } from '@/components/ui/Badge';
@@ -148,7 +148,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
       <PageHeader
         title={post.data.title}
         subtitle="Caption, visual brief, assets, comments and approval decisions."
-        action={<ButtonLink to="/posts" variant="secondary" size="sm">Back to posts</ButtonLink>}
+        back={{ to: appRoutes.posts, label: 'Back to posts' }}
       />
 
       <WorkflowStepper status={post.data.status} />

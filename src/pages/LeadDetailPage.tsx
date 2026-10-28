@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
@@ -174,12 +174,12 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
       <PageHeader
         title={current.name}
         subtitle="Lead detail, status history and sales notes."
+        back={{ to: appRoutes.leads, label: 'Back to leads' }}
         action={(
           <span className="button-row">
             {links.whatsapp ? <a className="btn btn--secondary btn--sm" href={links.whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp</a> : null}
             {links.phone ? <a className="btn btn--secondary btn--sm" href={links.phone}>Call</a> : null}
             {links.email ? <a className="btn btn--secondary btn--sm" href={links.email}>Email</a> : null}
-            <ButtonLink to="/leads" variant="secondary" size="sm">Back to leads</ButtonLink>
           </span>
         )}
       />

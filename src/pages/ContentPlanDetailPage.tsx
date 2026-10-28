@@ -61,9 +61,9 @@ function PlanDetailInner({ companyId, planId }: { companyId: string; planId: str
       <PageHeader
         title={plan.title}
         subtitle={[period, goal].filter(Boolean).join(' · ') || 'Content plan'}
+        back={{ to: appRoutes.contentPlans, label: 'Back to content plans' }}
         action={(
           <span className="button-row">
-            <ButtonLink to={appRoutes.contentPlans} variant="secondary" size="sm">All plans</ButtonLink>
             <RoleGate permission="plans:manage">
               <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>Edit plan</Button>
             </RoleGate>

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Field, Select, Textarea } from '@/components/ui/Fields';
 import { ErrorState, RecordNotFound } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
@@ -127,7 +127,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
       <PageHeader
         title={current.title}
         subtitle="Task detail, collaboration and activity log."
-        action={<ButtonLink to="/tasks" variant="secondary" size="sm">Back to tasks</ButtonLink>}
+        back={{ to: appRoutes.tasks, label: 'Back to tasks' }}
       />
 
       {editing ? (

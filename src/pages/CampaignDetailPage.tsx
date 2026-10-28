@@ -6,7 +6,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { StatusBadge } from '@/components/domain/StatusBadges';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { Field, Select } from '@/components/ui/Fields';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
@@ -82,7 +82,7 @@ function CampaignDetailInner({ companyId, campaignId }: { companyId: string; cam
       <PageHeader
         title={campaign.name}
         subtitle={`${humanize(campaign.objective)} · ${formatDate(campaign.startDate)} – ${formatDate(campaign.endDate)}${campaign.budget ? ` · ${campaign.currency ?? ''} ${campaign.budget}` : ''}`}
-        action={<ButtonLink to="/campaigns" variant="secondary" size="sm">All campaigns</ButtonLink>}
+        back={{ to: appRoutes.campaigns, label: 'Back to campaigns' }}
       />
 
       <div className="stat-grid stat-grid--3">
