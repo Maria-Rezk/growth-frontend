@@ -13,6 +13,7 @@ import { appRoutes } from '@/config/appRoutes';
 import { usePermission } from '@/hooks/usePermission';
 import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
+import { queryKeys } from '@/lib/queryClient';
 import { reportsService } from '@/services/reports';
 import { formatDate } from '@/utils/format';
 
@@ -44,7 +45,7 @@ export function ReportDetailPage() {
 function ReportDetailInner({ companyId, reportId }: { companyId: string; reportId: string }) {
   const { activeCompany } = useCompany();
   const canShare = usePermission('reports:share');
-  const report = useAsync(() => reportsService.get(companyId, reportId), [companyId, reportId]);
+  const report = useAsync(() => reportsService.get(companyId, reportId), [companyId, reportId], { queryKey: queryKeys.report(companyId, reportId) });
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
 

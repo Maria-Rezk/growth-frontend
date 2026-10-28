@@ -41,8 +41,8 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const tasksPrefix = [['companies', companyId, 'tasks'], queryKeys.task(companyId, taskId)];
 
   const task = useAsync(() => tasksService.get(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.task(companyId, taskId) });
-  const comments = useAsync(() => tasksService.comments(companyId, taskId), [companyId, taskId]);
-  const logs = useAsync(() => tasksService.activityLogs(companyId, taskId), [companyId, taskId]);
+  const comments = useAsync(() => tasksService.comments(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.taskComments(companyId, taskId) });
+  const logs = useAsync(() => tasksService.activityLogs(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.taskLogs(companyId, taskId) });
   const members = useAssignableMembers(companyId);
 
   const setStatus = useMutation(tasksService.setStatus, { invalidateKeys: tasksPrefix });

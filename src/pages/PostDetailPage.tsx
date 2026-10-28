@@ -45,8 +45,8 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
 
   const postsPrefix = [['companies', companyId, 'posts']];
   const post = useAsync(() => contentService.getPost(companyId, postId), [companyId, postId], { queryKey: queryKeys.post(companyId, postId) });
-  const comments = useAsync(() => contentService.comments(companyId, postId), [companyId, postId]);
-  const logs = useAsync(() => contentService.approvalLogs(companyId, postId), [companyId, postId], { enabled: canSeeHistory });
+  const comments = useAsync(() => contentService.comments(companyId, postId), [companyId, postId], { queryKey: queryKeys.postComments(companyId, postId) });
+  const logs = useAsync(() => contentService.approvalLogs(companyId, postId), [companyId, postId], { queryKey: queryKeys.postLogs(companyId, postId), enabled: canSeeHistory });
 
   // All mutations declared before any early return (rules of hooks).
   // 409 STAGES_OPEN is a gate, not a race: the refetch after the press brings the stages that are in the way.

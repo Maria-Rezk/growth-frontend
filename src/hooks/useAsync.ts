@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { keepPreviousData, useMutation as useReactQueryMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/http';
 import type { ApiErrorShape } from '@/types/domain';
@@ -15,8 +15,17 @@ type AsyncResult<T> = {
 };
 
 type AsyncOptions = {
-  /** Prefer a stable semantic key from queryClient.ts (e.g. queryKeys.posts(companyId, filters)). */
-  queryKey?: readonly unknown[];
+  /**
+   * Required: a semantic key from `queryKeys` in queryClient.ts, e.g.
+   * `queryKeys.posts(companyId, filters)`. It names the cache entry and is how
+   * mutations reach it — a key under ['companies', id, …] is refreshed by every
+   * prefix invalidation for that client.
+   *
+   * There used to be a fallback built from `factory.toString()`: two hooks
+   * whose code read the same shared one cache entry, minification changed the
+   * keys, and no invalidation could ever name them.
+   */
+  queryKey: readonly unknown[];
   enabled?: boolean;
   /**
    * Poll every N ms. React Query pauses the interval while the window is not
@@ -29,32 +38,25 @@ type AsyncOptions = {
   keepPreviousData?: boolean;
 };
 
-function stableDependencyKey(value: unknown): unknown {
-  if (value === null || value === undefined) return value;
-  if (typeof value === 'object') return JSON.stringify(value);
-  return value;
-}
-
+/**
+ * `_dependencies` is no longer read: the query key carries the inputs (a new
+ * key is a new query). It stays in the signature so the ~90 call sites keep
+ * their shape; callers should still list what the factory closes over.
+ */
 export function useAsync<T>(
   factory: () => Promise<T>,
-  dependencies: unknown[] = [],
-  options?: AsyncOptions,
+  _dependencies: unknown[],
+  options: AsyncOptions,
 ): AsyncResult<T> {
   const queryClient = useQueryClient();
-
-  const fallbackKey = useMemo(
-    () => ['legacy-async', factory.toString(), ...dependencies.map(stableDependencyKey)] as const,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    dependencies,
-  );
-  const queryKey = options?.queryKey ?? fallbackKey;
+  const { queryKey } = options;
 
   const query = useQuery({
     queryKey,
     queryFn: factory,
-    enabled: options?.enabled ?? true,
-    refetchInterval: options?.refetchInterval,
-    placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
+    enabled: options.enabled ?? true,
+    refetchInterval: options.refetchInterval,
+    placeholderData: options.keepPreviousData ? keepPreviousData : undefined,
   });
 
   const refetch = useCallback(async () => {

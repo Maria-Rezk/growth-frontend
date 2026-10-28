@@ -57,8 +57,8 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   const leadsPrefix = [['companies', companyId, 'leads'], queryKeys.lead(companyId, leadId)];
 
   const lead = useAsync(() => leadsService.get(companyId, leadId), [companyId, leadId], { queryKey: queryKeys.lead(companyId, leadId) });
-  const notes = useAsync(() => leadsService.notes(companyId, leadId), [companyId, leadId]);
-  const history = useAsync(() => leadsService.statusHistory(companyId, leadId), [companyId, leadId]);
+  const notes = useAsync(() => leadsService.notes(companyId, leadId), [companyId, leadId], { queryKey: queryKeys.leadNotes(companyId, leadId) });
+  const history = useAsync(() => leadsService.statusHistory(companyId, leadId), [companyId, leadId], { queryKey: queryKeys.leadHistory(companyId, leadId) });
   const members = useAssignableMembers(companyId);
   const tasks = useAsync(() => tasksService.list(companyId), [companyId], { queryKey: queryKeys.tasks(companyId) });
   const { userId } = useTaskActor();
