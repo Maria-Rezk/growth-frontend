@@ -3,6 +3,16 @@ import { useCompany } from '@/context/CompanyContext';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/State';
 
+/** What somebody with no client sees, on any page that needs one and on the landing route. */
+export function NoClientAssigned() {
+  return (
+    <EmptyState
+      title="No client assigned yet"
+      description="You are not assigned to any client yet — ask your manager."
+    />
+  );
+}
+
 export function RequireCompany({ children }: { children: (companyId: string) => React.ReactNode }) {
   const { activeCompanyId, companies, loading, error, refreshCompanies, refreshMemberships, rolesUnavailable, rolesUnavailableReason } = useCompany();
 
@@ -11,14 +21,7 @@ export function RequireCompany({ children }: { children: (companyId: string) => 
 
   // Employees never create clients — an admin assigns them to one. An empty
   // list just means nobody has done that yet, not a broken state.
-  if (!activeCompanyId || companies.length === 0) {
-    return (
-      <EmptyState
-        title="No client assigned yet"
-        description="You are not assigned to any client yet — ask your manager."
-      />
-    );
-  }
+  if (!activeCompanyId || companies.length === 0) return <NoClientAssigned />;
 
   return (
     <>
