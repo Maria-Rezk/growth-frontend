@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from '@/App';
 import { AppErrorBoundary } from '@/components/layout/AppErrorBoundary';
+import { DevApiWarning } from '@/components/layout/DevApiWarning';
 import { NetworkStatusToast } from '@/components/layout/NetworkStatusToast';
 import { ThemedToaster } from '@/components/layout/ThemedToaster';
 import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
@@ -29,6 +30,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
               <AppErrorBoundary>
                 <ConfirmProvider>
                   <a className="skip-link" href="#main-content">Skip to main content</a>
+                  <DevApiWarning />
                   <App />
                 </ConfirmProvider>
               </AppErrorBoundary>
