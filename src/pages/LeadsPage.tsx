@@ -216,7 +216,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
         ))}
       </div>
 
-      <div className="toolbar card">
+      <div className="toolbar toolbar--leads card">
         <div className="toolbar__filters toolbar__filters--wide">
           <div className="field">
             <span className="field__label">Scope</span>
@@ -242,13 +242,18 @@ function LeadsInner({ companyId }: { companyId: string }) {
               {SOURCE_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
             </Select>
           </Field>
+          {/* In the filter grid so a phone can set it beside Scope (CSS); on a
+              wide screen it is the last column of the same single row. */}
+          <div className="field toolbar__view">
+            <span className="field__label">View</span>
+            <SegmentedControl<ViewMode>
+              label="Lead view"
+              value={view}
+              onChange={setViewMode}
+              options={[{ label: 'Pipeline', value: 'pipeline' }, { label: 'Table', value: 'table' }]}
+            />
+          </div>
         </div>
-        <SegmentedControl<ViewMode>
-          label="Lead view"
-          value={view}
-          onChange={setViewMode}
-          options={[{ label: 'Pipeline', value: 'pipeline' }, { label: 'Table', value: 'table' }]}
-        />
       </div>
 
       {view === 'pipeline' ? (

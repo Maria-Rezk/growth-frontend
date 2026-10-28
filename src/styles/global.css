@@ -5678,3 +5678,46 @@ fieldset.field > legend {
     border: 0;
   }
 }
+
+/* ------------------------------------------------------ Leads filter card */
+/*
+  The view switch sits in the filter grid. Wide screens keep their single
+  row, with the switch as its last column, where it already sat; between
+  761 and 1180px it now shares the second row with Source instead of taking
+  a third. Phones: Scope, then View on one line with its label (as on
+  Tasks), then Search, then Status and Source side by side. Scope and View
+  do not fit side by side on a phone without wrapping the scope options.
+*/
+.toolbar--leads .toolbar__view .segmented {
+  justify-self: start;
+}
+
+@media (min-width: 1181px) {
+  .toolbar--leads .toolbar__filters--wide {
+    grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px)) auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .toolbar--leads .toolbar__filters--wide > :first-child {
+    order: -2;
+  }
+
+  .toolbar--leads .toolbar__filters--wide > .toolbar__view {
+    order: -1;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+  }
+
+  .toolbar--leads .toolbar__view .segmented {
+    width: auto;
+  }
+
+  /* Search takes a whole row: it is the longest input. */
+  .toolbar--leads .toolbar__filters--wide > :nth-child(2) {
+    grid-column: 1 / -1;
+  }
+}
