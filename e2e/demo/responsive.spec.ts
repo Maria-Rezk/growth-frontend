@@ -73,21 +73,28 @@ test.describe('responsive shell', () => {
       await page.setViewportSize({ width, height: 812 });
       for (const path of ['/tasks', '/automations']) {
         await open(page, path);
-        const controls = page.locator('main .segmented');
-        for (let index = 0; index < await controls.count(); index += 1) {
-          const control = controls.nth(index);
-          expect(await control.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-          const frame = (await control.boundingBox())!;
-          const options = control.getByRole('button');
-          for (let option = 0; option < await options.count(); option += 1) {
-            // Horizontally inside both the control and the screen: nothing scrolled out of sight.
-            const box = (await options.nth(option).boundingBox())!;
-            expect(box.x).toBeGreaterThanOrEqual(frame.x);
-            expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width + 0.5);
-            expect(box.x + box.width).toBeLessThanOrEqual(width);
-            expect(box.height).toBeGreaterThanOrEqual(24);
-          }
-        }
+        /*
+          Measured in one synchronous pass, and polled until the page has
+          settled: the counts load after the heading and shift the layout, so
+          a control and its options measured at different moments disagree.
+          A real clip still fails: it never settles to an empty list.
+        */
+        await expect.poll(() => page.evaluate((viewport) => {
+          const problems: string[] = [];
+          document.querySelectorAll('main .segmented').forEach((control) => {
+            const frame = control.getBoundingClientRect();
+            if (control.scrollWidth > control.clientWidth + 1) problems.push(`${control.getAttribute('aria-label')}: scrolls`);
+            control.querySelectorAll('button').forEach((option) => {
+              const box = option.getBoundingClientRect();
+              const name = `${control.getAttribute('aria-label')} / ${option.textContent}`;
+              // Horizontally inside both the control and the screen: nothing scrolled out of sight.
+              if (box.left < frame.left - 0.5 || box.right > frame.right + 0.5) problems.push(`${name}: outside its control`);
+              if (box.right > viewport) problems.push(`${name}: off screen`);
+              if (box.height < 24) problems.push(`${name}: ${box.height}px tall`);
+            });
+          });
+          return problems;
+        }, width)).toEqual([]);
         expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
       }
     });
