@@ -8,6 +8,15 @@
 
 ## 0a. Resolution status
 
+**Phase 3A closed on 28 October 2026** on branch `phase-3a-ux-responsive` (15 commits on `develop` @ `d67b09e`; not merged, not pushed). Gates at close: ESLint 0 errors, TypeScript passes, 383/383 unit tests, 161/161 E2E tests with none skipped, production build passes, and a responsive sweep of 49 page × width checks at 320–1920 px with no issues.
+
+Carried forward:
+- N-7: phone trade-off; a phone page-header pattern is a Phase 3B decision.
+- Open P2/P3 findings below.
+- Verification V-1 to V-3, including the live-API lead source values.
+
+Phase 3B is not started.
+
 | Finding | Status | Commit | Tests |
 |---|---|---|---|
 | F-02 dev env pointed at production | ✅ Resolved | `cf683bc` | `src/config/env.test.ts` |
