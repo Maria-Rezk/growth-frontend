@@ -70,3 +70,34 @@ export function invitationAcceptUrl(token: string, origin: string = window.locat
   url.searchParams.set('token', unwrapInvitationToken(token));
   return url.toString();
 }
+
+/** Pages a person must never be sent back to after signing in. */
+const AUTH_PAGES: readonly string[] = [appRoutes.login, appRoutes.forgotPassword, appRoutes.acceptInvitation];
+
+/**
+ * Where to go after signing in: the page that asked for it, in full.
+ *
+ * ProtectedRoute hands the login page the blocked location (pathname, search
+ * and hash). Only the pathname used to be read back, so a filtered list
+ * (`/leads?status=INTERESTED`) came back unfiltered. This keeps all three,
+ * and accepts only a path on this app: anything that would leave the origin
+ * (`//evil.example`, `https://…`, a backslash trick) or loop back to an auth
+ * page falls back to `fallback`, the role-aware home.
+ */
+export function safeReturnPath(from: unknown, fallback = '/'): string {
+  if (!from || typeof from !== 'object') return fallback;
+  const { pathname, search, hash } = from as { pathname?: unknown; search?: unknown; hash?: unknown };
+  if (typeof pathname !== 'string' || !pathname.startsWith('/') || pathname.startsWith('//') || pathname.includes('\\')) return fallback;
+  if (AUTH_PAGES.includes(pathname)) return fallback;
+  const query = typeof search === 'string' && search.startsWith('?') ? search : '';
+  const fragment = typeof hash === 'string' && hash.startsWith('#') ? hash : '';
+  try {
+    // Resolved against this origin: whatever it parses to must stay on it.
+    const base = window.location.origin;
+    const url = new URL(`${pathname}${query}${fragment}`, base);
+    if (url.origin !== base) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
+}

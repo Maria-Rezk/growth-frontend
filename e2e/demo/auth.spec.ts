@@ -50,6 +50,27 @@ test.describe('authentication (demo)', () => {
     await expect(page).not.toHaveURL(/accept-invitation|login/);
   });
 
+  test('signing in returns to the full page that asked for it: path, filters and hash', async ({ page }) => {
+    await open(page, '/my-work');
+    await page.getByRole('button', { name: 'Logout' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    // In-app navigation: a full load would restore the demo session.
+    await page.evaluate(() => {
+      window.history.pushState({}, '', '/leads?status=INTERESTED&view=table#pipeline');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await expect(page).toHaveURL(/\/login$/);
+
+    await page.getByLabel('Email').fill('e2e-demo@example.test');
+    await page.getByLabel('Password', { exact: true }).fill('e2e-demo-password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page).toHaveURL(/\/leads\?status=INTERESTED&view=table#pipeline$/);
+    await expect(page.locator('#lead-filter')).toHaveValue('INTERESTED');
+    await expect(page.locator('main .data-table')).toContainText('Nour Clinic');
+    await expect(page.locator('main .data-table')).not.toContainText('Alpha Retail');
+  });
+
   test('a signed-in visit to /login goes straight to the app', async ({ page }) => {
     await page.goto('/login');
     await expect(page).toHaveURL(/\/my-work$/);

@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
-import { appRoutes } from '@/config/appRoutes';
+import { appRoutes, safeReturnPath } from '@/config/appRoutes';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 const loginSchema = z.object({
@@ -27,14 +27,15 @@ export function LoginPage() {
     mode: 'onBlur',
   });
 
-  if (isAuthenticated) return <Navigate to={appRoutes.myWork} replace />;
+  // The page that sent the person here, with its filters and anchor; the
+  // role-aware home when there is none (see safeReturnPath).
+  const returnTo = safeReturnPath((location.state as { from?: unknown } | null)?.from);
+
+  if (isAuthenticated) return <Navigate to={returnTo} replace />;
 
   const submit = form.handleSubmit(async (values) => {
     const ok = await login(values);
-    if (ok) {
-      const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? appRoutes.myWork;
-      navigate(from, { replace: true });
-    }
+    if (ok) navigate(returnTo, { replace: true });
   });
 
   return (
