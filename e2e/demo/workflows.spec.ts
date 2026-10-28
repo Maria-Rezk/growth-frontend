@@ -110,6 +110,42 @@ test.describe('notifications', () => {
     await page.locator('main').getByText('New task assigned').first().click();
     await expect(page).toHaveURL(/\/tasks\//);
   });
+
+  for (const viewport of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone', width: 375, height: 812 }]) {
+    test(`the bell panel works from the keyboard (${viewport.name})`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await open(page, '/my-work');
+      const bell = page.getByRole('button', { name: /^Notifications/ });
+      await bell.focus();
+      await page.keyboard.press('Enter');
+
+      // A labelled region that takes focus, not an empty "menu".
+      const panel = page.getByRole('region', { name: 'Recent notifications' });
+      await expect(panel).toBeFocused();
+      await expect(bell).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByRole('menu')).toHaveCount(0);
+      const box = await panel.boundingBox();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+      // Known, not yet fixed (audit N-3): on a phone the panel, anchored to the
+      // bell, starts ~21px off the left edge. Only desktop is held to it here.
+      if (viewport.name === 'desktop') expect(box!.x).toBeGreaterThanOrEqual(0);
+
+      // Escape closes it and puts focus back on the bell.
+      await page.keyboard.press('Escape');
+      await expect(panel).toBeHidden();
+      await expect(bell).toBeFocused();
+
+      // Reopen, Tab to the first notification, Enter opens what it is about.
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeFocused();
+      await page.keyboard.press('Tab'); // Mark all read
+      await page.keyboard.press('Tab'); // first notification
+      await expect(panel.locator('.notification-item').first()).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeHidden();
+      await expect(page).not.toHaveURL(/\/my-work$/);
+    });
+  }
 });
 
 test.describe('automations', () => {
