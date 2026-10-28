@@ -1257,14 +1257,14 @@ select.input {
   background: var(--n-100);
   border-radius: var(--r-md);
   border: 1px solid var(--line);
-  /* More options than the screen is wide: scroll the strip, not the page. */
+  /*
+    More options than the screen is wide: wrap onto a second line. They used
+    to scroll inside the strip with the scrollbar hidden, so on a phone "My
+    drafts" sat off the edge with nothing to say it was there. Wrapping only
+    happens when the options do not fit; wider screens look as before.
+  */
   max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.segmented::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
 }
 
 .segmented > * {
