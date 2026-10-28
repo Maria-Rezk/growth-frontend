@@ -75,7 +75,7 @@ export function CreateEmployeeModal({ open, onClose }: { open: boolean; onClose:
     >
       <form id="create-employee-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Full name" htmlFor="employee-name" error={form.formState.errors.fullName?.message}>
-          <Input id="employee-name" autoComplete="name" autoFocus aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />
+          <Input id="employee-name" autoComplete="name" aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />
         </Field>
         <Field label="Email" htmlFor="employee-email" error={form.formState.errors.email?.message}>
           <Input id="employee-email" type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />

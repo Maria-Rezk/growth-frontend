@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useFocusTrap, type InitialFocus } from '@/hooks/useFocusTrap';
 import { CloseIcon } from '@/components/ui/icons';
 
 /*
@@ -14,6 +14,31 @@ const openDialogs: symbol[] = [];
 function isTopDialog(token: symbol): boolean {
   return openDialogs[openDialogs.length - 1] === token;
 }
+
+/** Real fields only: not a visually hidden file input, a hidden or read-only one. */
+const FIELD_SELECTOR = [
+  'input:not([type="hidden"]):not([type="file"]):not([disabled]):not([readonly])',
+  'select:not([disabled])',
+  'textarea:not([disabled]):not([readonly])',
+].join(',');
+
+/*
+  Where a dialog opens. The trap used to take the first focusable element,
+  which is always the header's Close button: keyboard users had to Tab past it
+  to start typing, and one Enter closed the form. A dialog now opens on its
+  first field; with none (a read-only panel), on the dialog itself, so a
+  screen reader announces its title. Never on Close.
+
+  So a field inside a dialog does not need `autoFocus` to be focused on open,
+  and should not use it: it takes focus before the trap can note who opened
+  the dialog, and focus then cannot return there on close. (`autoFocus` on a
+  field revealed later, mid-dialog, is fine.)
+*/
+const firstFieldOrDialog: InitialFocus = (container) => {
+  const fields = container.querySelector('.modal__body')?.querySelectorAll<HTMLElement>(FIELD_SELECTOR) ?? [];
+  const field = Array.from(fields).find((element) => !element.closest('[hidden], [aria-hidden="true"], fieldset[disabled]'));
+  return field ?? container;
+};
 
 export function Modal({
   open,
@@ -43,7 +68,7 @@ export function Modal({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  useFocusTrap(dialogRef, open, initialFocusRef);
+  useFocusTrap(dialogRef, open, initialFocusRef ?? firstFieldOrDialog);
 
   useEffect(() => {
     if (!open) return;

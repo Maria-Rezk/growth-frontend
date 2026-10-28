@@ -219,7 +219,6 @@ function CreateClientModal({ open, onClose }: { open: boolean; onClose: () => vo
         <Field label="Client name" htmlFor="client-name" error={form.formState.errors.name?.message}>
           <Input
             id="client-name"
-            autoFocus
             aria-invalid={Boolean(form.formState.errors.name)}
             {...form.register('name')}
           />
