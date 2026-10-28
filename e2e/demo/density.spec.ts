@@ -139,7 +139,7 @@ test.describe('Leads filter card', () => {
   }
 
   for (const width of [320, 375]) {
-    test(`on a ${width}px phone: Scope, View, Search, then Status beside Source`, async ({ page }) => {
+    test(`on a ${width}px phone: Scope, Search, Status beside Source, then View, in keyboard order`, async ({ page }) => {
       await page.setViewportSize({ width, height: 812 });
       await open(page, '/leads');
       const scope = await top(page, '[aria-label="Lead scope"]');
@@ -147,10 +147,18 @@ test.describe('Leads filter card', () => {
       const search = await top(page, '#lead-search');
       const status = await top(page, '#lead-filter');
       const source = await top(page, '#lead-source-filter');
-      expect(scope).toBeLessThan(view);
-      expect(view).toBeLessThan(search);
+      expect(scope).toBeLessThan(search);
       expect(search).toBeLessThan(status);
       if (width > 340) expect(status).toBe(source);
+      expect(source).toBeLessThan(view);
+      // Tab walks the controls in the order they are shown.
+      await page.locator('#lead-search').focus();
+      await page.keyboard.press('Tab');
+      await expect(page.locator('#lead-filter')).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(page.locator('#lead-source-filter')).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Pipeline' })).toBeFocused();
       // Nothing cramped: the scope options stay on one line.
       const options = page.getByRole('group', { name: 'Lead scope' }).getByRole('button');
       expect(new Set(await options.evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)))).size).toBe(1);
