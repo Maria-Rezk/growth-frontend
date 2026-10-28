@@ -68,6 +68,23 @@ export function setSessionRefreshedHandler(handler: ((user: User) => void) | nul
 }
 
 /*
+  Sent only to an ngrok tunnel (see `needsNgrokBypass`). It used to go on every
+  request to every host: a custom header on a production GET is one more reason
+  for the browser to preflight, and it made the production API's CORS policy
+  allow a header only a dev tunnel needs. Removing it does not remove every
+  preflight — `Authorization`, `Content-Type: application/json` and non-GET
+  methods still require one — it just stops adding a reason of its own.
+*/
+export const NGROK_BYPASS_HEADER = 'ngrok-skip-browser-warning';
+
+function defaultHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    ...(env.ngrokBypass ? { [NGROK_BYPASS_HEADER]: 'true' } : {}),
+  };
+}
+
+/*
   `withCredentials` is required, not optional. The refresh token is an httpOnly
   cookie, so without it the browser never sends the cookie and every refresh
   fails — the session would end the moment the short-lived access token expires.
@@ -81,10 +98,7 @@ export const http = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: env.apiTimeoutMs,
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-  },
+  headers: defaultHeaders(),
 });
 
 /*
@@ -99,10 +113,7 @@ const refreshClient = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: env.apiTimeoutMs,
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-  },
+  headers: defaultHeaders(),
 });
 
 let refreshInFlight: Promise<string | null> | null = null;
@@ -154,7 +165,6 @@ function skipsRefresh(url?: string): boolean {
 
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const headers = AxiosHeaders.from(config.headers);
-  headers.set('ngrok-skip-browser-warning', 'true');
   const token = tokenStorage.get();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
