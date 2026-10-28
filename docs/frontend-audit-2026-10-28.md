@@ -21,10 +21,14 @@
 | F-14 404 outside shell, URL rewritten | ✅ Resolved (Phase 1) | `81ed0be` | `NotFoundPage.test.tsx`, `e2e/demo/navigation.spec.ts` |
 | F-09 dialogs open on the Close button | ✅ Resolved (Phase 1) | `04437e9` | `Modal.test.tsx`, `e2e/demo/dialogs.spec.ts` |
 | F-08 notifications `role="menu"` | ✅ Resolved (Phase 1) | `972b185` | `NotificationsDropdown.test.tsx`, `e2e/demo/workflows.spec.ts` |
+| N-3 notifications panel off-screen on phones | ✅ Resolved (Phase 2) | `be6c1d1` | `e2e/demo/workflows.spec.ts` (320, 375, 768, 1440, 568×320; both edges) |
+| F-11 source-text query keys | ✅ Resolved (Phase 2), including two more found when the key became mandatory (lead notes, lead history) | `683f879` | `hooks/useAsync.test.tsx`, `lib/queryClient.test.ts` |
+| F-12 ngrok header on every request | ✅ Resolved (Phase 2) | `d0c98fc` | `lib/httpHeaders.test.ts`, `config/env.test.ts` |
+| N-2 unstable `refetch` (and `setData`) | ✅ Resolved (Phase 2) | `bfafe28` | `hooks/useAsync.test.tsx`, `context/CompanyContext.test.tsx` |
 
 **Still open:**
-- **P2:** F-06, F-10, F-11, F-12, F-13, F-16, F-17, F-18, F-19, F-20, F-21, N-3
-- **P3:** F-22 – F-33, N-1, N-2
+- **P2:** F-06, F-10, F-13, F-16, F-17, F-18, F-19, F-20, F-21
+- **P3:** F-22 – F-33, N-1, N-5
 
 **Verification still outstanding (treat as P1):**
 - **V-1:** live suite on staging
@@ -242,7 +246,7 @@ The gaps, in order of user impact:
 - **Fix:** Below 480 px, either let the control wrap (`flex-wrap: wrap`) or add an edge fade mask. On Tasks, a `<Select>` for scope on phones would be simpler still.
 - **Effort:** Small.
 
-#### F-11 · `useAsync` falls back to a cache key built from the function's source text
+#### F-11 · `useAsync` falls back to a cache key built from the function's source text — ✅ Resolved
 - **Where:** `hooks/useAsync.ts:44-48` (`['legacy-async', factory.toString(), ...deps]`). Still used by 5 calls: `PostDetailPage.tsx:48-49`, `TaskDetailPage.tsx:44-45`, `ReportDetailPage.tsx:47`.
 - **Category:** Frontend · **Status:** Confirmed (latent).
 - **Problem:**
@@ -255,7 +259,7 @@ The gaps, in order of user impact:
   - Make `queryKey` required in `useAsync`, and delete the fallback.
 - **Effort:** Small.
 
-#### F-12 · `ngrok-skip-browser-warning` header on every production request
+#### F-12 · `ngrok-skip-browser-warning` header on every production request — ✅ Resolved
 - **Where:** `lib/http.ts:86,104,147`.
 - **Category:** Frontend / Performance · **Status:** Confirmed.
 - **Problem:** A non-safelisted custom header forces a CORS preflight on every GET, which adds a round trip to every request. It also means the production API's CORS config has to allow a header that only ngrok tunnels need.
@@ -383,9 +387,10 @@ The gaps, in order of user impact:
 
 | ID | Where | Status | Problem | Fix | Effort |
 |---|---|---|---|---|---|
-| N-3 (P2) | `.notifications-panel` (`global.css`, around line 1896) | Verified at 375 px: the panel spans x −21 to 323 | The panel is anchored to the bell's right edge with `width: min(400px, 100vw - 32px)`. On phones the bell sits about 54 px in from the right, so the panel runs off the left edge. The phone e2e test holds only the right edge until this is fixed. | Below 640 px, use `position: fixed; inset-inline: 16px; top: var(--topbar-h)` | S |
+| N-3 (P2) — ✅ Resolved `be6c1d1` | `.notifications-panel` (`global.css`, around line 1896) | Verified at 375 px: the panel spans x −21 to 323 | The panel is anchored to the bell's right edge with `width: min(400px, 100vw - 32px)`. On phones the bell sits about 54 px in from the right, so the panel runs off the left edge. The phone e2e test holds only the right edge until this is fixed. | Below 640 px, use `position: fixed; inset-inline: 16px; top: var(--topbar-h)` | S |
 | N-1 (P3) | `tsconfig.json` (`include: ["src"]`) | Verified | `vite.config.ts`, `playwright.config.ts` and `e2e/` are never type-checked | Add a `tsconfig.node.json` to `npm run typecheck` | S |
-| N-2 (P3) | `hooks/useAsync.ts` (`refetch`) | Code-confirmed | `useCallback(…, [query])` changes identity every render | Depend on `query.refetch` | S |
+| N-2 (P3) — ✅ Resolved `bfafe28` | `hooks/useAsync.ts` (`refetch`) | Code-confirmed | `useCallback(…, [query])` changes identity every render | Depend on `query.refetch` | S |
+| N-5 (P3) | `components/layout/NotificationsMenu.tsx` | Verified (0 imports) | A second, unused notifications menu that still shares the `.notifications-menu` rules with the live panel | Delete it with the F-17 cleanup | S |
 | N-4 (note) | Dialogs | Rule | A field inside a dialog must not use `autoFocus` at open: it takes focus before the trap can record the opener, so focus cannot return on close. `Modal` now focuses the first field itself. `autoFocus` on a field revealed mid-dialog is fine. | — | — |
 
 ---
