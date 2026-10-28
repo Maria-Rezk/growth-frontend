@@ -98,6 +98,18 @@ test.describe('approvals', () => {
 });
 
 test.describe('notifications', () => {
+  test('on a short landscape phone the panel shrinks its list, keeping both ends on screen', async ({ page }) => {
+    await page.setViewportSize({ width: 568, height: 320 });
+    await open(page, '/my-work');
+    await page.getByRole('button', { name: /^Notifications/ }).click();
+    const panel = page.getByRole('region', { name: 'Recent notifications' });
+    const box = await panel.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(568);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(320);
+    await expect(panel.getByRole('button', { name: 'View all notifications' })).toBeInViewport();
+  });
+
   test('mark all read clears the unread count', async ({ page }) => {
     await open(page, '/notifications');
     await expect(page.getByRole('button', { name: /Notifications, \d+ unread/ })).toBeVisible();
@@ -111,7 +123,14 @@ test.describe('notifications', () => {
     await expect(page).toHaveURL(/\/tasks\//);
   });
 
-  for (const viewport of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone', width: 375, height: 812 }]) {
+  const VIEWPORTS = [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'phone', width: 375, height: 812 },
+    { name: 'small phone', width: 320, height: 640 },
+  ];
+
+  for (const viewport of VIEWPORTS) {
     test(`the bell panel works from the keyboard (${viewport.name})`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await open(page, '/my-work');
@@ -124,11 +143,14 @@ test.describe('notifications', () => {
       await expect(panel).toBeFocused();
       await expect(bell).toHaveAttribute('aria-expanded', 'true');
       await expect(page.getByRole('menu')).toHaveCount(0);
+      // The whole panel on screen, both edges, and the topbar not pushed sideways.
       const box = await panel.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
-      // Known, not yet fixed (audit N-3): on a phone the panel, anchored to the
-      // bell, starts ~21px off the left edge. Only desktop is held to it here.
-      if (viewport.name === 'desktop') expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+      await expect(panel.getByRole('button', { name: 'Mark all read' })).toBeInViewport();
+      await expect(panel.getByRole('button', { name: 'View all notifications' })).toBeInViewport();
 
       // Escape closes it and puts focus back on the bell.
       await page.keyboard.press('Escape');

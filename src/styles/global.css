@@ -1966,6 +1966,34 @@ a.list-row:hover strong {
   background: var(--n-50);
 }
 
+/*
+  Phones: anchored to the bell, the panel ran off the left edge — the bell sits
+  ~54px in from the right, but the panel is nearly the full width. Pin it to
+  the viewport instead, inside the topbar's 16px gutters, just under the
+  topbar. On a short screen the list shrinks first, so the header (Mark all
+  read) and the footer (View all) stay on screen.
+*/
+@media (max-width: 640px) {
+  .notifications-panel {
+    position: fixed;
+    top: calc(var(--topbar-h) - 2px);
+    inset-inline-end: var(--s-4);
+    width: min(400px, calc(100vw - 2 * var(--s-4)));
+    max-height: calc(100dvh - var(--topbar-h) - var(--s-4));
+    display: flex;
+    flex-direction: column;
+  }
+
+  .notifications-panel__header,
+  .notifications-panel__footer {
+    flex-shrink: 0;
+  }
+
+  .notifications-panel__body {
+    min-height: 0;
+  }
+}
+
 .notification-row {
   display: grid;
   gap: 2px;
