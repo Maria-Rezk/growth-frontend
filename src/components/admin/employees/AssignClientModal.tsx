@@ -134,7 +134,7 @@ export function AssignClientModal({ employee, onClose }: { employee: Employee | 
       <form id="assign-client-form" className="form-grid" onSubmit={submit} noValidate>
         {companies.data?.length ? (
           <>
-            <Field label="Client" htmlFor="assign-client" error={form.formState.errors.companyId?.message}>
+            <Field label="Client" htmlFor="assign-client" required error={form.formState.errors.companyId?.message}>
               <Select id="assign-client" {...form.register('companyId')}>
                 <option value="">Select a client</option>
                 {/* Grouped so it reads as a valid choice to pick a client they

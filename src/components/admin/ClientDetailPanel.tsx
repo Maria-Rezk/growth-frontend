@@ -84,7 +84,7 @@ function PanelBody({ client, onRequestDelete }: { client: Company; onRequestDele
       <section className="panel-section">
         <h3>Name</h3>
         <form className="inline-form" onSubmit={rename} noValidate>
-          <Field label="Client name" htmlFor="client-rename" error={renameForm.formState.errors.name?.message}>
+          <Field label="Client name" htmlFor="client-rename" required error={renameForm.formState.errors.name?.message}>
             <Input
               id="client-rename"
               aria-invalid={Boolean(renameForm.formState.errors.name)}
@@ -317,7 +317,7 @@ function MembersSection({ client }: { client: Company }) {
       ) : null}
 
       <form className="inline-form" onSubmit={submit} noValidate>
-        <Field label="Employee" htmlFor="assign-user" error={form.formState.errors.userId?.message}>
+        <Field label="Employee" htmlFor="assign-user" required error={form.formState.errors.userId?.message}>
           <Select id="assign-user" {...form.register('userId')}>
             <option value="">Select an employee</option>
             {assignable.map((employee) => (

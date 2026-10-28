@@ -102,7 +102,7 @@ function MarkPublishedModal({ companyId, post, onClose, onPublished }: { company
     >
       {post ? <p className="muted"><strong>{post.title}</strong> moves to Published. The client sees it as live on their Home.</p> : null}
       <form id="mark-published-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Live URL" htmlFor="mark-published-url" hint="Optional. Paste the post's link so the report can point at it.">
+        <Field label="Live URL" htmlFor="mark-published-url" optional hint="Paste the post's link so the report can point at it.">
           <Input id="mark-published-url" type="url" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://www.instagram.com/p/…" />
         </Field>
         {publish.error ? <p className="error-box" role="alert">{publish.error}</p> : null}

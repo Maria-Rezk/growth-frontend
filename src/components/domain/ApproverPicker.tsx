@@ -86,7 +86,7 @@ export function ApproverPicker({
   const areaNames = Array.from(new Set((resolution.data?.areas ?? []).map((area) => area.areaName)));
 
   return (
-    <Field label={label} htmlFor={id} error={error} hint={hint?.text}>
+    <Field label={label} htmlFor={id} optional error={error} hint={hint?.text}>
       <Select
         id={id}
         value={value}
@@ -148,7 +148,7 @@ function resolutionHint(
   taskTypes: TaskType[],
 ): { text: string; matrixLink?: boolean } | undefined {
   if (loading) return { text: 'Checking the responsibility matrix…' };
-  if (!resolution) return { text: 'Optional. Leave it empty and the matrix decides at creation.' };
+  if (!resolution) return { text: 'Leave it empty and the matrix decides at creation.' };
   const names = Array.from(new Set(resolution.areas.map((entry) => entry.areaName)));
   const area = names.length ? names.join(' and ') : 'this area';
   switch (resolution.reason) {

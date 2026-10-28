@@ -110,7 +110,7 @@ export function LinkOrNoteForm({
           />
         )}
       </Field>
-      <Field label="Label (optional)" htmlFor={`${id}-label`}>
+      <Field label="Label" optional htmlFor={`${id}-label`}>
         <Input
           id={`${id}-label`}
           placeholder={`e.g. ${labelExample}`}

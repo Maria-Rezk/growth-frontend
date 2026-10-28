@@ -5827,3 +5827,9 @@ fieldset.field > legend {
     flex-shrink: 0;
   }
 }
+
+/* "(optional)" after a field's label: quieter than the label itself. */
+.field__optional {
+  color: var(--muted);
+  font-weight: 400;
+}

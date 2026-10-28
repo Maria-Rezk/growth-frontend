@@ -351,10 +351,10 @@ export function TaskModal({
     >
       {isDraft ? <p className="muted task-form__note">A draft only you can see. Save it as often as you like; Publish issues it and tells everybody on it.</p> : null}
       <form id="task-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Title" htmlFor="task-title" error={form.formState.errors.title?.message}>
+        <Field label="Title" htmlFor="task-title" required error={form.formState.errors.title?.message}>
           <Input id="task-title" maxLength={180} {...form.register('title')} />
         </Field>
-        <Field label="Description" htmlFor="task-description" error={form.formState.errors.description?.message}>
+        <Field label="Description" htmlFor="task-description" optional error={form.formState.errors.description?.message}>
           <Textarea id="task-description" rows={4} maxLength={3000} {...form.register('description')} />
         </Field>
         <TaskTypePicker
@@ -366,13 +366,13 @@ export function TaskModal({
           customError={form.formState.errors.customTaskType?.message}
           disabled={busy}
         />
-        <Field label="Priority" htmlFor="task-priority" error={form.formState.errors.priority?.message}>
+        <Field label="Priority" htmlFor="task-priority" required error={form.formState.errors.priority?.message}>
           <Select id="task-priority" {...form.register('priority')}>{Object.values(TaskPriority).map((item) => <option key={item} value={item}>{humanize(item)}</option>)}</Select>
         </Field>
         <Field
           label="Responsibility area"
-          htmlFor="task-area"
-          hint="Optional. Picking an area routes the task using the responsibility matrix."
+          htmlFor="task-area" optional
+          hint="Picking an area routes the task using the responsibility matrix."
         >
           <Select id="task-area" value={areaId} onChange={(event) => chooseArea(event.target.value)} disabled={matrix.loading}>
             <option value="">{matrix.loading ? 'Loading areas…' : 'No area — assign manually'}</option>
@@ -407,7 +407,7 @@ export function TaskModal({
             savedLeadName={task?.assignedTo?.fullName || task?.assignedTo?.email}
             onChange={(next) => form.setValue('assignedToId', next, { shouldDirty: true })}
           />
-          <Field label="Due date" htmlFor="due" error={form.formState.errors.dueDate?.message}>
+          <Field label="Due date" htmlFor="due" optional error={form.formState.errors.dueDate?.message}>
             <Input id="due" type="datetime-local" {...form.register('dueDate')} />
           </Field>
         </div>
@@ -430,8 +430,8 @@ export function TaskModal({
         ) : null}
         {onPost ? (
           <Field
-            label="Stage on this post (optional)"
-            htmlFor="task-sequence"
+            label="Stage on this post"
+            htmlFor="task-sequence" optional
             hint="Stages run lowest number first; each waits for the ones before it. Leave blank if order doesn't matter."
             error={form.formState.errors.sequence?.message}
           >
@@ -499,7 +499,7 @@ function LeadField({
   return (
     <Field
       label="Lead"
-      htmlFor="task-lead"
+      htmlFor="task-lead" optional
       hint={offList
         ? `${nameOf(value)} is not on the list above but stays the lead.`
         : 'Who the work is counted against on dashboards.'}

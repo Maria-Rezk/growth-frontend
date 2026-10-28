@@ -141,7 +141,7 @@ export function AttachmentsPanel({
                 <p className="staged-file__name">{staged.name}</p>
                 <p className="muted">{formatBytes(staged.size)}</p>
               </div>
-              <Field label="Label (optional)" htmlFor={`attachment-label-${parent.entityType}`} hint="Shown next to the file name.">
+              <Field label="Label" optional htmlFor={`attachment-label-${parent.entityType}`} hint="Shown next to the file name.">
                 <Input
                   id={`attachment-label-${parent.entityType}`}
                   placeholder={`e.g. ${LABEL_EXAMPLES[parent.entityType]}`}

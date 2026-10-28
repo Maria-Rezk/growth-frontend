@@ -142,14 +142,14 @@ function ReportsInner({ companyId }: { companyId: string }) {
         <CardHeader title="Generate monthly report" subtitle="Metrics are calculated for the selected period." />
         <form className="form-card form-grid" onSubmit={submit}>
           <div className="grid-2">
-            <Field label="Month" htmlFor="month" error={monthError ?? undefined}>
+            <Field label="Month" htmlFor="month" required error={monthError ?? undefined}>
               <Input id="month" type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
             </Field>
-            <Field label="Year" htmlFor="year">
+            <Field label="Year" htmlFor="year" required>
               <Input id="year" type="number" min={2024} value={year} onChange={(event) => setYear(Number(event.target.value))} />
             </Field>
           </div>
-          <Field label="Notes" htmlFor="notes" hint="Optional. Included with the generated report.">
+          <Field label="Notes" htmlFor="notes" optional hint="Included with the generated report.">
             <Textarea id="notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
           </Field>
           <div className="form-actions">

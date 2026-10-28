@@ -302,8 +302,8 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                   </Select>
                 </Field>
                 {pendingStatus === LeadStatus.LOST ? (
-                  <fieldset className="field">
-                    <legend className="field__label">Why was it lost? <span className="muted">(required)</span></legend>
+                  <fieldset className="field" role="radiogroup" aria-required="true">
+                    <legend className="field__label">Why was it lost?</legend>
                     <div className="choice-chips">
                       {LOST_REASONS.map((item) => (
                         <label key={item} className="choice-chip">
@@ -323,8 +323,9 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                 ) : null}
                 {pendingStatus === LeadStatus.WON ? (
                   <Field
-                    label="Deal value (optional)"
+                    label="Deal value"
                     htmlFor="lead-deal-value"
+                    optional
                     hint="Summed into the monthly report's won value."
                     error={dealValueInvalid ? 'Enter a positive amount.' : undefined}
                   >
@@ -340,8 +341,10 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                   </Field>
                 ) : null}
                 <Field
-                  label={noteRequired ? 'Status note (required)' : 'Status note (optional)'}
+                  label="Status note"
                   htmlFor="lead-status-note"
+                  optional={!noteRequired}
+                  required={noteRequired}
                   hint={noteRequired ? 'Say what happened — it stays in the status history.' : 'Recorded with the status change.'}
                 >
                   <Textarea id="lead-status-note" rows={2} value={statusNote} onChange={(e) => setStatusNote(e.target.value)} />

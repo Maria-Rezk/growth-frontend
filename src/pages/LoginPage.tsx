@@ -49,10 +49,10 @@ export function LoginPage() {
         </div>
         <h1>Sign in</h1>
         <form className="form-grid" onSubmit={submit} noValidate>
-          <Field label="Email" htmlFor="email" error={form.formState.errors.email?.message}>
+          <Field label="Email" htmlFor="email" required error={form.formState.errors.email?.message}>
             <Input id="email" type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
           </Field>
-          <Field label="Password" htmlFor="password" error={form.formState.errors.password?.message}>
+          <Field label="Password" htmlFor="password" required error={form.formState.errors.password?.message}>
             <Input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" aria-invalid={Boolean(form.formState.errors.password)} {...form.register('password')} />
           </Field>
           <ShowPasswordToggle checked={showPassword} onChange={setShowPassword} controls="password" />

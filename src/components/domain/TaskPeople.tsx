@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Fields';
+import { OptionalMark, Select } from '@/components/ui/Fields';
 import { CloseIcon, PlusIcon } from '@/components/ui/icons';
 import { useLocale } from '@/context/LocaleContext';
 import { MAX_TASK_ASSIGNEES, type Membership, type Task, type TaskAssigneeRole } from '@/types/domain';
@@ -66,7 +66,7 @@ export function TaskPeopleField({
   return (
     <div className="field">
       <fieldset className="task-people" disabled={disabled} aria-describedby={`${id}-hint`}>
-        <legend className="field__label">People on this task</legend>
+        <legend className="field__label">People on this task<OptionalMark /></legend>
         {value.length ? (
           <ol className="task-people__rows">
             {value.map((row, index) => {
@@ -129,7 +129,7 @@ export function TaskPeopleField({
       <p className="field__hint" id={`${id}-hint`}>
         {value.length >= MAX_TASK_ASSIGNEES
           ? `Up to ${MAX_TASK_ASSIGNEES} people per task.`
-          : 'Optional. Each person is told in their role. Put the person doing the main work first.'}
+          : 'Each person is told in their role. Put the person doing the main work first.'}
       </p>
       {error ? <p className="field__error" role="alert">{error}</p> : null}
     </div>

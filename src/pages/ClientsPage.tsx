@@ -216,7 +216,7 @@ function CreateClientModal({ open, onClose }: { open: boolean; onClose: () => vo
       )}
     >
       <form id="create-client-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Client name" htmlFor="client-name" error={form.formState.errors.name?.message}>
+        <Field label="Client name" htmlFor="client-name" required error={form.formState.errors.name?.message}>
           <Input
             id="client-name"
             aria-invalid={Boolean(form.formState.errors.name)}
@@ -224,24 +224,24 @@ function CreateClientModal({ open, onClose }: { open: boolean; onClose: () => vo
           />
         </Field>
         <div className="field-grid">
-          <Field label="Industry" htmlFor="client-industry" error={form.formState.errors.industry?.message}>
+          <Field label="Industry" htmlFor="client-industry" optional error={form.formState.errors.industry?.message}>
             <Input id="client-industry" {...form.register('industry')} />
           </Field>
           <Field
             label="Website"
-            htmlFor="client-website"
+            htmlFor="client-website" optional
             hint="https:// is added for you if you leave it off."
             error={form.formState.errors.website?.message}
           >
             <Input id="client-website" inputMode="url" {...form.register('website')} />
           </Field>
-          <Field label="Phone" htmlFor="client-phone" error={form.formState.errors.phone?.message}>
+          <Field label="Phone" htmlFor="client-phone" optional error={form.formState.errors.phone?.message}>
             <Input id="client-phone" inputMode="tel" {...form.register('phone')} />
           </Field>
-          <Field label="City" htmlFor="client-city" error={form.formState.errors.city?.message}>
+          <Field label="City" htmlFor="client-city" optional error={form.formState.errors.city?.message}>
             <Input id="client-city" {...form.register('city')} />
           </Field>
-          <Field label="Country" htmlFor="client-country" error={form.formState.errors.country?.message}>
+          <Field label="Country" htmlFor="client-country" optional error={form.formState.errors.country?.message}>
             <Input id="client-country" {...form.register('country')} />
           </Field>
         </div>

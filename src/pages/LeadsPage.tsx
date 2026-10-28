@@ -451,24 +451,24 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
       }
     >
       <form id="lead-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Name" htmlFor="lead-name" error={form.formState.errors.name?.message}>
+        <Field label="Name" htmlFor="lead-name" required error={form.formState.errors.name?.message}>
           <Input id="lead-name" aria-invalid={Boolean(form.formState.errors.name)} {...form.register('name')} />
         </Field>
         <div className="grid-2">
-          <Field label="Email" htmlFor="lead-email" error={form.formState.errors.email?.message}>
+          <Field label="Email" htmlFor="lead-email" optional error={form.formState.errors.email?.message}>
             <Input id="lead-email" type="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
           </Field>
-          <Field label="Phone" htmlFor="lead-phone" error={form.formState.errors.phone?.message}>
+          <Field label="Phone" htmlFor="lead-phone" optional error={form.formState.errors.phone?.message}>
             <Input id="lead-phone" {...form.register('phone')} />
           </Field>
         </div>
         <div className="grid-2">
-          <Field label="Source" htmlFor="lead-source" error={form.formState.errors.source?.message}>
+          <Field label="Source" htmlFor="lead-source" required error={form.formState.errors.source?.message}>
             <Select id="lead-source" {...form.register('source')}>
               {SOURCE_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
             </Select>
           </Field>
-          <Field label="Next follow-up" htmlFor="lead-followup">
+          <Field label="Next follow-up" htmlFor="lead-followup" optional>
             <Input id="lead-followup" type="datetime-local" {...form.register('nextFollowUpAt')} />
           </Field>
         </div>
@@ -483,10 +483,10 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
             </div>
           </div>
         ) : null}
-        <Field label="Interested service" htmlFor="lead-service" hint="What the lead asked about.">
+        <Field label="Interested service" htmlFor="lead-service" optional hint="What the lead asked about.">
           <Input id="lead-service" {...form.register('interestedService')} />
         </Field>
-        <Field label="Assigned to" htmlFor="lead-assignee" hint="Who follows this lead up. Defaults to you.">
+        <Field label="Assigned to" htmlFor="lead-assignee" optional hint="Who follows this lead up. Defaults to you.">
           <Select
             id="lead-assignee"
             value={assigneeValueFor(members, form.watch('assignedToId'))}
@@ -495,7 +495,7 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
             <AssigneeOptions members={members} />
           </Select>
         </Field>
-        <Field label="Notes" htmlFor="lead-notes">
+        <Field label="Notes" htmlFor="lead-notes" optional>
           <Textarea id="lead-notes" rows={3} {...form.register('notes')} />
         </Field>
         <PendingAttachmentsField companyId={companyId} value={pendingFiles} onChange={setPendingFiles} onBusyChange={setUploading} disabled={create.loading} />

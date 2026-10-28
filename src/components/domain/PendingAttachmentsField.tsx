@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { OptionalMark } from '@/components/ui/Fields';
 import { Button } from '@/components/ui/Button';
 import { FileDropzone } from '@/components/ui/FileDropzone';
 import { CloseIcon } from '@/components/ui/icons';
@@ -125,7 +126,7 @@ export function PendingAttachmentsField({
 
   return (
     <div className="field">
-      <span className="field__label" id="pending-attachments-label">Attachments (optional)</span>
+      <span className="field__label" id="pending-attachments-label">Attachments<OptionalMark /></span>
       <div className="stack-list" role="group" aria-labelledby="pending-attachments-label">
         {!full ? (
           <>

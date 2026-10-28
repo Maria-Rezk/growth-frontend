@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { Field, Input } from '@/components/ui/Fields';
+import { Field, Input, OptionalMark } from '@/components/ui/Fields';
 import { CheckIcon } from '@/components/ui/icons';
 import { TaskType, type Task } from '@/types/domain';
 import { TASK_TYPE_OPTIONS, taskTypeChips } from '@/utils/taskTypes';
@@ -36,7 +36,7 @@ export function TaskTypePicker({
   error,
   customError,
   disabled = false,
-  hint = 'Optional. Pick everything this task covers.',
+  hint = 'Pick everything this task covers.',
 }: {
   value: TaskType[];
   customValue: string;
@@ -57,7 +57,7 @@ export function TaskTypePicker({
   return (
     <div className="field">
       <fieldset className="type-picker" disabled={disabled} aria-describedby={`${id}-hint`}>
-        <legend className="field__label">Type</legend>
+        <legend className="field__label">Type<OptionalMark /></legend>
         <div className="type-picker__options">
           {TASK_TYPE_OPTIONS.map((option) => (
             <label key={option.value} className="type-picker__option" htmlFor={`${id}-${option.value}`}>

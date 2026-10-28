@@ -93,7 +93,7 @@ export function AcceptInvitationPage() {
           {showTokenField ? (
             <Field
               label="Invitation token"
-              htmlFor="token"
+              htmlFor="token" required
               hint="Paste the token from your invitation email."
               error={form.formState.errors.token?.message}
             >

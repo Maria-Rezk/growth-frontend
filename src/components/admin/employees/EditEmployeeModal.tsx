@@ -77,12 +77,12 @@ export function EditEmployeeModal({ employee, onClose }: { employee: Employee | 
       )}
     >
       <form id="edit-employee-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Full name" htmlFor="edit-employee-name" error={form.formState.errors.fullName?.message}>
+        <Field label="Full name" htmlFor="edit-employee-name" required error={form.formState.errors.fullName?.message}>
           <Input id="edit-employee-name" autoComplete="name" aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />
         </Field>
         <Field
           label="Status"
-          htmlFor="edit-employee-status"
+          htmlFor="edit-employee-status" required
           hint="Setting status to anything other than Active ends the employee's session immediately."
           error={form.formState.errors.status?.message}
         >
@@ -93,7 +93,7 @@ export function EditEmployeeModal({ employee, onClose }: { employee: Employee | 
         {form.watch('status') !== 'ACTIVE' && employee ? <HeldReviewsNotice userId={employee.id} /> : null}
         <Field
           label="New password"
-          htmlFor="edit-employee-password"
+          htmlFor="edit-employee-password" optional
           hint="Leave blank to keep the current password. Setting one ends the employee's session immediately."
           error={form.formState.errors.password?.message}
         >

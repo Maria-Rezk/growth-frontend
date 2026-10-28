@@ -86,7 +86,7 @@ function RequestForm() {
       <h1>Forgot your password?</h1>
       <p className="muted">Enter the email you sign in with and we will send a link to choose a new one.</p>
       <form className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Email" htmlFor="reset-email" error={form.formState.errors.email?.message}>
+        <Field label="Email" htmlFor="reset-email" required error={form.formState.errors.email?.message}>
           <Input id="reset-email" type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
         </Field>
         {failure ? <p className="error-box" role="alert">{failure}</p> : null}
@@ -148,10 +148,10 @@ function ResetForm({ token, onRequestNew }: { token: string; onRequestNew: () =>
     <>
       <h1>Choose a new password</h1>
       <form className="form-grid" onSubmit={submit} noValidate>
-        <Field label="New password" htmlFor="new-password" error={form.formState.errors.password?.message} hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}>
+        <Field label="New password" htmlFor="new-password" required error={form.formState.errors.password?.message} hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}>
           <Input id="new-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" {...form.register('password')} />
         </Field>
-        <Field label="Confirm password" htmlFor="confirm-password" error={form.formState.errors.confirm?.message}>
+        <Field label="Confirm password" htmlFor="confirm-password" required error={form.formState.errors.confirm?.message}>
           <Input id="confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" {...form.register('confirm')} />
         </Field>
         <ShowPasswordToggle checked={showPassword} onChange={setShowPassword} controls="new-password confirm-password" label="Show passwords" />

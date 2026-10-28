@@ -185,40 +185,40 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
           <CardHeader title="Identity" subtitle="How the brand describes itself." />
           <div className="form-card form-grid">
             <div className="grid-2">
-              <Field label="Brand name" htmlFor="brandName" error={form.formState.errors.brandName?.message}>
+              <Field label="Brand name" htmlFor="brandName" required error={form.formState.errors.brandName?.message}>
                 <Input id="brandName" aria-invalid={Boolean(form.formState.errors.brandName)} {...form.register('brandName')} />
               </Field>
-              <Field label="Industry" htmlFor="industry" error={form.formState.errors.industry?.message}>
+              <Field label="Industry" htmlFor="industry" required error={form.formState.errors.industry?.message}>
                 <Input id="industry" aria-invalid={Boolean(form.formState.errors.industry)} {...form.register('industry')} />
               </Field>
             </div>
 
-            <Field label="Description" htmlFor="description" error={form.formState.errors.description?.message}>
+            <Field label="Description" htmlFor="description" required error={form.formState.errors.description?.message}>
               <Textarea id="description" rows={3} aria-invalid={Boolean(form.formState.errors.description)} {...form.register('description')} />
             </Field>
-            <Field label="Target audience" htmlFor="targetAudience" error={form.formState.errors.targetAudience?.message}>
+            <Field label="Target audience" htmlFor="targetAudience" required error={form.formState.errors.targetAudience?.message}>
               <Textarea id="targetAudience" rows={3} aria-invalid={Boolean(form.formState.errors.targetAudience)} {...form.register('targetAudience')} />
             </Field>
 
             <div className="grid-2">
-              <Field label="Tone of voice" htmlFor="toneOfVoice" error={form.formState.errors.toneOfVoice?.message}>
+              <Field label="Tone of voice" htmlFor="toneOfVoice" required error={form.formState.errors.toneOfVoice?.message}>
                 <Input id="toneOfVoice" placeholder="Premium, calm, reassuring" aria-invalid={Boolean(form.formState.errors.toneOfVoice)} {...form.register('toneOfVoice')} />
               </Field>
-              <Field label="Languages" htmlFor="languages" hint="Comma-separated, e.g. ar, en">
+              <Field label="Languages" htmlFor="languages" optional hint="Comma-separated, e.g. ar, en">
                 <Input id="languages" {...form.register('languages')} />
               </Field>
             </div>
 
             <div className="grid-2">
-              <Field label="Service areas" htmlFor="serviceAreas" hint="Comma-separated">
+              <Field label="Service areas" htmlFor="serviceAreas" optional hint="Comma-separated">
                 <Input id="serviceAreas" {...form.register('serviceAreas')} />
               </Field>
-              <Field label="CTA preferences" htmlFor="ctaPreferences" hint="Comma-separated">
+              <Field label="CTA preferences" htmlFor="ctaPreferences" optional hint="Comma-separated">
                 <Input id="ctaPreferences" {...form.register('ctaPreferences')} />
               </Field>
             </div>
 
-            <Field label="Forbidden words" htmlFor="forbiddenWords" hint="Comma-separated. The AI will avoid these.">
+            <Field label="Forbidden words" htmlFor="forbiddenWords" optional hint="Comma-separated. The AI will avoid these.">
               <Input id="forbiddenWords" {...form.register('forbiddenWords')} />
             </Field>
           </div>
@@ -233,10 +233,10 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
             {colors.fields.length === 0 ? <p className="muted">No colours yet.</p> : null}
             {colors.fields.map((fieldItem, index) => (
               <div key={fieldItem.id} className="repeat-row">
-                <Field label="Name" htmlFor={`color-name-${index}`} error={form.formState.errors.colors?.[index]?.name?.message}>
+                <Field label="Name" htmlFor={`color-name-${index}`} required error={form.formState.errors.colors?.[index]?.name?.message}>
                   <Input id={`color-name-${index}`} {...form.register(`colors.${index}.name`)} />
                 </Field>
-                <Field label="Hex" htmlFor={`color-hex-${index}`} error={form.formState.errors.colors?.[index]?.hex?.message}>
+                <Field label="Hex" htmlFor={`color-hex-${index}`} required error={form.formState.errors.colors?.[index]?.hex?.message}>
                   <Input id={`color-hex-${index}`} placeholder="#C9144B" {...form.register(`colors.${index}.hex`)} />
                 </Field>
                 {/* Native swatch bound to the same field — typing updates the
@@ -270,14 +270,14 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
                   <Button type="button" variant="secondary" size="sm" onClick={() => services.remove(index)} aria-label={`Remove service ${index + 1}`}>Remove</Button>
                 </div>
                 <div className="grid-2">
-                  <Field label="Name" htmlFor={`svc-name-${index}`} error={form.formState.errors.services?.[index]?.name?.message}>
+                  <Field label="Name" htmlFor={`svc-name-${index}`} required error={form.formState.errors.services?.[index]?.name?.message}>
                     <Input id={`svc-name-${index}`} {...form.register(`services.${index}.name`)} />
                   </Field>
-                  <Field label="Price range" htmlFor={`svc-price-${index}`}>
+                  <Field label="Price range" htmlFor={`svc-price-${index}`} optional>
                     <Input id={`svc-price-${index}`} {...form.register(`services.${index}.priceRange`)} />
                   </Field>
                 </div>
-                <Field label="Description" htmlFor={`svc-desc-${index}`}>
+                <Field label="Description" htmlFor={`svc-desc-${index}`} optional>
                   <Textarea id={`svc-desc-${index}`} rows={2} {...form.register(`services.${index}.description`)} />
                 </Field>
               </div>
@@ -299,14 +299,14 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
                   <Button type="button" variant="secondary" size="sm" onClick={() => offers.remove(index)} aria-label={`Remove offer ${index + 1}`}>Remove</Button>
                 </div>
                 <div className="grid-2">
-                  <Field label="Title" htmlFor={`offer-title-${index}`} error={form.formState.errors.offers?.[index]?.title?.message}>
+                  <Field label="Title" htmlFor={`offer-title-${index}`} required error={form.formState.errors.offers?.[index]?.title?.message}>
                     <Input id={`offer-title-${index}`} {...form.register(`offers.${index}.title`)} />
                   </Field>
-                  <Field label="Valid until" htmlFor={`offer-valid-${index}`}>
+                  <Field label="Valid until" htmlFor={`offer-valid-${index}`} optional>
                     <Input id={`offer-valid-${index}`} type="date" {...form.register(`offers.${index}.validUntil`)} />
                   </Field>
                 </div>
-                <Field label="Description" htmlFor={`offer-desc-${index}`}>
+                <Field label="Description" htmlFor={`offer-desc-${index}`} optional>
                   <Textarea id={`offer-desc-${index}`} rows={2} {...form.register(`offers.${index}.description`)} />
                 </Field>
               </div>
@@ -316,7 +316,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
 
         <Card>
           <div className="form-card form-grid">
-            <Field label="Brand notes" htmlFor="brandNotes" hint="Internal guidance for the AI, e.g. claims to avoid.">
+            <Field label="Brand notes" htmlFor="brandNotes" optional hint="Internal guidance for the AI, e.g. claims to avoid.">
               <Textarea id="brandNotes" rows={3} {...form.register('brandNotes')} />
             </Field>
 

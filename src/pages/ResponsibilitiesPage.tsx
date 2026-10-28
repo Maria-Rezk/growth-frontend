@@ -285,7 +285,7 @@ function CellEditorModal({
         <strong>{target.areaName}</strong> · {target.userName}
       </p>
       <form id="raci-cell-form" className="form-grid" onSubmit={submit}>
-        <Field label="Responsibility" htmlFor="raci-type">
+        <Field label="Responsibility" htmlFor="raci-type" required>
           <Select id="raci-type" value={type} onChange={(event) => setType(event.target.value as ResponsibilityType)}>
             {TYPE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </Select>
@@ -303,7 +303,7 @@ function CellEditorModal({
             />
           </Field>
         ) : null}
-        <Field label="Note (optional)" htmlFor="raci-note">
+        <Field label="Note" htmlFor="raci-note" optional>
           <Textarea
             id="raci-note"
             value={note}
@@ -498,7 +498,7 @@ function ManageAreasModal({ companyId, open, onClose }: { companyId: string; ope
               <Input id="area-name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={120} required autoFocus />
             </Field>
           ) : null}
-          <Field label="Description (optional)" htmlFor="area-description">
+          <Field label="Description" htmlFor="area-description" optional>
             <Textarea id="area-description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} rows={2} />
           </Field>
           <Field label="Sort order" htmlFor="area-sort" hint="Lower numbers appear first as matrix rows.">

@@ -327,34 +327,34 @@ export function PostFormModal({ open, companyId, onClose, planId, onCreated }: {
   return (
     <Modal open={open} onClose={cancel} title="Create content draft" footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="post-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create draft</Button></>}>
       <form id="post-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Title" htmlFor="post-title" error={form.formState.errors.title?.message}>
+        <Field label="Title" htmlFor="post-title" required error={form.formState.errors.title?.message}>
           <Input id="post-title" {...form.register('title')} />
         </Field>
-        <Field label="Content plan" htmlFor="content-plan" hint="Optional. Attach this post to a monthly plan.">
+        <Field label="Content plan" htmlFor="content-plan" optional hint="Attach this post to a monthly plan.">
           <Select id="content-plan" {...form.register('contentPlanId')}>
             <option value="">No plan</option>
             {(plans.data ?? []).map((plan) => <option key={plan.id} value={plan.id}>{plan.title}</option>)}
           </Select>
         </Field>
         <div className="grid-2">
-          <Field label="Platform" htmlFor="platform" error={form.formState.errors.platform?.message}>
+          <Field label="Platform" htmlFor="platform" required error={form.formState.errors.platform?.message}>
             <Select id="platform" {...form.register('platform')}>
               {PLATFORM_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </Select>
           </Field>
-          <Field label="Content type" htmlFor="content-type" error={form.formState.errors.contentType?.message}>
+          <Field label="Content type" htmlFor="content-type" required error={form.formState.errors.contentType?.message}>
             <Select id="content-type" {...form.register('contentType')}>
               {CONTENT_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </Select>
           </Field>
         </div>
-        <Field label="Caption" htmlFor="caption" hint="Keep this editable. AI output should still pass through human review." error={form.formState.errors.caption?.message}>
+        <Field label="Caption" htmlFor="caption" optional hint="Keep this editable. AI output should still pass through human review." error={form.formState.errors.caption?.message}>
           <Textarea id="caption" rows={5} {...form.register('caption')} />
         </Field>
-        <Field label="Visual brief" htmlFor="visualBrief" error={form.formState.errors.visualBrief?.message}>
+        <Field label="Visual brief" htmlFor="visualBrief" optional error={form.formState.errors.visualBrief?.message}>
           <Textarea id="visualBrief" rows={4} {...form.register('visualBrief')} />
         </Field>
-        <Field label="Schedule date" htmlFor="scheduledAt" error={form.formState.errors.scheduledAt?.message}>
+        <Field label="Schedule date" htmlFor="scheduledAt" optional error={form.formState.errors.scheduledAt?.message}>
           <Input id="scheduledAt" type="datetime-local" {...form.register('scheduledAt')} />
         </Field>
         <PendingAttachmentsField companyId={companyId} value={pendingFiles} onChange={setPendingFiles} onBusyChange={setUploading} disabled={create.loading} />

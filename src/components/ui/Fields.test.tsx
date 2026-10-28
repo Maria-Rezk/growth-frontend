@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { Field, Input } from './Fields';
+import { Field, Input, Select } from './Fields';
 
 afterEach(cleanup);
 
@@ -71,5 +71,47 @@ describe('Field', () => {
 
     expect(screen.getByLabelText('Colour name')).not.toHaveAttribute('aria-describedby');
     expect(screen.getByLabelText('Colour hex')).not.toHaveAttribute('aria-describedby');
+  });
+});
+
+/*
+  The required/optional convention: optional fields say "(optional)" in their
+  label; required fields carry aria-required and no visual marker.
+*/
+describe('Field required and optional', () => {
+  it('adds "(optional)" to the label, and it is part of the accessible name', () => {
+    render(<Field label="Phone" htmlFor="phone" optional><Input id="phone" /></Field>);
+    expect(screen.getByText('(optional)')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Phone (optional)' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).not.toHaveAttribute('aria-required');
+  });
+
+  it('marks a required field for assistive technology only', () => {
+    render(<Field label="Name" htmlFor="name" required><Input id="name" /></Field>);
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('aria-required', 'true');
+    expect(screen.queryByText('(optional)')).not.toBeInTheDocument();
+    expect(screen.queryByText('*')).not.toBeInTheDocument();
+  });
+
+  it('keeps the hint and error wiring when a field is required', () => {
+    render(
+      <Field label="Name" htmlFor="name" required hint="As it appears on the invoice." error="Name is required.">
+        <Input id="name" />
+      </Field>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Name' });
+    expect(input).toHaveAttribute('aria-required', 'true');
+    expect(input).toHaveAccessibleDescription('As it appears on the invoice. Name is required.');
+  });
+
+  it('works for a select as well as an input', () => {
+    render(<Field label="Source" htmlFor="source" required><Select id="source"><option>Website</option></Select></Field>);
+    expect(screen.getByRole('combobox', { name: 'Source' })).toHaveAttribute('aria-required', 'true');
+  });
+
+  it('marks neither when the caller says nothing', () => {
+    render(<Field label="Search" htmlFor="search"><Input id="search" /></Field>);
+    const input = screen.getByRole('textbox', { name: 'Search' });
+    expect(input).not.toHaveAttribute('aria-required');
   });
 });
