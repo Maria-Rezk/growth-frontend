@@ -3,6 +3,18 @@ import { createPortal } from 'react-dom';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { CloseIcon } from '@/components/ui/icons';
 
+/*
+  Open dialogs, oldest first. Every Modal listens for Escape on `document`, so
+  with a confirm open over a form both used to hear the same key press: the
+  confirm closed and the form's discard guard asked again at once, so Escape
+  could never back out. Only the top of this stack answers Escape.
+*/
+const openDialogs: symbol[] = [];
+
+function isTopDialog(token: symbol): boolean {
+  return openDialogs[openDialogs.length - 1] === token;
+}
+
 export function Modal({
   open,
   title,
@@ -26,12 +38,20 @@ export function Modal({
   const backdropPressed = useRef(false);
   const titleId = useId();
 
+  // Read through a ref so a parent passing a fresh `onClose` each render does
+  // not re-register this dialog — that would move it back to the top of the stack.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useFocusTrap(dialogRef, open, initialFocusRef);
 
   useEffect(() => {
     if (!open) return;
+    const token = Symbol('dialog');
+    openDialogs.push(token);
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape' && isTopDialog(token)) onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
 
@@ -40,9 +60,11 @@ export function Modal({
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      const index = openDialogs.indexOf(token);
+      if (index !== -1) openDialogs.splice(index, 1);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

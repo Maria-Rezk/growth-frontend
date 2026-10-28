@@ -29,6 +29,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((value: boolean) => void) | null>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  // A destructive ask opens on Cancel: Enter straight after it appears must
+  // not delete or discard anything. A merely-worth-a-look ask opens on Confirm.
+  const danger = pending?.tone === 'danger';
 
   const settle = useCallback((value: boolean) => {
     resolver.current?.(value);
@@ -55,10 +59,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         open={pending !== null}
         title={pending?.title ?? ''}
         onClose={() => settle(false)}
-        initialFocusRef={confirmButton}
+        initialFocusRef={danger ? cancelButton : confirmButton}
         footer={
           <>
-            <Button variant="secondary" type="button" onClick={() => settle(false)}>
+            <Button ref={cancelButton} variant="secondary" type="button" onClick={() => settle(false)}>
               {pending?.cancelLabel ?? 'Cancel'}
             </Button>
             <Button ref={confirmButton} variant={pending?.tone ?? 'primary'} type="button" onClick={() => settle(true)}>
