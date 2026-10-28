@@ -11,10 +11,44 @@ test.describe('routes', () => {
     });
   }
 
-  test('an unknown address shows the not-found page', async ({ page }) => {
-    await page.goto('/no-such-page');
-    await expect(page).toHaveURL(/\/404$/);
+  test('an unknown address shows the not-found page in place, inside the app', async ({ page }) => {
+    await page.goto('/taks');
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    // The typo stays visible and fixable, and the app around it stays.
+    await expect(page).toHaveURL(/\/taks$/);
+    await expect(page).toHaveTitle(/^Page not found · /);
+    await expect(sidebar(page)).toBeVisible();
+    await expect(page.locator('main').getByText('/taks')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Go to my home page' }).click();
+    await expect(page).toHaveURL(/\/my-work$/);
+  });
+
+  test('signed out, an unknown address asks for sign-in first, then answers not found', async ({ page }) => {
+    await open(page, '/my-work');
+    await page.getByRole('button', { name: 'Logout' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    // In-app navigation: a full load would restore the demo session.
+    await page.evaluate(() => {
+      window.history.pushState({}, '', '/taks');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await expect(page).toHaveURL(/\/login$/);
+
+    await page.getByLabel('Email').fill('e2e-demo@example.test');
+    await page.getByLabel('Password').fill('e2e-demo-password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/taks$/);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  });
+
+  test('an unknown address on a phone keeps the menu', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/no-such-page');
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(overflow).toBe(false);
   });
 });
 

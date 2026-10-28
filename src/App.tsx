@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { AdminRoute } from '@/components/layout/RequireAdmin';
 import { AgencyRoute, LandingRedirect } from '@/components/layout/AgencyRoute';
@@ -132,11 +132,13 @@ export function App() {
               <Route path="/admin/employees" element={<EmployeesPage />} />
               <Route path="/admin/clients" element={<ClientsPage />} />
             </Route>
+
+            {/* Any other address: answered in place, inside the shell, with the
+                typed URL left in the address bar. Signed-out visitors meet
+                ProtectedRoute first, like every private page. */}
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
-
-        <Route path="/404" element={<NotFoundPage />} />
-        <Route path="*" element={<Navigate to="/404" replace />} />
       </Routes>
     </Suspense>
   );
