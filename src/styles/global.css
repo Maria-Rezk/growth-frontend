@@ -5732,3 +5732,98 @@ fieldset.field > legend {
     grid-column: 1 / -1;
   }
 }
+
+/* --------------------------------------------- Touch targets, every width */
+/*
+  WCAG 2.5.8 (target size, minimum) asks for 24x24px whatever the pointer.
+  The phone and touch rule above gives these 32px, but with a mouse at
+  desktop width they were 17-22px. Buttons centre their content, so the
+  extra height adds no visual shift; nothing changes size on screen except
+  the gap of 1-3px under a few standalone links.
+*/
+.table-sort-button,
+.attachment-row__name,
+.link-button,
+.work-row__title,
+.checkbox-row,
+.contact-row a,
+.table-link {
+  min-height: 24px;
+}
+
+.contact-row a,
+.table-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* "Call" is 21px of text: the link is at least as wide as it is tall. */
+.contact-row a {
+  min-width: 24px;
+  justify-content: center;
+}
+
+/* Phones and touch screens keep the larger 32px from the touch rule above:
+   this block comes later in the file, so without restating it the 24px
+   minimum would win there too. */
+@media (max-width: 760px), (pointer: coarse) {
+  .table-sort-button,
+  .attachment-row__name,
+  .link-button,
+  .work-row__title,
+  .checkbox-row {
+    min-height: 32px;
+  }
+
+  .contact-row a {
+    min-height: 32px;
+    min-width: 32px;
+  }
+}
+
+/*
+  Controls whose look must stay small: the hit area grows, the drawing does
+  not. A transparent ::before extends past the control; sideways it grows by
+  at most half the gap to the next control, so neighbouring targets never
+  overlap.
+*/
+.switch::before {
+  content: "";
+  position: absolute;
+  inset: -1px -4px;
+}
+
+.search-trigger {
+  position: relative;
+}
+
+@media (pointer: coarse) {
+  /* Touch: 44px tall (48x44 for a switch), the size a fingertip needs. */
+  .switch::before {
+    inset: -11px -4px;
+  }
+
+  /* Sideways only 2px: on a phone the top bar packs its icons 4px apart, and
+     each may claim half of that gap, never the neighbour's half. */
+  .topbar .icon-button::before,
+  .topbar .search-trigger::before,
+  .topbar .btn::before,
+  .sidebar__close::before,
+  .modal__header .icon-button::before {
+    content: "";
+    position: absolute;
+    inset: -7px -2px;
+  }
+
+  .topbar .btn {
+    position: relative;
+  }
+}
+
+/* Small phones: the search button kept shrinking to 18px wide in a crowded
+   top bar; it keeps its 32px and the client name truncates instead. */
+@media (max-width: 760px) {
+  .search-trigger {
+    flex-shrink: 0;
+  }
+}
