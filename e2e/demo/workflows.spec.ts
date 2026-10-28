@@ -61,7 +61,8 @@ test.describe('tasks', () => {
 
   test('editing a task replaces its types', async ({ page }) => {
     await open(page, '/tasks/task-3');
-    await page.getByRole('button', { name: 'Edit' }).click();
+    // Exact: the task page also has "Edit people".
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('checkbox', { name: 'Design' }).check();
     await dialog.getByRole('button', { name: 'Save changes' }).click();

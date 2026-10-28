@@ -22,6 +22,15 @@ function dialog(page: Page): Locator {
   return page.getByRole('dialog');
 }
 
+/** The person picker on row `n` of "People on this task". Exact, so it never matches "Role of person n". */
+function person(form: Locator, n: number): Locator {
+  return form.getByLabel(`Person ${n}`, { exact: true });
+}
+
+function personRole(form: Locator, n: number): Locator {
+  return form.getByLabel(`Role of person ${n}`, { exact: true });
+}
+
 async function openMyDrafts(page: Page) {
   await page.getByRole('button', { name: 'My drafts' }).click();
 }
@@ -34,8 +43,11 @@ async function createDraft(page: Page) {
   await form.locator('#task-description').fill(DRAFT.description);
   await form.getByRole('checkbox', { name: 'Reels' }).check();
   await form.locator('#task-priority').selectOption('HIGH');
-  // Assignee options carry the role too (one person can be listed under each of theirs).
-  await form.locator('#task-assignee').selectOption('demo-designer::DESIGNER');
+  // People are rows of person + role. Picking a person pre-picks the task
+  // role matching their company role: a Designer starts as Designer.
+  await form.getByRole('button', { name: 'Add person' }).click();
+  await person(form, 1).selectOption('demo-designer');
+  await expect(personRole(form, 1)).toHaveValue('DESIGNER');
   await form.locator('#due').fill(DRAFT.due);
   await form.locator('#task-approver').selectOption('demo-designer');
   await form.getByRole('button', { name: 'Save draft' }).click();
@@ -62,7 +74,8 @@ test.describe('task drafts', () => {
     await expect(form.getByRole('checkbox', { name: 'Reels' })).toBeChecked();
     await expect(form.getByRole('checkbox', { name: 'Design' })).not.toBeChecked();
     await expect(form.locator('#task-priority')).toHaveValue('HIGH');
-    await expect(form.locator('#task-assignee')).toHaveValue(/^demo-designer::/);
+    await expect(person(form, 1)).toHaveValue('demo-designer');
+    await expect(personRole(form, 1)).toHaveValue('DESIGNER');
     await expect(form.locator('#task-approver')).toHaveValue('demo-designer');
     await expect(form.locator('#due')).toHaveValue(DRAFT.due);
     await expect(form.locator('#task-area')).toBeVisible();
@@ -100,6 +113,7 @@ test.describe('task drafts', () => {
     await expect(form.locator('#due')).toHaveValue(DRAFT.due);
     // Untouched fields kept their saved values.
     await expect(form.locator('#task-approver')).toHaveValue('demo-designer');
+    await expect(person(form, 1)).toHaveValue('demo-designer');
   });
 
   test('a draft survives navigating away and back', async ({ page }) => {
@@ -174,7 +188,7 @@ test.describe('task drafts', () => {
     await form.locator('#task-title').fill(`${DRAFT.title} final`);
     await form.getByRole('button', { name: 'Publish task' }).click();
     await expect(form).toBeHidden();
-    await expect(page.getByText('Published. The assignee has been told.')).toBeVisible();
+    await expect(page.getByText('Published. Everybody on it has been told.')).toBeVisible();
     await expect(page.locator('.draft-row')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'All tasks' }).click();
@@ -191,7 +205,7 @@ test.describe('task drafts', () => {
     await page.getByRole('button', { name: 'All tasks' }).click();
     await page.locator('.kanban-card', { hasText: 'Prepare monthly report notes' }).click();
     await expect(page).toHaveURL(/\/tasks\/task-3$/);
-    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
     const form = dialog(page);
     await expect(form.getByRole('heading', { name: 'Edit task' })).toBeVisible();
     await expect(form.locator('#task-title')).toHaveValue('Prepare monthly report notes');
