@@ -108,3 +108,15 @@ test.describe('zero is not a warning', () => {
     await expect(page.locator('main .metric-card', { hasText: 'This week' })).not.toHaveClass(/metric-card--zero/);
   });
 });
+
+test.describe('My work says each count once', () => {
+  for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 900 }]) {
+    test(`no repeated summary line at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await open(page, '/my-work');
+      await expect(page.getByRole('heading', { name: 'This week (3)' })).toBeVisible();
+      await expect(page.locator('main .metric-card', { hasText: 'This week' }).locator('strong')).toHaveText('3');
+      await expect(page.locator('main').getByText('3 this week')).toHaveCount(0);
+    });
+  }
+});

@@ -165,7 +165,7 @@ function MyWorkInner() {
     );
   }
 
-  const headline = summarise(groups);
+  const nothingDueSoon = groups.overdue.length + groups.today.length + groups.week.length === 0;
 
   return (
     <>
@@ -215,7 +215,11 @@ function MyWorkInner() {
         </Card>
       ) : (
         <>
-          <p className="muted">{headline}</p>
+          {/* The tiles above already give these counts, and each group below is
+              titled with its own ("This week (3)"), so the old one-line summary
+              said everything a third time. It stays only when it adds something:
+              nothing is due this week, and the groups below are later work. */}
+          {nothingDueSoon ? <p className="muted">Nothing due in the next seven days.</p> : null}
           {DUE_BUCKETS.map((bucket) => (
             <DueGroup
               key={bucket}
@@ -246,16 +250,6 @@ function listNames(names: string[]): string {
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
   return `${names[0]}, ${names[1]} and ${names.length - 2} others`;
-}
-
-/** "3 overdue · 4 due today · 2 this week" — the day in one line. */
-function summarise(groups: Record<DueBucket, MyWorkTask[]>): string {
-  const parts: string[] = [];
-  if (groups.overdue.length) parts.push(`${groups.overdue.length} overdue`);
-  if (groups.today.length) parts.push(`${groups.today.length} due today`);
-  if (groups.week.length) parts.push(`${groups.week.length} this week`);
-  if (!parts.length) return 'Nothing due in the next seven days.';
-  return parts.join(' · ');
 }
 
 function WorkTile({
