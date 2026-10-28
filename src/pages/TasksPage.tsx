@@ -148,24 +148,41 @@ function TasksInner({ companyId }: { companyId: string }) {
         </div>
       </div>
 
-      <div className="toolbar card">
+      <div className="toolbar toolbar--tasks card">
         <div className={ownList ? 'toolbar__filters' : 'toolbar__filters toolbar__filters--wide'}>
-          {/* A <label htmlFor> pointing at a role="group" that has no id is a
-              dangling association. SegmentedControl already names itself with
-              aria-label, so this just needs a visual heading. */}
-          <div className="field toolbar__scope">
-            <span className="field__label">Scope</span>
-            <SegmentedControl<Scope>
-              label="Task scope"
-              value={scope}
-              onChange={setScope}
-              options={[
-                { label: 'All tasks', value: 'all' },
-                { label: 'My tasks', value: 'mine' },
-                { label: 'Awaiting my approval', value: 'approvals' },
-                { label: 'My drafts', value: 'drafts' },
-              ]}
-            />
+          {/* Which list, and how to show it, side by side: both choose what
+              you are looking at, while the fields below narrow it down. The
+              view switch used to trail the filters and, below 1180px, got a
+              row of its own. */}
+          <div className="toolbar__scope-row">
+            {/* A <label htmlFor> pointing at a role="group" that has no id is a
+                dangling association. SegmentedControl already names itself with
+                aria-label, so this just needs a visual heading. */}
+            <div className="field toolbar__scope">
+              <span className="field__label">Scope</span>
+              <SegmentedControl<Scope>
+                label="Task scope"
+                value={scope}
+                onChange={setScope}
+                options={[
+                  { label: 'All tasks', value: 'all' },
+                  { label: 'My tasks', value: 'mine' },
+                  { label: 'Awaiting my approval', value: 'approvals' },
+                  { label: 'My drafts', value: 'drafts' },
+                ]}
+              />
+            </div>
+            {ownList ? null : (
+              <div className="field toolbar__view">
+                <span className="field__label">View</span>
+                <SegmentedControl<ViewMode>
+                  label="Task view"
+                  value={view}
+                  onChange={setView}
+                  options={[{ label: 'Board', value: 'board' }, { label: 'Table', value: 'table' }]}
+                />
+              </div>
+            )}
           </div>
           {ownList ? null : (<>
           <Field label="Search" htmlFor="task-search"><Input id="task-search" placeholder="Search task title" value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
@@ -174,14 +191,6 @@ function TasksInner({ companyId }: { companyId: string }) {
           <Field label="Type" htmlFor="task-type-filter"><Select id="task-type-filter" value={type} onChange={(event) => setType(event.target.value)}><option value="">All types</option>{TASK_TYPE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></Field>
           </>)}
         </div>
-        {ownList ? null : (
-          <SegmentedControl<ViewMode>
-            label="Task view"
-            value={view}
-            onChange={setView}
-            options={[{ label: 'Board', value: 'board' }, { label: 'Table', value: 'table' }]}
-          />
-        )}
       </div>
 
       {scope === 'approvals' ? (

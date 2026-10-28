@@ -1250,6 +1250,60 @@ select.input {
   }
 }
 
+/* Tasks: scope (which list) and view (board or table) share the first row;
+   the filter fields take the row below. */
+.toolbar__scope-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--s-3) var(--s-4);
+}
+
+.toolbar__scope-row .toolbar__scope {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toolbar__scope-row .toolbar__view {
+  flex: 0 0 auto;
+}
+
+/* The scope options at their own width, not a grey bar stretched to the view switch. */
+.toolbar__scope-row .segmented {
+  justify-self: start;
+}
+
+/* Tablets and small laptops: the four task filters on one row. The shared
+   auto-fit rule above fitted three, left Type alone on a second row, and put
+   the view switch on a third. */
+@media (min-width: 761px) and (max-width: 1180px) {
+  .toolbar--tasks .toolbar__filters--wide {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Phones: scope across the full width, then the view switch on one line
+   with its label, at its own width, instead of a stacked label and bar. */
+@media (max-width: 760px) {
+  .toolbar__scope-row .toolbar__scope,
+  .toolbar__scope-row .toolbar__view {
+    flex-basis: 100%;
+  }
+
+  .toolbar__scope-row .toolbar__view {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+  }
+
+  .toolbar__scope-row .toolbar__view .segmented {
+    width: auto;
+  }
+}
+
 .segmented {
   display: inline-flex;
   padding: 2px;

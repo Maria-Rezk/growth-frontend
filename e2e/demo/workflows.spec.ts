@@ -25,6 +25,32 @@ test.describe('leads', () => {
 });
 
 test.describe('tasks', () => {
+  for (const viewport of [{ width: 768, height: 1024 }, { width: 1024, height: 768 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
+    test(`the task filters fit one row beside a scope-and-view row at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await open(page, '/tasks');
+      const top = async (selector: string) => Math.round((await page.locator(selector).boundingBox())!.y);
+      const fieldTops = new Set(await Promise.all(['#task-search', '#task-filter', '#task-priority-filter', '#task-type-filter'].map(top)));
+      expect(fieldTops.size).toBe(1);
+      expect(await top('[aria-label="Task view"]')).toBe(await top('[aria-label="Task scope"]'));
+      // The work starts on the first screen at tablet and laptop sizes.
+      await expect(page.locator('.kanban-card').first()).toBeInViewport();
+    });
+  }
+
+  test('filtering and switching view still work after the toolbar moved', async ({ page }) => {
+    await open(page, '/tasks');
+    await page.locator('#task-filter').selectOption('IN_REVIEW');
+    await expect(page.locator('.kanban-card')).toHaveCount(1);
+    await expect(page.locator('.kanban-card')).toContainText('Revise launch carousel CTA');
+    await page.getByRole('group', { name: 'Task view' }).getByRole('button', { name: 'Table' }).click();
+    await expect(page.getByRole('group', { name: 'Task view' }).getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.data-table')).toContainText('Revise launch carousel CTA');
+    // Own lists have no board or table: the view switch goes with them.
+    await page.getByRole('group', { name: 'Task scope' }).getByRole('button', { name: 'My drafts' }).click();
+    await expect(page.getByRole('group', { name: 'Task view' })).toHaveCount(0);
+  });
+
   test('a draft is saved privately, then published onto the board', async ({ page }) => {
     await open(page, '/tasks');
     await page.getByRole('button', { name: 'New task' }).click();
