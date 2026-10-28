@@ -2359,7 +2359,11 @@ a.list-row:hover strong {
 .workflow-summary,
 .pipeline-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  /* One row, one equal column per stage. auto-fit columns could not divide
+     the seven stages evenly: below ~1300px they wrapped 5 + 2 and left three
+     empty bordered cells. Phones switch to wrapping chips (end of file). */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   background: var(--surface);
   overflow: hidden;
   padding: 0;
@@ -2373,6 +2377,11 @@ a.list-row:hover strong {
   text-align: start;
   cursor: pointer;
   transition: background .12s ease;
+  /* Label at the top, count at the bottom: when a narrow column wraps a
+     label onto two lines, every count still sits on the same line. */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .workflow-summary__item:hover,
@@ -5522,16 +5531,21 @@ fieldset.field > legend {
     border: 0;
   }
 
-  /* Pipeline stages as wrapping chips: all seven visible, no empty grid cell. */
-  .pipeline-summary {
+  /* Pipeline (Leads) and workflow (Posts) stages as wrapping chips: every
+     stage visible, no empty grid cell. */
+  .pipeline-summary,
+  .workflow-summary {
     display: flex;
     flex-wrap: wrap;
     gap: var(--s-2);
     padding: var(--s-3);
   }
 
-  .pipeline-summary__item {
+  .pipeline-summary__item,
+  .workflow-summary__item {
     display: inline-flex;
+    flex-direction: row;
+    justify-content: flex-start;
     align-items: center;
     gap: 6px;
     min-height: 32px;
@@ -5542,16 +5556,20 @@ fieldset.field > legend {
   }
 
   .pipeline-summary__item span,
-  .pipeline-summary__item strong {
+  .pipeline-summary__item strong,
+  .workflow-summary__item span,
+  .workflow-summary__item strong {
     display: inline;
     margin: 0;
   }
 
-  .pipeline-summary__item strong {
+  .pipeline-summary__item strong,
+  .workflow-summary__item strong {
     font-size: 14px;
   }
 
-  .pipeline-summary__item[aria-pressed="true"] {
+  .pipeline-summary__item[aria-pressed="true"],
+  .workflow-summary__item[aria-pressed="true"] {
     border-color: var(--accent-text);
     box-shadow: none;
   }

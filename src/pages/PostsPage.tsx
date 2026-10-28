@@ -131,7 +131,7 @@ function PostsInner({ companyId }: { companyId: string }) {
 
       <PublishingDue companyId={companyId} posts={visibleAll} onPublished={() => { void allPosts.refetch(); void posts.refetch(); }} />
 
-      <div className="workflow-summary card">
+      <div className="workflow-summary card" role="group" aria-label="Filter by workflow stage">
         {postBoardFor(visibleAll, isClient).map((item) => (
           <button
             key={item}
