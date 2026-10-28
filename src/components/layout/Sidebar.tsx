@@ -153,8 +153,11 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       {...(open ? { role: 'dialog', 'aria-modal': true, 'aria-label': t('a11y.menu') } : {})}
     >
       {/* Plain Link, not NavLink — the brand is a shortcut home, not a nav
-          item, and it should never render in the active state. */}
-      <Link to={isClient ? '/home' : '/dashboard'} className="sidebar__brand" onClick={onClose} aria-label={t('brand.home')}>
+          item, and it should never render in the active state. "/" is the
+          role-aware home (LandingRedirect): My work for staff, Home for a
+          client, Operations for a platform admin with no client. It used to
+          send staff to /dashboard, which is not where they land. */}
+      <Link to="/" className="sidebar__brand" onClick={onClose} aria-label={t('brand.home')}>
         <Logo height={30} />
       </Link>
       <button className="icon-button mobile-only sidebar__close" type="button" onClick={onClose} aria-label={t('a11y.closeMenu')}>

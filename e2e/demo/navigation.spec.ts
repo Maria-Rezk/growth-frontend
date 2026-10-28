@@ -74,6 +74,14 @@ test.describe('sidebar navigation', () => {
     }
   });
 
+  test('the logo goes to the signed-in person’s home page, from anywhere', async ({ page }) => {
+    await open(page, '/campaigns/campaign-1');
+    await page.getByRole('link', { name: 'Solu1ions — go to your home page' }).click();
+    // The demo user is staff: home is My work, not Client overview.
+    await expect(page).toHaveURL(/\/my-work$/);
+    await expect(page.locator('main h1').first()).toHaveText('My work');
+  });
+
   test('every sidebar link opens its page and marks itself active', async ({ page }) => {
     await open(page, '/my-work');
     const links = sidebar(page).getByRole('link');

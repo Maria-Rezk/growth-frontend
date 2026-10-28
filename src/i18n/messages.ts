@@ -46,7 +46,7 @@ export const messages: Record<AppLanguage, Dictionary> = {
     'theme.system': 'System',
     'theme.action': 'Change appearance',
     'brand.name': 'Solu1ions — Business Development',
-    'brand.home': 'Solu1ions — go to overview',
+    'brand.home': 'Solu1ions — go to your home page',
   },
   ar: {
     'nav.myWork': 'عملي اليوم',
@@ -91,6 +91,6 @@ export const messages: Record<AppLanguage, Dictionary> = {
     'theme.system': 'حسب النظام',
     'theme.action': 'تغيير المظهر',
     'brand.name': 'Solu1ions — Business Development',
-    'brand.home': 'Solu1ions — الانتقال إلى النظرة العامة',
+    'brand.home': 'Solu1ions — الانتقال إلى صفحتك الرئيسية',
   },
 };
