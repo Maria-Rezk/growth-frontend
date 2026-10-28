@@ -5467,3 +5467,108 @@ fieldset.field > legend {
     grid-row: 1 / span 2;
   }
 }
+
+/* ------------------------------------------- Compact KPIs and stage chips */
+/*
+  Phones, on My work, Tasks and Leads (opt-in with .kpi-strip). The KPI tiles
+  were two per row with an orphan third, and Leads stacked four follow-up
+  tiles plus seven stage tiles: the first lead started ~1.5 screens down.
+  Here every count stays on screen, in one compact row: label over number,
+  numbers aligned on a common baseline. The helper sentences, already hidden
+  on phones, stay available to screen readers instead of being removed.
+  Kept at the end of the file so it wins over the earlier phone rules.
+*/
+@media (max-width: 760px) {
+  .kpi-strip,
+  .kpi-strip.stat-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--s-2);
+  }
+
+  .kpi-strip.task-alerts--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .kpi-strip > * {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2px;
+    min-width: 0;
+    padding: var(--s-2) var(--s-3);
+  }
+
+  .kpi-strip > * > span {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .kpi-strip > * > strong {
+    font-size: 20px;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .kpi-strip > * > p {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Pipeline stages as wrapping chips: all seven visible, no empty grid cell. */
+  .pipeline-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    padding: var(--s-3);
+  }
+
+  .pipeline-summary__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: none;
+  }
+
+  .pipeline-summary__item span,
+  .pipeline-summary__item strong {
+    display: inline;
+    margin: 0;
+  }
+
+  .pipeline-summary__item strong {
+    font-size: 14px;
+  }
+
+  .pipeline-summary__item[aria-pressed="true"] {
+    border-color: var(--accent-text);
+    box-shadow: none;
+  }
+}
+
+/* Four follow-up counts do not fit four across below 360px: two by two. */
+@media (max-width: 359px) {
+  .kpi-strip.task-alerts--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Every width: a zero is not a warning, so it loses the warning colour. */
+.due-tile.due-tile--zero strong {
+  color: var(--ink-secondary);
+}
+
+.metric-card.metric-card--zero span::before {
+  background: var(--n-300);
+}

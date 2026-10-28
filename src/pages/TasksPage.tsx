@@ -130,7 +130,7 @@ function TasksInner({ companyId }: { companyId: string }) {
         }
       />
 
-      <div className="task-alerts">
+      <div className="task-alerts kpi-strip">
         <div className="task-alert card">
           <span>Overdue tasks</span>
           <strong>{alertTasks.loading || alertTasks.error ? '—' : overdueCount}</strong>

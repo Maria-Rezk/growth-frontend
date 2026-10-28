@@ -191,14 +191,14 @@ function LeadsInner({ companyId }: { companyId: string }) {
         }
       />
 
-      <div className="task-alerts task-alerts--4">
+      <div className="task-alerts task-alerts--4 kpi-strip">
         <DueTile label="Overdue" value={followUp.overdue} tone="danger" active={due === 'overdue'} onClick={() => setDue(due === 'overdue' ? '' : 'overdue')} helper="Follow-up date has passed." loading={allLeads.loading} />
         <DueTile label="Due today" value={followUp.today} tone="warning" active={due === 'today'} onClick={() => setDue(due === 'today' ? '' : 'today')} helper="Contact them before the day ends." loading={allLeads.loading} />
         <DueTile label="This week" value={followUp.week} tone="info" active={due === 'week'} onClick={() => setDue(due === 'week' ? '' : 'week')} helper="Within the next seven days." loading={allLeads.loading} />
         <DueTile label="No follow-up set" value={followUp.none} tone="neutral" active={due === 'none'} onClick={() => setDue(due === 'none' ? '' : 'none')} helper="Open leads nobody has scheduled." loading={allLeads.loading} />
       </div>
 
-      <div className="pipeline-summary card">
+      <div className="pipeline-summary card" role="group" aria-label="Filter by pipeline stage">
         {LEAD_PIPELINE.map((item) => (
           <button
             key={item}
@@ -502,7 +502,8 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
 /** One of the four follow-up tiles. Pressed = the list is filtered to it. */
 function DueTile({ label, value, helper, tone, active, onClick, loading }: { label: string; value: number; helper: string; tone: 'danger' | 'warning' | 'info' | 'neutral'; active: boolean; onClick: () => void; loading: boolean }) {
   return (
-    <button type="button" className={`task-alert card due-tile due-tile--${tone}${active ? ' due-tile--active' : ''}`} onClick={onClick} aria-pressed={active}>
+    // A zero is not a warning: the tone colours only a count that needs attention.
+    <button type="button" className={`task-alert card due-tile due-tile--${tone}${active ? ' due-tile--active' : ''}${!loading && value === 0 ? ' due-tile--zero' : ''}`} onClick={onClick} aria-pressed={active}>
       <span>{label}</span>
       <strong>{loading ? '—' : value}</strong>
       <p>{helper}</p>

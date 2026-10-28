@@ -180,7 +180,7 @@ function MyWorkInner() {
         </div>
       ) : null}
 
-      <div className="stat-grid stat-grid--3">
+      <div className="stat-grid stat-grid--3 kpi-strip">
         <WorkTile label="Overdue" value={groups.overdue.length} tone="accent" helper="Late and still open." />
         <WorkTile label="Due today" value={groups.today.length} tone="warning" helper="Before the end of today." />
         <WorkTile label="This week" value={groups.week.length} tone="info" helper="Within the next seven days." />
@@ -270,7 +270,8 @@ function WorkTile({
   tone: 'accent' | 'warning' | 'info';
 }) {
   return (
-    <Card className={clsx('metric-card', `metric-card--${tone}`)}>
+    // A zero is not a warning: the tone dot marks only a count that needs attention.
+    <Card className={clsx('metric-card', `metric-card--${tone}`, value === 0 && 'metric-card--zero')}>
       <span>{label}</span>
       <strong>{value}</strong>
       <p>{helper}</p>
