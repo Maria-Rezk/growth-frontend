@@ -489,7 +489,8 @@ export interface Lead {
   name: string;
   email?: string;
   phone?: string;
-  source?: string;
+  /** A LeadSource value. The API uses the same enum set (see docs/backend-contract-audit.md). */
+  source?: LeadSource;
   interestedService?: string;
   notes?: string;
   nextFollowUpAt?: ISODate;

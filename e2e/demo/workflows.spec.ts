@@ -26,11 +26,30 @@ test.describe('leads', () => {
     await expect(page.locator('main').getByText('Nour Clinic')).toHaveCount(0);
   });
 
-  test('the source filter applies and is kept in the URL', async ({ page }) => {
+  /*
+    The demo leads used to carry free-text sources ("Website", "Instagram DM")
+    while the filter sends the API's enum values ("WEBSITE"), so filtering by
+    source in demo mode always came back empty. These check the actual records.
+  */
+  for (const [source, match, others] of [
+    ['REFERRAL', 'Daleel Chicago', ['Nour Clinic', 'Alpha Retail']],
+    ['WEBSITE', 'Alpha Retail', ['Nour Clinic', 'Daleel Chicago']],
+    ['INSTAGRAM', 'Nour Clinic', ['Alpha Retail', 'Daleel Chicago']],
+  ] as const) {
+    test(`the source filter ${source} shows exactly the matching lead`, async ({ page }) => {
+      await open(page, '/leads');
+      await page.locator('#lead-source-filter').selectOption(source);
+      await expect(page).toHaveURL(new RegExp(`source=${source}`));
+      const main = page.locator('main');
+      await expect(main.locator('.kanban-card').filter({ hasText: match })).toHaveCount(1);
+      for (const other of others) await expect(main.locator('.kanban-card').filter({ hasText: other })).toHaveCount(0);
+    });
+  }
+
+  test('a source with no leads shows the filtered empty state', async ({ page }) => {
     await open(page, '/leads');
-    await page.locator('#lead-source-filter').selectOption('REFERRAL');
-    await expect(page).toHaveURL(/source=REFERRAL/);
-    await expect(page.locator('#lead-source-filter')).toHaveValue('REFERRAL');
+    await page.locator('#lead-source-filter').selectOption('TIKTOK');
+    await expect(page.locator('main .kanban-card')).toHaveCount(0);
   });
 
   test('the Pipeline/Table switch changes the view, and Clear filters resets every filter', async ({ page }) => {
