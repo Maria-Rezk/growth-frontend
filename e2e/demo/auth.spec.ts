@@ -29,6 +29,27 @@ test.describe('authentication (demo)', () => {
     await expect(page.locator('main h1')).toHaveText('My work');
   });
 
+  test('an invitation link hides its token, drops it from the address bar, and still accepts', async ({ page }) => {
+    await open(page, '/my-work');
+    await page.getByRole('button', { name: 'Logout' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    // In-app navigation: a full load would restore the demo session.
+    await page.evaluate(() => {
+      window.history.pushState({}, '', '/accept-invitation?token=inv-e2e.secret');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+    await expect(page.getByRole('heading', { name: 'Accept invitation' })).toBeVisible();
+    await expect(page).toHaveURL(/\/accept-invitation$/);
+    await expect(page.getByLabel('Invitation token')).toHaveCount(0);
+
+    await page.getByLabel('Full name').fill('E2E Invitee');
+    await page.getByLabel('Password').fill('e2e-demo-password');
+    await page.getByRole('button', { name: 'Accept invitation' }).click();
+    await expect(page.locator('main h1').first()).toBeVisible();
+    await expect(page).not.toHaveURL(/accept-invitation|login/);
+  });
+
   test('a signed-in visit to /login goes straight to the app', async ({ page }) => {
     await page.goto('/login');
     await expect(page).toHaveURL(/\/my-work$/);

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -44,12 +44,21 @@ export function AcceptInvitationPage() {
   usePageTitle('Accept invitation');
   const { acceptInvitation, isAuthenticated, error } = useAuth();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const initialToken = useMemo(() => unwrapInvitationToken(params.get('token') ?? ''), [params]);
+  const [params, setParams] = useSearchParams();
+  // Held in state and dropped from the address bar, as on /forgot-password:
+  // the token is a single-use secret and must not sit in history or leak
+  // through a Referer header once the page has read it.
+  const [linkToken] = useState(() => unwrapInvitationToken(params.get('token') ?? ''));
+  useEffect(() => {
+    if (params.has('token')) setParams({}, { replace: true });
+  }, [params, setParams]);
+  // Arriving from the emailed link, the token is not something to read or
+  // edit. The field appears only without a link, or on request.
+  const [showTokenField, setShowTokenField] = useState(!linkToken);
 
   const form = useForm<InvitationForm>({
     resolver: zodResolver(invitationSchema),
-    defaultValues: { token: initialToken, fullName: '', password: '' },
+    defaultValues: { token: linkToken, fullName: '', password: '' },
     mode: 'onBlur',
   });
 
@@ -81,14 +90,25 @@ export function AcceptInvitationPage() {
         </div>
         <h1>Accept invitation</h1>
         <form className="form-grid" onSubmit={submit} noValidate>
-          <Field
-            label="Invitation token"
-            htmlFor="token"
-            hint={initialToken ? 'Filled from your invitation link.' : 'Paste the token from your invitation email.'}
-            error={form.formState.errors.token?.message}
-          >
-            <Input id="token" aria-invalid={Boolean(form.formState.errors.token)} {...form.register('token')} />
-          </Field>
+          {showTokenField ? (
+            <Field
+              label="Invitation token"
+              htmlFor="token"
+              hint="Paste the token from your invitation email."
+              error={form.formState.errors.token?.message}
+            >
+              <Input id="token" autoComplete="off" aria-invalid={Boolean(form.formState.errors.token)} {...form.register('token')} />
+            </Field>
+          ) : (
+            <div className="field">
+              <p className="field__hint" role="status">Your invitation link has been recognised.</p>
+              <div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowTokenField(true)}>
+                  Use a different invitation token
+                </Button>
+              </div>
+            </div>
+          )}
           <Field
             label="Full name"
             htmlFor="name"
