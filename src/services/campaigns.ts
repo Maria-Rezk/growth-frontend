@@ -10,6 +10,7 @@ import {
   demoPosts,
   demoTasks,
   makeId,
+  demoNotFound,
 } from '@/services/demoStore';
 import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
 import type {
@@ -62,7 +63,7 @@ export const campaignsService = {
   async get(companyId: string, campaignId: string): Promise<Campaign> {
     if (env.demoMode) {
       const campaign = demoCampaigns.find((c) => c.companyId === companyId && c.id === campaignId);
-      if (!campaign) throw new Error('Campaign not found.');
+      if (!campaign) throw demoNotFound('Campaign not found.');
       return demoDelay(campaign);
     }
     const response = await http.get(apiRoutes.campaigns.detail(companyId, campaignId));
@@ -103,7 +104,7 @@ export const campaignsService = {
   async update(companyId: string, campaignId: string, payload: CampaignUpdateInput): Promise<Campaign> {
     if (env.demoMode) {
       const campaign = demoCampaigns.find((c) => c.companyId === companyId && c.id === campaignId);
-      if (!campaign) throw new Error('Campaign not found.');
+      if (!campaign) throw demoNotFound('Campaign not found.');
       Object.assign(campaign, payload, {
         budget: payload.budget != null ? payload.budget.toFixed(2) : campaign.budget,
         updatedAt: new Date().toISOString(),
@@ -117,7 +118,7 @@ export const campaignsService = {
   async setStatus(companyId: string, campaignId: string, status: CampaignStatus): Promise<Campaign> {
     if (env.demoMode) {
       const campaign = demoCampaigns.find((c) => c.companyId === companyId && c.id === campaignId);
-      if (!campaign) throw new Error('Campaign not found.');
+      if (!campaign) throw demoNotFound('Campaign not found.');
       campaign.status = status;
       campaign.updatedAt = new Date().toISOString();
       return demoDelay(campaign);
@@ -129,7 +130,7 @@ export const campaignsService = {
   async overview(companyId: string, campaignId: string): Promise<CampaignOverview> {
     if (env.demoMode) {
       const campaign = demoCampaigns.find((c) => c.companyId === companyId && c.id === campaignId);
-      if (!campaign) throw new Error('Campaign not found.');
+      if (!campaign) throw demoNotFound('Campaign not found.');
       return demoDelay({ campaign, metrics: buildCampaignMetrics() });
     }
     // Response is { campaign, metrics } — a custom wrapper unwrap() doesn't

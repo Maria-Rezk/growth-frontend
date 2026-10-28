@@ -5,7 +5,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { Badge } from '@/components/ui/Badge';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { RoleGate } from '@/components/domain/RoleGate';
@@ -82,6 +82,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   if (isClient && (post.errorStatus === 404 || (post.data && isHiddenFromClient(post.data.status)))) {
     return <EmptyState title="This post is not available" description="It may still be in preparation. Your agency will send it when it is ready for you." />;
   }
+  if (post.errorStatus === 404) return <RecordNotFound title="Post not found" backTo={appRoutes.posts} backLabel="Back to posts" />;
   if (post.error || !post.data) return <ErrorState message={post.error ?? 'Post not found.'} onRetry={post.refetch} />;
 
   const next = postActionsFor(post.data.status);

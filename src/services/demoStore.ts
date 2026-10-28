@@ -409,9 +409,18 @@ export function pushNotification(notification: Omit<AppNotification, 'id' | 'cre
   ];
 }
 
+/**
+ * The demo's answer for a record that does not exist: a 404, like the API.
+ * A bare Error carries no status, so React Query retried it twice and a
+ * detail page sat on its skeleton for seconds before giving up.
+ */
+export function demoNotFound(message: string): Error & { statusCode: number } {
+  return Object.assign(new Error(message), { statusCode: 404 });
+}
+
 export function moveLeadStatus(leadId: string, status: LeadStatus) {
   const lead = demoLeads.find((item) => item.id === leadId);
-  if (!lead) throw new Error('Lead not found.');
+  if (!lead) throw demoNotFound('Lead not found.');
   const fromStatus = lead.status;
   lead.status = status;
   lead.updatedAt = new Date().toISOString();
@@ -424,7 +433,7 @@ export function moveLeadStatus(leadId: string, status: LeadStatus) {
 
 export function moveTaskStatus(taskId: string, status: TaskStatus) {
   const task = demoTasks.find((item) => item.id === taskId);
-  if (!task) throw new Error('Task not found.');
+  if (!task) throw demoNotFound('Task not found.');
   // The first move to IN_PROGRESS stamps `startedAt`; going back and on again never changes it.
   if ((status === 'IN_PROGRESS' || status === 'IN_REVIEW') && !task.startedAt) task.startedAt = new Date().toISOString();
   task.status = status;

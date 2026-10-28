@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/Card';
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
@@ -39,5 +40,21 @@ export function EmptyState({
       {description ? <p>{description}</p> : null}
       {action ? <div className="state__action">{action}</div> : null}
     </div>
+  );
+}
+
+/**
+ * A record that does not exist — deleted, or a wrong link. Not an error state:
+ * retrying cannot bring it back, so this offers the way back to its list
+ * instead, with a real page heading and tab title.
+ */
+export function RecordNotFound({ title, backTo, backLabel }: { title: string; backTo: string; backLabel: string }) {
+  return (
+    <>
+      <PageHeader title={title} subtitle="It may have been deleted, or the link may be wrong." />
+      <div className="button-row">
+        <ButtonLink to={backTo} variant="secondary">{backLabel}</ButtonLink>
+      </div>
+    </>
   );
 }

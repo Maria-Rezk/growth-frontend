@@ -6,7 +6,7 @@ import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { DetailSkeleton, ListSkeleton } from '@/components/ui/Skeleton';
 import { PlusIcon } from '@/components/ui/icons';
 import { RoleGate } from '@/components/domain/RoleGate';
@@ -84,6 +84,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   );
 
   if (lead.loading) return <DetailSkeleton />;
+  if (lead.errorStatus === 404) return <RecordNotFound title="Lead not found" backTo={appRoutes.leads} backLabel="Back to leads" />;
   if (lead.error || !lead.data) return <ErrorState message={lead.error ?? 'Lead not found.'} onRetry={lead.refetch} />;
 
   const current = lead.data;

@@ -5,7 +5,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { ReportBody, monthName } from '@/components/domain/ReportBody';
 import { ReportShareDialog } from '@/components/domain/ReportShareDialog';
@@ -49,6 +49,7 @@ function ReportDetailInner({ companyId, reportId }: { companyId: string; reportI
   const [sharing, setSharing] = useState(false);
 
   if (report.loading) return <DetailSkeleton />;
+  if (report.errorStatus === 404) return <RecordNotFound title="Report not found" backTo={appRoutes.reports} backLabel="Back to reports" />;
   if (report.error || !report.data) return <ErrorState message={report.error ?? 'Report not found.'} onRetry={report.refetch} />;
 
   const current = report.data;

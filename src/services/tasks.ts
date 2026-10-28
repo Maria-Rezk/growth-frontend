@@ -13,6 +13,7 @@ import {
   makeId,
   moveTaskStatus,
   pushNotification,
+  demoNotFound,
 } from '@/services/demoStore';
 import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
 import type {
@@ -197,7 +198,7 @@ function demoReviewError(statusCode: number, code: string, message: string): Err
 /** Demo-only: a task, or the same 404 the API would raise. */
 function demoTask(companyId: string, taskId: string): Task {
   const task = demoTasks.find((item) => item.companyId === companyId && item.id === taskId);
-  if (!task) throw new Error('Task not found.');
+  if (!task) throw demoNotFound('Task not found.');
   return task;
 }
 
@@ -218,7 +219,7 @@ export const tasksService = {
   async get(companyId: string, taskId: string): Promise<Task> {
     if (env.demoMode) {
       const task = demoTasks.find((item) => item.companyId === companyId && item.id === taskId);
-      if (!task) throw new Error('Task not found.');
+      if (!task) throw demoNotFound('Task not found.');
       return demoDelay(task);
     }
     const response = await http.get(apiRoutes.tasks.detail(companyId, taskId));
@@ -296,7 +297,7 @@ export const tasksService = {
   async update(companyId: string, taskId: string, payload: TaskUpdatePayload): Promise<Task> {
     if (env.demoMode) {
       const task = demoTasks.find((item) => item.companyId === companyId && item.id === taskId);
-      if (!task) throw new Error('Task not found.');
+      if (!task) throw demoNotFound('Task not found.');
       if ('sequence' in payload) demoCheckSequence(companyId, taskId, task.relatedEntityType, task.relatedEntityId, payload.sequence);
       if ('approverId' in payload && payload.approverId !== task.approverId) {
         demoLog(taskId, 'TASK_APPROVER_CHANGED', { from: task.approverId ?? null, to: payload.approverId ?? null });

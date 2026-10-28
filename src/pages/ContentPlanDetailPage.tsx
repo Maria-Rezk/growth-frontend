@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { DetailSkeleton, ListSkeleton } from '@/components/ui/Skeleton';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { PlusIcon } from '@/components/ui/icons';
 import { appRoutes } from '@/config/appRoutes';
 import { useAsync } from '@/hooks/useAsync';
@@ -51,7 +51,7 @@ function PlanDetailInner({ companyId, planId }: { companyId: string; planId: str
 
   if (plans.loading) return <DetailSkeleton />;
   if (plans.error) return <ErrorState message={plans.error} onRetry={plans.refetch} />;
-  if (!plan) return <ErrorState message="Plan not found." />;
+  if (!plan) return <RecordNotFound title="Content plan not found" backTo={appRoutes.contentPlans} backLabel="Back to content plans" />;
 
   const period = plan.month ? `${MONTHS[plan.month - 1]} ${plan.year ?? ''}`.trim() : plan.year ? String(plan.year) : '';
   const goal = (plan as { goal?: string }).goal;

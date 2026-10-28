@@ -5,7 +5,7 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Select, Textarea } from '@/components/ui/Fields';
-import { ErrorState } from '@/components/ui/State';
+import { ErrorState, RecordNotFound } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
@@ -64,6 +64,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const { lang } = useLocale();
 
   if (task.loading) return <DetailSkeleton />;
+  if (task.errorStatus === 404) return <RecordNotFound title="Task not found" backTo={appRoutes.tasks} backLabel="Back to tasks" />;
   if (task.error || !task.data) return <ErrorState message={task.error ?? 'Task not found.'} onRetry={task.refetch} />;
 
   const current = task.data;
