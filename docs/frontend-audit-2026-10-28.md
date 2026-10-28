@@ -30,11 +30,16 @@
 | F-19 mobile density (My work, Tasks, Leads) | ✅ Resolved (Phase 3A); Leads toolbar left as is (N-7) | `bba5048` | `e2e/demo/density.spec.ts` |
 | F-20 repeated My work summary | ✅ Resolved (Phase 3A) | `a2702ae` | `e2e/demo/density.spec.ts` |
 | F-21 detail back navigation, mobile stepper | ✅ Resolved (Phase 3A) | `8d19d24` | `e2e/demo/detail-nav.spec.ts` |
-| N-6 Leads list filters did nothing | ✅ Resolved (after Phase 3A) | see the commit "Make the Leads filters apply" | `hooks/useUrlFilters.test.tsx`, `e2e/demo/workflows.spec.ts`, `e2e/demo/density.spec.ts` |
+| N-6 Leads list filters did nothing | ✅ Resolved (after Phase 3A) | `956687e` | `hooks/useUrlFilters.test.tsx`, `e2e/demo/workflows.spec.ts`, `e2e/demo/density.spec.ts` |
+| N-8 stage tiles left empty cells (Leads, Posts) | ✅ Resolved (closeout) | `24a9ff7` | `e2e/demo/stage-summary.spec.ts` (320 to 1920 px) |
+| N-9 demo lead sources did not match the Source filter | ✅ Resolved (closeout): fixture defect, not contract | `bd9295b` | `e2e/demo/workflows.spec.ts` (actual records per source) |
+| N-7 Leads filter card | ◐ Partly (closeout): tablet resolved, phone trade-off documented | `567711e`, `34b2e49` | `e2e/demo/density.spec.ts` |
+| Compact stepper overflow at 320 px (from F-21) | ✅ Resolved (closeout) | `58c0789` | `e2e/demo/detail-nav.spec.ts` |
+| Filtering regression matrix | ✅ Added (closeout) | `69d14d7` | `e2e/demo/filter-matrix.spec.ts` |
 
 **Still open:**
-- **P2:** F-06, F-13, F-16, F-17, N-8
-- **P3:** F-22 – F-33, N-1, N-5, N-7
+- **P2:** F-06, F-13, F-16, F-17
+- **P3:** F-22 – F-33, N-1, N-5, N-7 (phone part)
 
 **Verification still outstanding (treat as P1):**
 - **V-1:** live suite on staging
@@ -398,8 +403,10 @@ The gaps, in order of user impact:
 | N-2 (P3) — ✅ Resolved `bfafe28` | `hooks/useAsync.ts` (`refetch`) | Code-confirmed | `useCallback(…, [query])` changes identity every render | Depend on `query.refetch` | S |
 | N-5 (P3) | `components/layout/NotificationsMenu.tsx` | Verified (0 imports) | A second, unused notifications menu that still shares the `.notifications-menu` rules with the live panel | Delete it with the F-17 cleanup | S |
 | N-6 (**P1**) — ✅ Resolved | `pages/LeadsPage.tsx:149-152` | Verified in the browser and pinned by a `test.fixme` in `e2e/demo/density.spec.ts` | On `/leads` the stage chips, Status, Source, Search and the Pipeline/Table switch do nothing. Each setter calls `setUrlFilters` twice in one tick (the filter, then `page: 1`). React Router's functional `setSearchParams` reads the last-rendered params, so the second call overwrites the first. Follow-up tiles and Scope work because they set everything in one call. Present since `45b44a9`. | Set both in one call, e.g. `setUrlFilters({ status: value, page: '1' })`, for all four setters; then remove the `fixme`. | S |
-| N-7 (P3) | `/leads` toolbar on phones | Verified | After F-19 the first lead at 375 px starts about 120 px below the first screen. The rest is the filter card: Scope, three fields, then the view switch. The Tasks scope-and-view row (F-18) was not applied, because it would add a row on desktop, where the Leads toolbar is already a single 95 px row. | Phone-only rearrangement once N-6 is fixed | S |
-| N-8 (P2) | `.pipeline-summary` (Leads) and `.workflow-summary` (Posts), above 760 px | Verified at about 800 px on Leads; Posts not checked | Between the phone chip layout (F-19) and a wide screen, the `auto-fit` grid of stage tiles leaves empty bordered cells (on Leads at about 800 px, 5 + 2 stages). | Use the same chip row up to the width where all stages fit one row, or balance the columns | S |
+| N-7 (P3) — ◐ Partly (`567711e`, `34b2e49`) | `/leads` toolbar on phones | Verified | After F-19 the first lead at 375 px starts about 120 px below the first screen. The rest is the filter card: Scope, three fields, then the view switch. The Tasks scope-and-view row (F-18) was not applied, because it would add a row on desktop, where the Leads toolbar is already a single 95 px row. | Phone-only rearrangement once N-6 is fixed | S |
+| N-8 (P2) — ✅ Resolved `24a9ff7` | `.pipeline-summary` (Leads) and `.workflow-summary` (Posts), above 760 px | Verified at about 800 px on Leads; Posts not checked | Between the phone chip layout (F-19) and a wide screen, the `auto-fit` grid of stage tiles leaves empty bordered cells (on Leads at about 800 px, 5 + 2 stages). | Use the same chip row up to the width where all stages fit one row, or balance the columns | S |
+| N-9 (P2) — ✅ Resolved `bd9295b` | `services/demoStore.ts` (demo leads) | Verified | The demo leads stored free-text sources ("Instagram DM", "Website", "Referral"). The filter, the create form (`z.nativeEnum(LeadSource)`) and the API (enum sets identical per the backend source read) all use `INSTAGRAM`, `WEBSITE`, `REFERRAL`, so Source matched nothing in demo mode. It was a fixture defect, not a contract or normalisation problem. **Limitation:** the real API's stored values were not checked against a live instance; the contract comes from the backend source read, not a running API (V-1). | Fixtures use the enum; `Lead.source` is typed `LeadSource`, so a free-text value is now a compile error | S |
+| N-7 phone trade-off (note) | `/leads` at 375 px | Measured | After the closeout the first lead is at y 927 (was 931). Above it: topbar 56, banner 56, header 121, counts 91, stage chips 138, filter card 295. The card is already as short as its five controls get. Scope and View side by side wrap the scope options (tried and rejected); collapsing filters, hiding the subtitle or moving "New lead" into the title row on every page were ruled out by the brief. At 768 and 1024 px the first lead moved up 51 to 52 px. | A decision on a global phone page-header pattern (Phase 3B) | M |
 | N-4 (note) | Dialogs | Rule | A field inside a dialog must not use `autoFocus` at open: it takes focus before the trap can record the opener, so focus cannot return on close. `Modal` now focuses the first field itself. `autoFocus` on a field revealed mid-dialog is fine. | — | — |
 
 ---
