@@ -60,11 +60,18 @@ Phase 3B-1 closed, and Phase 3B-2 implemented on `phase-3b2-visual-accessibility
 | F-33 typography and secondary-text contrast | ✅ Resolved (Phase 3B-2); one documented exception (stepper under 360 px) | `98b6681`, `ee6624a` | `e2e/demo/visual-consistency.spec.ts` (type floor), `e2e/demo/a11y.spec.ts` (contrast) |
 | N-13 route matrix labels and role-aware routing | ✅ Resolved (Phase 3B-2), regenerated with `npm run e2e:evidence` | `35d6ff0` | `e2e/demo/evidence.spec.ts` |
 | V-3 automated accessibility audit | ✅ Gate added (Phase 3B-2): `npm run e2e:a11y`; seven out-of-scope findings documented (A-1 to A-7) | `01f43b7` | `e2e/demo/a11y.spec.ts` |
+| A-1 calendar grid without rows (critical) | ✅ Resolved (3B-2 remediation) | `b3c4d42` | `ContentCalendar.test.tsx`, `e2e/demo/a11y-remediation.spec.ts` |
+| A-2 notification item button with nested controls (serious) | ✅ Resolved (3B-2 remediation) | `778bb35` | `NotificationItem.test.tsx`, `e2e/demo/a11y-remediation.spec.ts` |
+| A-3 search results list unnamed (serious) | ✅ Resolved (3B-2 remediation) | `aa1e02f` | `e2e/demo/a11y-remediation.spec.ts` |
+| A-4 phone menu dialog on an `aside` | ✅ Resolved (3B-2 remediation), with a landmark follow-up | `892c2f2`, `efc5308` | `e2e/demo/a11y-remediation.spec.ts` |
+| A-5 duplicate and unnamed landmarks | ✅ Resolved (3B-2 remediation) | `09e22e2` (and `efc5308`) | `e2e/demo/a11y-remediation.spec.ts` |
+| A-6 skip link without a target on sign-in pages | ✅ Resolved (3B-2 remediation) | `0baa02a` | `e2e/demo/a11y-remediation.spec.ts` |
+| A-7 empty action-column headers | ✅ Resolved (3B-2 remediation) | `f79f5f3` | `DataTable.test.tsx`, `e2e/demo/a11y-remediation.spec.ts` |
 
 **Still open:**
 - **P2:** F-06, F-13, F-16, F-17
 - **P3:** F-30 – F-32, N-1, N-5, N-14, and N-7 at 320 to 390 px (see "N-7 after option B")
-- **Accessibility, from V-3:** A-1 to A-7, of which A-1 is critical and A-2 and A-3 are serious (see "Phase 3B-2 notes")
+- **Accessibility, from V-3:** none open. A-1 to A-7 were resolved in the remediation; the gate's list of allowed exceptions is empty. A manual screen-reader pass is still outstanding (see below).
 
 **Verification still outstanding (treat as P1):**
 - **V-1:** live suite on staging
@@ -645,7 +652,7 @@ Branch `phase-3b2-visual-accessibility`, cut from `phase-3b1-ui-consistency` @ `
 - muted-text contrast: 26 nodes on four scenes (F-33);
 - target size of the role checkboxes, in two dialogs (N-12).
 
-**Documented, not fixed (outside the approved scope).** Each finding is pinned in `a11y.spec.ts`, so anything new fails the gate. Node counts are from the first sweep across both themes and both widths.
+**Documented at the time, not fixed in Phase 3B-2.** All seven were then resolved in the remediation that followed ("Accessibility remediation" below). Node counts are from the first sweep across both themes and both widths.
 
 | Ref | Severity | Rule | Where | Evidence | Recommended fix |
 |---|---|---|---|---|---|
@@ -674,3 +681,56 @@ Automated rules catch only part of the real problems. A manual pass with a scree
 | Evidence (`npm run e2e:evidence`) | 50/50; `qa/route-matrix.md` regenerated |
 
 Browser coverage is Chrome only, as for every phase. Firefox and Safari were not run.
+
+---
+
+## Accessibility remediation (29 October 2026)
+
+Branch `phase-3b2-a11y-remediation`, cut from `phase-3b2-visual-accessibility` @ `5c43004`. Not merged, not pushed.
+
+Each fix:
+- started from the cause found in the code, not from the axe message;
+- has a regression test that fails on the previous code (checked by stashing the fix);
+- removed its own exception from `e2e/demo/a11y.spec.ts`, nothing broader.
+
+The `KNOWN` list there is now empty.
+
+| Ref | Root cause | Fix | Commit |
+|---|---|---|---|
+| A-1 | `role="grid"` on a flat CSS grid: column headers and cells with no rows. A grid also promises arrow-key navigation the calendar never had; nothing in it is selected in place. | A static table of weeks, with one row per week plus the weekday row. Table roles sit on divs, because the layout is CSS grid and some browsers drop a native table's semantics once its display changes. Each day is named in full, including "today" and "a scheduled post is past its time", which only colour showed. Post links say their status and platform, title first. Layout unchanged: pixel-identical up to 768 px, anti-aliasing only above. | `b3c4d42` |
+| A-2 | `<article role="button">` with an `aria-label`. The label replaced the message, time and type. A button's children are presentational, so Mark read was hidden from screen readers while still focusable. | A plain article. Its title is a real button named "title, unread", and Mark read is its own button beside it. A click anywhere on the card still opens it through the title button's stretched `::after`; the action sits above that layer, so the two never both fire and no propagation is stopped. The focus ring is drawn around the card. | `778bb35` |
+| A-3 | The listbox had no name. The input used `aria-activedescendant` without being a combobox or saying what it controls. Options were buttons that Tab stopped on. Hints sat inside the listbox, and the result count was never announced. | The input is now `role="combobox"` with `aria-controls`, `aria-expanded` and `aria-autocomplete="list"`. The listbox is named "Search results" and its groups are labelled by kind. Options are reached with the arrow keys only. One always-mounted status says "Searching…", the count, or the empty state, once. | `aa1e02f` |
+| A-4 | The sidebar was an `<aside>`, which cannot take `role="dialog"`. | A div named "Menu": a modal dialog while open on a phone, otherwise a region. The region keeps the logo link and footer inside a landmark. The first version left them outside one, a `region` finding caught by a targeted axe run, and fixed in `efc5308`. | `892c2f2`, `efc5308` |
+| A-5 | Two unnamed complementary landmarks on detail pages (the sidebar and the detail aside). In dialogs, the Modal's `<header>`, rendered in a portal outside `<main>`, counted as a second page banner. | The sidebar is no longer an aside (A-4), and the Modal's header and footer are divs. Detail pages and open dialogs now have one banner and no indistinct landmarks. | `09e22e2` |
+| A-6 | The global skip link targets `#main-content`, which only the app shell's `<main>` had. | The sign-in, forgot-password, invitation, loading, session-restore and public report pages give their `<main>` that id and `tabIndex={-1}`. | `0baa02a` |
+| A-7 | Every column of row buttons had an empty `<th>`. | `DataTable` gives an empty header a visually hidden "Actions" (all eight such columns are row actions); the three hand-written tables do the same. Phones still show no label on those cells. | `f79f5f3` |
+
+**Tests:** 13 new unit tests:
+- `ContentCalendar.test.tsx`: 6
+- `NotificationItem.test.tsx`: 5
+- `DataTable.test.tsx`: 2
+
+There is also a new main-suite spec, `e2e/demo/a11y-remediation.spec.ts`. It runs axe on each fixed component in light and dark, at desktop and phone widths where relevant, and checks keyboard order and focus. Updated existing tests:
+- the bell-panel keyboard test now focuses the title button (`workflows.spec.ts`);
+- the history test now finds the sidebar by its name, not by `aside` (`filter-matrix.spec.ts`).
+
+**Not covered:**
+- **Manual screen-reader pass.** No NVDA or VoiceOver session has been run; that is still outstanding.
+- **Calendar tooltip read twice.** Each calendar chip's tooltip is the same text as its accessible name. Chrome still exposes it as a description. NVDA skips a description equal to the name, but VoiceOver's behaviour has not been checked.
+- **Playwright's role engine.** It lists no column headers for the People table in the client Manage dialog, although Chrome's accessibility tree has them ("columnheader: Actions" and the rest, checked over CDP). That test asserts the header cell's text instead.
+- **Hidden calendar posts.** On a day with more than three posts, "+n more" is plain text, and the extra posts cannot be reached from the calendar by anyone. This is an existing functional limit, not changed here.
+
+### Remediation gates (final run)
+
+| Gate | Result |
+|---|---|
+| ESLint | 0 errors, 20 warnings (the same pre-existing `react-refresh` warnings, F-31) |
+| TypeScript | passes |
+| Unit tests | 446/446 (54 files), none skipped |
+| E2E (`npm run e2e`) | 238/238 in 15.8 min, none skipped, no retries |
+| Accessibility (`npm run e2e:a11y`) | 172/172 scenes in 15.5 min, 0 violation nodes (382 before), with no allowed exceptions |
+| Production build | passes |
+| Responsive sweep | 49 page × width checks at 320–1920 px, no overflow or clipping. Every focus stop (247) shows a visible indicator; the notification items show it on their card, checked by its computed outline and a screenshot |
+| Before and after | 116 captures across 10 screens at 6 widths, light and dark. 59 are pixel-identical; the rest differ by under 0.7%, from demo timestamps, anti-aliasing, the text cursor or animation timing |
+
+Browser coverage is Chrome only. Firefox and Safari were not run. No screen reader was used.
