@@ -2981,6 +2981,9 @@ a.list-row:hover strong {
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  /* Rows 24px apart, so each 13px box keeps its own 24px target (WCAG 2.5.8;
+     axe flagged the 21px rows). Phones and touch screens get 32px below. */
+  min-height: 24px;
   font-size: 13px;
   color: var(--ink-secondary);
   cursor: pointer;
