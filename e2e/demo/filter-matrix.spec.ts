@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, open, test } from './fixtures';
+import { expect, open, sidebar, test } from './fixtures';
 
 /*
   Filtering regression matrix. Filters live in the URL (useUrlFilters), so a
@@ -115,7 +115,7 @@ test.describe('Leads filters', () => {
 
   test('changing filters replaces the history entry: Back leaves the list instead of undoing each filter', async ({ page }) => {
     await open(page, '/my-work');
-    await page.locator('aside').getByRole('link', { name: 'Leads', exact: true }).click();
+    await sidebar(page).getByRole('link', { name: 'Leads', exact: true }).click();
     await expect(page).toHaveURL(/\/leads$/);
     await page.locator('#lead-filter').selectOption('NEW');
     await page.locator('#lead-source-filter').selectOption('REFERRAL');

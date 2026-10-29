@@ -141,12 +141,16 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
     Tab stays inside, and closing hands focus back to the menu button. `open`
     is only ever true there — the menu button is hidden on wider screens.
     Closed, CSS hides it from the tab order as well as from sight.
+
+    A div, not an <aside> (A-4): aside cannot take role="dialog", and the
+    sidebar is not complementary content. Its landmark is the "Main
+    navigation" nav inside it, which is what screen readers list.
   */
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, open);
 
   return (
-    <aside
+    <div
       ref={ref}
       id={SIDEBAR_ID}
       className={open ? 'sidebar sidebar--open' : 'sidebar'}
@@ -187,6 +191,6 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       </nav>
 
       <div className="sidebar__footer">{t('sidebar.footer')}</div>
-    </aside>
+    </div>
   );
 }

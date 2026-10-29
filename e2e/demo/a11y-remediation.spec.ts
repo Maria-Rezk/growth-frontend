@@ -237,3 +237,37 @@ test.describe('A-3 search: a combobox with a named list of results', () => {
     await expect(page.locator('.topbar .search-trigger')).toBeFocused();
   });
 });
+
+test.describe('A-4 phone menu: a dialog on an element that allows it', () => {
+  for (const theme of THEMES) {
+    test(`${theme}, 375px: the open menu is a named modal dialog holding the main navigation, no axe violations`, async ({ page }) => {
+      await useTheme(page, theme);
+      await page.setViewportSize({ width: 375, height: 812 });
+      await open(page, '/my-work');
+      const button = page.locator('.topbar').getByRole('button', { name: /menu/i }).first();
+      await button.click();
+      const menu = page.getByRole('dialog', { name: 'Menu' });
+      await expect(menu).toBeVisible();
+      await expect(menu).toHaveAttribute('aria-modal', 'true');
+      expect(await menu.evaluate((element) => element.tagName)).toBe('DIV');
+      await expect(menu.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+      expect(await violations(page, '#app-sidebar')).toEqual([]);
+
+      // Focus is inside, Tab stays inside, Escape closes and returns focus.
+      expect(await page.evaluate(() => document.getElementById('app-sidebar')!.contains(document.activeElement))).toBe(true);
+      for (let i = 0; i < 40; i += 1) await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.getElementById('app-sidebar')!.contains(document.activeElement))).toBe(true);
+      await page.keyboard.press('Escape');
+      await expect(menu).toBeHidden();
+      await expect(button).toBeFocused();
+    });
+  }
+
+  test('on desktop the sidebar is no dialog and no complementary landmark, just its navigation', async ({ page }) => {
+    await open(page, '/tasks/task-1');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.locator('#app-sidebar')).not.toHaveAttribute('role', /.+/);
+    expect(await page.locator('#app-sidebar').evaluate((element) => element.tagName)).toBe('DIV');
+    await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+  });
+});
