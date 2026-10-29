@@ -12,18 +12,18 @@ import { ROUTES, expect, open, test } from './fixtures';
   best practices. Every violation is written to e2e/.artifacts/a11y-report.json
   with its impact (critical, serious, moderate, minor).
 
-  A violation fails the run unless it is one of the KNOWN findings below:
-  each is outside Phase 3B-2's scope and documented, with evidence and a
-  recommended fix, in docs/frontend-audit-2026-10-28.md ("V-3 findings").
-  Fixing one means deleting its entry here. Anything new fails.
+  A violation fails the run unless it is listed in KNOWN below, pinned by
+  rule and target, with a reference into docs/frontend-audit-2026-10-28.md
+  explaining why it cannot be fixed yet. The list is empty: the seven
+  findings of the first audit (A-1 to A-7) are fixed, each with a
+  regression test in a11y-remediation.spec.ts. Add to it only with a
+  documented reason; never match broadly.
 
   Automated checks find perhaps a third of real problems. They do not replace
   testing with a screen reader and a keyboard.
 */
 
-const KNOWN: ReadonlyArray<{ rule: string; target: RegExp; ref: string }> = [
-  { rule: 'empty-table-header', target: /th/, ref: 'A-7' },
-];
+const KNOWN: ReadonlyArray<{ rule: string; target: RegExp; ref: string }> = [];
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
 const REPORT = path.resolve('e2e/.artifacts/a11y-report.json');

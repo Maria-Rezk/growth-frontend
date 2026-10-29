@@ -262,7 +262,7 @@ function MembersSection({ client }: { client: Company }) {
                 <tr>
                   <th>Employee</th>
                   <th>Roles on this client</th>
-                  <th className="cell-right" />
+                  <th className="cell-right"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>

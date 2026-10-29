@@ -350,3 +350,35 @@ test.describe('A-6 the skip link works on the sign-in pages', () => {
     }
   });
 });
+
+test.describe('A-7 actions columns have a header for screen readers', () => {
+  const TABLES = ['/members', '/admin/employees', '/admin/clients', '/content-plans', '/posts?view=table', '/leads?view=table', '/tasks?view=table', '/reports'];
+
+  for (const theme of THEMES) {
+    test(`${theme}: every table header names its column, no axe violations in the tables`, async ({ page }) => {
+      await useTheme(page, theme);
+      for (const path of TABLES) {
+        await open(page, path);
+        const table = page.locator('main table').first();
+        await expect(table).toBeVisible();
+        const empty = await table.locator('th').evaluateAll((cells) => cells.filter((cell) => !(cell.textContent ?? '').trim()).length);
+        expect(empty, path).toBe(0);
+        expect(await violations(page, 'main table'), path).toEqual([]);
+      }
+    });
+  }
+
+  test('the client People table in the Manage dialog, at 375 and 1440 px', async ({ page }) => {
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+      await page.setViewportSize(viewport);
+      await open(page, '/admin/clients');
+      await page.locator('main').getByRole('button', { name: 'Manage' }).first().click();
+      const dialog = page.getByRole('dialog');
+      // Asserted on the cell's text: Playwright's role engine does not list this table's headers at
+      // all, though Chrome's accessibility tree has "columnheader: Actions" (checked over CDP).
+      await expect(dialog.locator('table th', { hasText: /^Actions$/ })).toHaveCount(1);
+      expect(await violations(page, '[role="dialog"] table')).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    }
+  });
+});
