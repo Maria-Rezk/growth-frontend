@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { SuperAdminOnly } from '@/components/layout/RequireAdmin';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Field, Input, Select } from '@/components/ui/Fields';
+import { Field, FieldGroup, Input, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingState, ErrorState } from '@/components/ui/State';
 import { useCompany } from '@/context/CompanyContext';
@@ -273,6 +273,7 @@ function MembersSection({ client }: { client: Company }) {
                       {editingId === member.id ? (
                         <div className="role-editor">
                           <RoleChecklist
+                            label={`Roles for ${member.user?.fullName ?? employeeName.get(member.userId) ?? 'member'}`}
                             value={membershipRoles(member)}
                             disabled={changeRole.loading && pendingId === member.id}
                             onChange={(roles) => saveRoles(member, roles)}
@@ -325,12 +326,13 @@ function MembersSection({ client }: { client: Company }) {
             ))}
           </Select>
         </Field>
-        <Field label="Roles" htmlFor="assign-roles" error={form.formState.errors.roles?.message}>
+        <FieldGroup label="Roles" rule="Pick at least one role." error={form.formState.errors.roles?.message}>
           <RoleChecklist
             value={form.watch('roles')}
+            invalid={Boolean(form.formState.errors.roles)}
             onChange={(roles) => form.setValue('roles', roles, { shouldValidate: true })}
           />
-        </Field>
+        </FieldGroup>
         <Button
           type="submit"
           size="sm"

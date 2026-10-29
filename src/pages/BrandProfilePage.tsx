@@ -232,7 +232,8 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
           <div className="form-card stack-list">
             {colors.fields.length === 0 ? <p className="muted">No colours yet.</p> : null}
             {colors.fields.map((fieldItem, index) => (
-              <div key={fieldItem.id} className="repeat-row">
+              // Every row repeats Name, Hex and Pick; the group says which colour they belong to.
+              <div key={fieldItem.id} className="repeat-row" role="group" aria-label={`Colour ${index + 1}`}>
                 <Field label="Name" htmlFor={`color-name-${index}`} required error={form.formState.errors.colors?.[index]?.name?.message}>
                   <Input id={`color-name-${index}`} {...form.register(`colors.${index}.name`)} />
                 </Field>

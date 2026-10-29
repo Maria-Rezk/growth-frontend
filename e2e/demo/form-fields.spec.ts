@@ -98,3 +98,88 @@ test.describe('required and optional fields', () => {
     await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('aria-required', 'true');
   });
 });
+
+test.describe('composite controls are named groups (N-12)', () => {
+  /** Every <label for> in `scope` points at an element that exists. */
+  async function expectNoDanglingLabels(scope: Locator) {
+    const dangling = await scope.evaluate((root) => [...root.querySelectorAll('label[for]')]
+      .filter((label) => !document.getElementById(label.getAttribute('for') ?? ''))
+      .map((label) => label.textContent?.trim()));
+    expect(dangling, 'labels pointing at nothing').toEqual([]);
+  }
+
+  test('Assign to a client: the roles are a group with its rule, its error, and invalid boxes', async ({ page }) => {
+    await open(page, '/admin/employees');
+    await page.locator('main').getByRole('button', { name: 'Assign to client' }).first().click();
+    const dialog = page.getByRole('dialog');
+    const roles = dialog.getByRole('group', { name: 'Roles on this client' });
+    await expect(roles).toBeVisible();
+    await expect(roles).toHaveAccessibleDescription(/Pick at least one role\./);
+    // Sub-groups keep their own names inside it.
+    await expect(roles.getByRole('group', { name: 'Agency team' })).toBeVisible();
+    await expectNoDanglingLabels(dialog);
+
+    // Keyboard: Space unticks the only role; the error describes the group and every box is flagged.
+    const designer = roles.getByRole('checkbox', { name: 'Designer' });
+    await designer.focus();
+    await page.keyboard.press('Space');
+    await expect(designer).not.toBeChecked();
+    await expect(roles.getByText('Pick at least one role.', { exact: true }).last()).toBeVisible();
+    await expect(roles).toHaveAccessibleDescription(/Pick at least one role\..*Pick at least one role\./);
+    for (const box of await roles.getByRole('checkbox').all()) await expect(box).toHaveAttribute('aria-invalid', 'true');
+    // The danger ring shows on a box that is not focused; focus keeps the focus ring.
+    const copywriter = roles.getByRole('checkbox', { name: 'Copywriter', exact: true });
+    expect(await copywriter.evaluate((input) => getComputedStyle(input).outlineColor)).toBe('rgb(180, 35, 24)');
+    expect(await designer.evaluate((input) => getComputedStyle(input).outlineColor)).toBe('rgb(201, 20, 75)');
+    await expect(dialog.getByRole('button', { name: 'Assign', exact: true })).toBeDisabled();
+
+    // Tab moves to the next box, Space ticks it, and the error and flags clear.
+    await page.keyboard.press('Tab');
+    await expect(roles.getByRole('checkbox', { name: 'Art director' })).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(roles.getByRole('checkbox', { name: 'Art director' })).toBeChecked();
+    await expect(roles.locator('.field__error')).toHaveCount(0);
+    await expect(copywriter).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  test('client people: the add-person roles are a group, and each inline editor is named for the person', async ({ page }) => {
+    await open(page, '/admin/clients');
+    await page.locator('main').getByRole('button', { name: 'Manage' }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('group', { name: 'Roles', exact: true })).toHaveAccessibleDescription(/Pick at least one role\./);
+    await expectNoDanglingLabels(dialog);
+    const change = dialog.getByRole('button', { name: /^Change roles for / }).first();
+    const person = (await change.getAttribute('aria-label'))!.replace('Change roles for ', '');
+    await change.click();
+    await expect(dialog.getByRole('group', { name: `Roles for ${person}` })).toBeVisible();
+  });
+
+  test('Members: the inline role editor is named for the person', async ({ page }) => {
+    await open(page, '/members');
+    await page.getByRole('button', { name: 'Change roles for Demo Designer' }).click();
+    const group = page.getByRole('group', { name: 'Roles for Demo Designer' });
+    await expect(group).toBeVisible();
+    await expect(group.getByRole('checkbox', { name: 'Designer' })).toBeChecked();
+  });
+
+  test('Brand colours: each row is a named group, the picker is labelled, Tab goes Name, Hex, Pick, Remove', async ({ page }) => {
+    await open(page, '/brand-profile');
+    const rows = page.getByRole('group', { name: /^Colour \d+$/ });
+    expect(await rows.count()).toBeGreaterThan(0);
+    const first = page.getByRole('group', { name: 'Colour 1' });
+    const name = first.getByLabel('Name');
+    const hex = first.getByLabel('Hex');
+    const pick = first.getByLabel('Pick');
+    await expect(pick).toHaveAttribute('type', 'color');
+    const before = await hex.inputValue();
+    await name.focus();
+    await page.keyboard.press('Tab');
+    await expect(hex).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(pick).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(first.getByRole('button', { name: 'Remove colour 1' })).toBeFocused();
+    // Values are untouched by the grouping.
+    await expect(hex).toHaveValue(before);
+  });
+});

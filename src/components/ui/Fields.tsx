@@ -89,6 +89,52 @@ export function Field({
   );
 }
 
+/**
+ * `Field` for a control made of several inputs: a set of checkboxes, a
+ * checklist, a radio group. A <label for> can only name one input, so the
+ * label becomes the group's legend, and the hint, rule and error describe the
+ * group rather than any one box inside it.
+ *
+ * `rule` is how a required group says what it needs ("Pick at least one
+ * role."). A group has no aria-required, so the rule is shown and read out
+ * on entering the group instead — unlike a single field, where the
+ * requirement is implicit.
+ */
+export function FieldGroup({
+  label,
+  rule,
+  hint,
+  error,
+  optional = false,
+  className,
+  children,
+}: {
+  label: string;
+  rule?: string;
+  hint?: string;
+  error?: string;
+  optional?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ruleId = useId();
+  const hintId = useId();
+  const errorId = useId();
+  const describedBy = [rule ? ruleId : null, hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+  return (
+    <fieldset className={clsx('field', className)} aria-describedby={describedBy}>
+      <legend className="field__label">
+        {label}
+        {optional ? <OptionalMark /> : null}
+      </legend>
+      {rule ? <p className="field__hint" id={ruleId}>{rule}</p> : null}
+      {children}
+      {hint ? <p className="field__hint" id={hintId}>{hint}</p> : null}
+      {error ? <p className="field__error" id={errorId} role="alert">{error}</p> : null}
+    </fieldset>
+  );
+}
+
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...props }, ref) {
     return <input ref={ref} className={clsx('input', className)} {...props} />;

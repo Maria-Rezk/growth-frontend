@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { Field, Input, Select } from './Fields';
+import { Field, FieldGroup, Input, Select } from './Fields';
 
 afterEach(cleanup);
 
@@ -113,5 +113,25 @@ describe('Field required and optional', () => {
     render(<Field label="Search" htmlFor="search"><Input id="search" /></Field>);
     const input = screen.getByRole('textbox', { name: 'Search' });
     expect(input).not.toHaveAttribute('aria-required');
+  });
+});
+
+describe('FieldGroup', () => {
+  it('names the group with its legend and describes it with rule, hint and error, in that order', () => {
+    render(
+      <FieldGroup label="Roles" rule="Pick at least one role." hint="Saving replaces the set." error="Pick at least one role.">
+        <input type="checkbox" aria-label="Designer" />
+      </FieldGroup>,
+    );
+    const group = screen.getByRole('group', { name: 'Roles' });
+    expect(group.tagName).toBe('FIELDSET');
+    expect(group).toHaveAccessibleDescription('Pick at least one role. Saving replaces the set. Pick at least one role.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Pick at least one role.');
+  });
+
+  it('marks an optional group in its legend and has no description without text', () => {
+    render(<FieldGroup label="Type" optional><input type="checkbox" aria-label="Design" /></FieldGroup>);
+    const group = screen.getByRole('group', { name: 'Type (optional)' });
+    expect(group).not.toHaveAttribute('aria-describedby');
   });
 });

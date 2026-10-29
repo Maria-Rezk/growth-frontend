@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
-import { Field, Select } from '@/components/ui/Fields';
+import { Field, FieldGroup, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { useAsync, useMutation } from '@/hooks/useAsync';
 import { applyServerFieldErrors } from '@/lib/forms';
@@ -155,9 +155,9 @@ export function AssignClientModal({ employee, onClose }: { employee: Employee | 
                 ) : null}
               </Select>
             </Field>
-            <Field
+            <FieldGroup
               label="Roles on this client"
-              htmlFor="assign-roles"
+              rule="Pick at least one role."
               hint={existing
                 ? 'Starts from what they hold today. Saving replaces the set, so leave the roles they keep ticked.'
                 : undefined}
@@ -165,9 +165,10 @@ export function AssignClientModal({ employee, onClose }: { employee: Employee | 
             >
               <RoleChecklist
                 value={form.watch('roles')}
+                invalid={Boolean(form.formState.errors.roles)}
                 onChange={(roles) => form.setValue('roles', roles, { shouldValidate: true })}
               />
-            </Field>
+            </FieldGroup>
           </>
         ) : (
           <p className="muted">No clients exist yet.</p>

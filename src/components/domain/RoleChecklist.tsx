@@ -15,7 +15,9 @@ import { AGENCY_ROLES, CLIENT_SIDE_ROLES, ROLE_LABELS_AR, humanizeRole } from '@
  *
  * Saving replaces the whole set, so this always starts from what the person
  * already holds. The caller is responsible for blocking an empty set: the API
- * rejects it, and a member with no roles has no permissions.
+ * rejects it, and a member with no roles has no permissions. In a form, wrap
+ * it in a `FieldGroup` (its legend names the set and carries the rule) and
+ * pass `invalid` with the error; used on its own, give it a `label`.
  *
  * Selection keeps click order: the API preserves the order it is sent and
  * reports the first entry as the person's main role, so the first box ticked
@@ -27,6 +29,8 @@ export function RoleChecklist({
   disabled = false,
   includeClientRoles = true,
   available,
+  label,
+  invalid = false,
 }: {
   value: CompanyMembershipRole[];
   onChange: (roles: CompanyMembershipRole[]) => void;
@@ -34,6 +38,10 @@ export function RoleChecklist({
   includeClientRoles?: boolean;
   /** Narrows what can be picked — invitations accept only a subset. */
   available?: readonly CompanyMembershipRole[];
+  /** Names the whole set when no FieldGroup legend does, e.g. "Roles for Sara". */
+  label?: string;
+  /** The set fails validation: each box says so, and the error describes the group. */
+  invalid?: boolean;
 }) {
   const name = useId();
   const { lang } = useLocale();
@@ -60,6 +68,7 @@ export function RoleChecklist({
             id={`${name}-${role}`}
             type="checkbox"
             checked={value.includes(role)}
+            aria-invalid={invalid || undefined}
             onChange={() => toggle(role)}
           />
           <span>{lang === 'ar' && ROLE_LABELS_AR[role] ? ROLE_LABELS_AR[role] : humanizeRole(role)}</span>
@@ -70,7 +79,7 @@ export function RoleChecklist({
   };
 
   return (
-    <div className="role-checklist">
+    <div className="role-checklist" role={label ? 'group' : undefined} aria-label={label}>
       <div className="role-checklist__groups">
         {group('Agency team', AGENCY_ROLES)}
         {includeClientRoles ? group("The client's own people", CLIENT_SIDE_ROLES) : null}

@@ -106,6 +106,7 @@ function MembersInner({ companyId }: { companyId: string }) {
         return (
           <div className="role-editor">
             <RoleChecklist
+              label={`Roles for ${name}`}
               value={membershipRoles(member)}
               disabled={updateMember.loading}
               /*
