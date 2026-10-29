@@ -18,6 +18,7 @@ import { leadsService } from '@/services/leads';
 import { campaignsService } from '@/services/campaigns';
 import { tasksService } from '@/services/tasks';
 import { humanize } from '@/utils/format';
+import { modShortcut } from '@/utils/platform';
 
 type Kind = 'client' | 'post' | 'task' | 'lead' | 'plan' | 'campaign';
 
@@ -59,12 +60,15 @@ export function CommandPalette() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
+  // The platform never changes under a running page, so read it once.
+  const shortcut = useMemo(() => modShortcut('k'), []);
+
   return (
     <>
-      <button type="button" className="search-trigger" onClick={() => setOpen(true)} aria-label="Search (Ctrl+K)" title="Search · Ctrl+K">
+      <button type="button" className="search-trigger" onClick={() => setOpen(true)} aria-label={`Search (${shortcut.label})`} aria-keyshortcuts={shortcut.aria} title={`Search · ${shortcut.label}`}>
         <SearchIcon size={16} />
         <span className="search-trigger__label">Search</span>
-        <kbd className="search-trigger__kbd" aria-hidden="true">⌘K</kbd>
+        <kbd className="search-trigger__kbd" aria-hidden="true">{shortcut.keys}</kbd>
       </button>
       {open ? <Palette onClose={() => setOpen(false)} /> : null}
     </>

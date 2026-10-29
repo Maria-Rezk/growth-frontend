@@ -123,4 +123,32 @@ test.describe('command palette', () => {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
   });
+
+  // F-23: the hint names the modifier this platform uses; both modifiers open it everywhere.
+  const PLATFORMS = [
+    { name: 'Windows', platform: 'Win32', hint: 'Windows', keys: 'Ctrl K', label: 'Ctrl+K', aria: 'Control+K' },
+    { name: 'Linux', platform: 'Linux x86_64', hint: 'Linux', keys: 'Ctrl K', label: 'Ctrl+K', aria: 'Control+K' },
+    { name: 'macOS', platform: 'MacIntel', hint: 'macOS', keys: '⌘K', label: '⌘K', aria: 'Meta+K' },
+  ];
+  for (const os of PLATFORMS) {
+    test(`on ${os.name} the search button shows ${os.keys}, and both shortcuts open the palette`, async ({ page }) => {
+      await page.addInitScript(({ platform, hint }) => {
+        Object.defineProperty(Navigator.prototype, 'platform', { get: () => platform });
+        Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => ({ platform: hint, brands: [], mobile: false }) });
+      }, os);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await open(page, '/my-work');
+      const trigger = page.locator('.topbar .search-trigger');
+      await expect(trigger.locator('kbd')).toHaveText(os.keys);
+      await expect(trigger).toHaveAccessibleName(`Search (${os.label})`);
+      await expect(trigger).toHaveAttribute('aria-keyshortcuts', os.aria);
+      await expect(trigger).toHaveAttribute('title', `Search · ${os.label}`);
+      for (const chord of ['Control+k', 'Meta+k']) {
+        await page.keyboard.press(chord);
+        await expect(page.getByRole('dialog')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toBeHidden();
+      }
+    });
+  }
 });
