@@ -29,6 +29,8 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
             <AuthProvider>
               <AppErrorBoundary>
                 <ConfirmProvider>
+                  {/* Every page's <main> is #main-content, the app shell's and the
+                      sign-in, loading and public report pages' alike (A-6). */}
                   <a className="skip-link" href="#main-content">Skip to main content</a>
                   <DevApiWarning />
                   <App />

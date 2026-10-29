@@ -77,7 +77,7 @@ function PageFallback() {
 
 export function App() {
   return (
-    <Suspense fallback={<main className="auth-shell"><PageFallback /></main>}>
+    <Suspense fallback={<main id="main-content" className="auth-shell" tabIndex={-1}><PageFallback /></main>}>
       <Routes>
         {/* Public. `/accept-invitation` must stay outside ProtectedRoute — an
             invitee following the emailed link has no session yet. Moving it

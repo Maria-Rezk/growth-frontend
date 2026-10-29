@@ -41,7 +41,7 @@ export function LoginPage() {
   });
 
   return (
-    <main className="auth-shell">
+    <main id="main-content" className="auth-shell" tabIndex={-1}>
       <section className="auth-card">
         <div className="auth-brand">
           <Logo height={36} title="Solu1ions — Business Development" />

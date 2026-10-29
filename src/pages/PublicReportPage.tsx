@@ -23,7 +23,7 @@ export function PublicReportPage() {
   usePageTitle(title);
 
   return (
-    <main className="public-report">
+    <main id="main-content" className="public-report" tabIndex={-1}>
       <header className="public-report__brand no-print">
         <Logo height={28} title="Solu1ions — Business Development" />
       </header>

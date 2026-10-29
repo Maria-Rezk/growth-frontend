@@ -40,7 +40,7 @@ export function ForgotPasswordPage() {
   usePageTitle(token ? 'Choose a new password' : 'Forgot password');
 
   return (
-    <main className="auth-shell">
+    <main id="main-content" className="auth-shell" tabIndex={-1}>
       <section className="auth-card">
         <div className="auth-brand">
           <Logo height={36} title="Solu1ions Business Development" />

@@ -301,3 +301,52 @@ test.describe('A-5 one banner, and every landmark distinguishable', () => {
     }
   }
 });
+
+test.describe('A-6 the skip link works on the sign-in pages', () => {
+  const PUBLIC = ['/login', '/forgot-password', '/accept-invitation?token=demo-invite-token'];
+
+  async function signedOut(page: Page) {
+    await open(page, '/my-work');
+    await page.getByRole('button', { name: 'Logout' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+  }
+
+  async function goInApp(page: Page, to: string) {
+    // In-app navigation: a full load would restore the demo session.
+    await page.evaluate((path) => { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')); }, to);
+    await expect(page.locator('h1').first()).toBeVisible();
+  }
+
+  for (const theme of THEMES) {
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+      test(`${theme}, ${viewport.width}px: a target exists on each page and axe finds nothing`, async ({ page }) => {
+        await useTheme(page, theme);
+        await page.setViewportSize(viewport);
+        await signedOut(page);
+        for (const path of PUBLIC) {
+          await goInApp(page, path);
+          await expect(page.locator('main#main-content')).toHaveCount(1);
+          expect(await violations(page, 'body'), path).toEqual([]);
+        }
+      });
+    }
+  }
+
+  test('keyboard: the skip link comes first, and Enter on it moves focus to the page', async ({ page }) => {
+    await signedOut(page);
+    for (const path of PUBLIC) {
+      await goInApp(page, path);
+      // First in tab order: the first focusable element in the document.
+      const first = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .find((element) => !element.hasAttribute('disabled'))?.className);
+      expect(first, path).toBe('skip-link');
+      const skip = page.getByRole('link', { name: 'Skip to main content' });
+      await skip.focus();
+      await page.keyboard.press('Enter');
+      await expect(page.locator('main#main-content')).toBeFocused();
+      // The next Tab continues inside the page, not back at the top.
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.querySelector('main')!.contains(document.activeElement))).toBe(true);
+    }
+  });
+});
