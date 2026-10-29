@@ -45,10 +45,16 @@ Phase 3B is not started.
 | N-7 Leads filter card | ◐ Partly (closeout): tablet resolved, phone trade-off documented | `567711e`, `34b2e49` | `e2e/demo/density.spec.ts` |
 | Compact stepper overflow at 320 px (from F-21) | ✅ Resolved (closeout) | `58c0789` | `e2e/demo/detail-nav.spec.ts` |
 | Filtering regression matrix | ✅ Added (closeout) | `69d14d7` | `e2e/demo/filter-matrix.spec.ts` |
+| F-22 touch targets | ✅ Resolved (Phase 3B-1) | `38d1815` | `e2e/demo/touch-targets.spec.ts` (hit areas probed with elementFromPoint) |
+| F-24 sidebar labels vs headings | ✅ Resolved (Phase 3B-1) | `dd5f84b` | `e2e/demo/navigation.spec.ts` |
+| F-25 logo to the role-aware home | ✅ Resolved (Phase 3B-1) | `a16d3e0` | `components/layout/Sidebar.test.tsx`, `e2e/demo/navigation.spec.ts` |
+| F-26 full, safe return after sign-in | ✅ Resolved (Phase 3B-1) | `8af4343` | `config/appRoutes.test.ts`, `e2e/demo/auth.spec.ts` |
+| F-29 login "Show password" | ✅ Resolved (Phase 3B-1) | `0494040` | `pages/LoginPage.test.tsx` |
+| F-27 required and optional fields | ✅ Resolved (Phase 3B-1) | `1927bc6` | `components/ui/Fields.test.tsx`, `e2e/demo/form-fields.spec.ts` |
 
 **Still open:**
 - **P2:** F-06, F-13, F-16, F-17
-- **P3:** F-22 – F-33, N-1, N-5, N-7 (phone part)
+- **P3:** F-23, F-28, F-30 – F-33, N-1, N-5, N-7 (phone part, see N-7 options), N-10 – N-13
 
 **Verification still outstanding (treat as P1):**
 - **V-1:** live suite on staging
@@ -390,14 +396,14 @@ The gaps, in order of user impact:
 
 | ID | Where | Problem | Fix | Effort |
 |---|---|---|---|---|
-| F-22 | Topbar search at 320 px (19×32 px); Notification preference checkboxes (13×13); Automations toggles (40×22) | Touch targets under 24 px (WCAG 2.5.8) | Minimum 24×24 hit area; 44×44 on `pointer: coarse` via padding or a pseudo-element | S |
+| F-22 ✅ | Topbar search at 320 px (19×32 px); Notification preference checkboxes (13×13); Automations toggles (40×22) | Touch targets under 24 px (WCAG 2.5.8) | Minimum 24×24 hit area; 44×44 on `pointer: coarse` via padding or a pseudo-element | S |
 | F-23 | `CommandPalette.tsx:67` | Shows the Mac "⌘K" glyph on Windows while the label says Ctrl+K | `navigator.platform`/`userAgentData` check → "Ctrl K" | S |
-| F-24 | Sidebar labels vs H1 | "Leads CRM" → "Leads", "Content posts" → "Content posts", "Client overview" → client name, "Responsibilities" → "Responsibility matrix" | Make each nav label match its H1 | S |
-| F-25 | `Sidebar.tsx:138` | The logo links to `/dashboard`, but staff land on `/my-work` | Link to `/` (LandingRedirect) | S |
-| F-26 | `LoginPage.tsx:35` | Post-login return keeps only `pathname`, so `?status=…` filters and hashes are lost | Store and restore `pathname + search + hash` | S |
-| F-27 | Forms (Create task etc.) | Required fields aren't marked; "Optional" appears only on some fields | Use a single convention: mark the minority (usually "Optional") everywhere, and add `aria-required` | S |
+| F-24 ✅ | Sidebar labels vs H1 | "Leads CRM" → "Leads", "Content posts" → "Content posts", "Client overview" → client name, "Responsibilities" → "Responsibility matrix" | Make each nav label match its H1 | S |
+| F-25 ✅ | `Sidebar.tsx:138` | The logo links to `/dashboard`, but staff land on `/my-work` | Link to `/` (LandingRedirect) | S |
+| F-26 ✅ | `LoginPage.tsx:35` | Post-login return keeps only `pathname`, so `?status=…` filters and hashes are lost | Store and restore `pathname + search + hash` | S |
+| F-27 ✅ | Forms (Create task etc.) | Required fields aren't marked; "Optional" appears only on some fields | Use a single convention: mark the minority (usually "Optional") everywhere, and add `aria-required` | S |
 | F-28 | `WaitingBanner` | Shown on every page and can't be dismissed; costs about 60 px on mobile | "Snooze for today" (per user, localStorage) | S |
-| F-29 | Login | No "show password" toggle (the reset form has one) | Reuse the same control | S |
+| F-29 ✅ | Login | No "show password" toggle (the reset form has one) | Reuse the same control | S |
 | F-30 | `index.html:25` | Open TODO: no `apple-touch-icon` / web manifest | Export a 180 px PNG and a minimal `manifest.webmanifest` | S |
 | F-31 | Lint | 20 `react-refresh/only-export-components` warnings (contexts and Button export hooks/constants) | Move `useX` hooks and constants into sibling files; then make lint fail on warnings (`--max-warnings 0`) | S |
 | F-32 | `index.html` | Inter is loaded from Google Fonts: a third-party request and a possible GDPR question for EU clients | Self-host Inter (woff2, 3 weights) | S |
@@ -416,6 +422,10 @@ The gaps, in order of user impact:
 | N-8 (P2) — ✅ Resolved `24a9ff7` | `.pipeline-summary` (Leads) and `.workflow-summary` (Posts), above 760 px | Verified at about 800 px on Leads; Posts not checked | Between the phone chip layout (F-19) and a wide screen, the `auto-fit` grid of stage tiles leaves empty bordered cells (on Leads at about 800 px, 5 + 2 stages). | Use the same chip row up to the width where all stages fit one row, or balance the columns | S |
 | N-9 (P2) — ✅ Resolved `bd9295b` | `services/demoStore.ts` (demo leads) | Verified | The demo leads stored free-text sources ("Instagram DM", "Website", "Referral"). The filter, the create form (`z.nativeEnum(LeadSource)`) and the API (enum sets identical per the backend source read) all use `INSTAGRAM`, `WEBSITE`, `REFERRAL`, so Source matched nothing in demo mode. It was a fixture defect, not a contract or normalisation problem. **Limitation:** the real API's stored values were not checked against a live instance; the contract comes from the backend source read, not a running API (V-1). | Fixtures use the enum; `Lead.source` is typed `LeadSource`, so a free-text value is now a compile error | S |
 | N-7 phone trade-off (note) | `/leads` at 375 px | Measured | After the closeout the first lead is at y 927 (was 931). Above it: topbar 56, banner 56, header 121, counts 91, stage chips 138, filter card 295. The card is already as short as its five controls get. Scope and View side by side wrap the scope options (tried and rejected); collapsing filters, hiding the subtitle or moving "New lead" into the title row on every page were ruled out by the brief. At 768 and 1024 px the first lead moved up 51 to 52 px. | A decision on a global phone page-header pattern (Phase 3B) | M |
+| N-10 (P3) | `pages/AcceptInvitationPage.tsx` | Verified | Full name and Password are required only when the invitation creates a new account, so neither "(optional)" nor an unmarked field is true for everyone; the form keeps its explanatory hints. | Ask "Do you already have an account?" first, then show only the fields that path needs, each correctly marked | M |
+| N-11 (P3) | Native checkboxes and radios | Verified | They use the browser's default blue, not the brand accent, next to magenta switches and segmented controls. | `accent-color: var(--accent)` on inputs | S |
+| N-12 (P3) | Role checklists (`assign-roles`), colour swatch picker | Code-confirmed | Composite controls inside a `Field`: the required convention cannot put aria-required on them, so they rely on their validation message alone. | Give them `role="group"` with a required description, or a fieldset/legend like Task types | S |
+| N-13 (note) | `qa/route-matrix.md` | Verified | The generated evidence file still lists the old labels ("Leads CRM", "Responsibilities"); it is regenerated by `npm run e2e:evidence`. | Regenerate with the next evidence run | S |
 | N-4 (note) | Dialogs | Rule | A field inside a dialog must not use `autoFocus` at open: it takes focus before the trap can record the opener, so focus cannot return on close. `Modal` now focuses the first field itself. `autoFocus` on a field revealed mid-dialog is fine. | — | — |
 
 ---
@@ -534,3 +544,20 @@ The gaps, in order of user impact:
 | F-10/F-18/F-19 | At 320, 375, 768 and 1024 px, no control is clipped without an affordance; the first list item on `/leads`, `/tasks` and `/my-work` is visible within 1.5 viewport heights at 375 px. Evidence screenshots refreshed. |
 | F-16/F-17 | 0 imports of deleted files; build passes; font sizes come only from `--fs-*` tokens (stylelint rule or grep check in CI). |
 | All | `npm run lint` (with `--max-warnings 0` once F-31 lands), `typecheck`, `test:run`, `e2e` and `build` all pass. |
+
+## N-7 options: reaching the first lead sooner on a phone (proposed, not implemented)
+
+Measured at 375 px, after Phase 3A: the first lead starts at y 927. Above it: topbar 56, waiting banner 56, page header 121 (title, subtitle, "New lead"), follow-up counts 91, stage chips 138, filter card 295. Pixel figures below are estimates from those measurements, to be confirmed with screenshots before acceptance.
+
+| | A. Filters in a sheet | B. Drop the duplicate status control on phones | C. A compact phone page frame, app-wide |
+|---|---|---|---|
+| Layout | Below 760 px the filter card becomes one row: Search, plus a "Filters (n)" button. The button opens a dialog with Scope, Status, Source and View. Active filters show as removable chips under the row. | The stage chips already set Status, so on phones the Status select goes and the chips are the status filter. Search and Source share a row, and the View switch moves into the page header beside "New lead". The card becomes Scope; Search beside Source. | Two changes on every page: "New lead" (and each page's primary action) moves beside the title instead of below the subtitle, and the waiting banner gets "Snooze for today" (F-28). |
+| Estimated gain | About 220 px (card 295 → about 60, plus about 32 for chips when filters are active). First lead at about 710. | About 120 px. First lead at about 805, at the fold. | About 50 px header plus 56 px banner once snoozed. First lead at about 820, and gains on every list page. |
+| Filter discoverability | Lower. Status and Source are one tap away, behind a labelled button with a count, and active filters stay visible as chips. | High. Every filter stays on screen; Status is set through the chips already shown. | Unchanged. |
+| Accessibility | Uses the existing `Modal` (focus trap, Escape, focus return). The button reports `aria-haspopup="dialog"`, and its name includes the count ("Filters, 2 active"). The chips are buttons named "Remove Status: Interested". | The chips are a labelled group of `aria-pressed` toggles, already tested. One status control on phones, two on desktop: the same names and order. | The action keeps its name and its place in the reading order (after the title). The snooze needs a clear, reversible label. |
+| Desktop impact | None (phones only). | None (phones only). | Changes the header of every page at every width, unless also limited to phones. |
+| Effort | M (about 1 day): a new filter-sheet pattern, chip summary, tests. | S (about half a day): CSS plus a small JSX move, tests. | M (1 to 1.5 days): PageHeader layout plus WaitingBanner snooze; it touches every page. |
+| Trade-offs | A new interaction pattern, and one extra tap for Status and Source. | Status is set differently on phones and on desktop; the gain is smaller and only reaches the fold. | A design-system decision rather than a Leads fix; a snoozed banner can hide a real reminder. |
+
+**Recommendation: B first.** It reaches the fold without hiding any filter or adding a new pattern, at the lowest cost, and leaves desktop untouched. A is the better long-term pattern if more filters are added; C is worth doing as its own design-system change in Phase 3B-2, where it also helps every other list page.
+
