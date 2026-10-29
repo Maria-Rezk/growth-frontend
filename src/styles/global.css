@@ -2142,12 +2142,43 @@ a.list-row:hover strong {
   transition: background .12s ease, border-color .12s ease;
 }
 
-.notification-item[role='button'] {
+.notification-item--openable {
   cursor: pointer;
 }
 
-.notification-item[role='button']:hover {
+.notification-item--openable:hover {
   background: var(--n-50);
+}
+
+/* The title is the button that opens the item (A-2). It reads as the title
+   did; its ::after stretches over the card so a click anywhere opens it,
+   and the focus ring is drawn around the whole card. */
+.notification-item__open {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
+.notification-item__open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.notification-item__open:focus-visible {
+  outline: none;
+}
+
+.notification-item:has(.notification-item__open:focus-visible) {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
 }
 
 .notification-item--compact {
@@ -2236,6 +2267,9 @@ a.list-row:hover strong {
 }
 
 .notification-item__action {
+  /* Above the title button's stretched click area. */
+  position: relative;
+  z-index: 1;
   align-self: center;
 }
 

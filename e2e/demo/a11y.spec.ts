@@ -22,8 +22,6 @@ import { ROUTES, expect, open, test } from './fixtures';
 */
 
 const KNOWN: ReadonlyArray<{ rule: string; target: RegExp; ref: string }> = [
-  { rule: 'nested-interactive', target: /\.notification-item/, ref: 'A-2' },
-  { rule: 'aria-allowed-role', target: /\.notification-item/, ref: 'A-2' },
   { rule: 'aria-input-field-name', target: /\.palette__results/, ref: 'A-3' },
   { rule: 'aria-allowed-role', target: /#app-sidebar/, ref: 'A-4' },
   { rule: 'landmark-unique', target: /#app-sidebar|\.topbar|aside|header|nav|main/, ref: 'A-5' },

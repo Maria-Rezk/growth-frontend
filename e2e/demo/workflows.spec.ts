@@ -256,7 +256,7 @@ test.describe('notifications', () => {
       await expect(panel).toBeFocused();
       await page.keyboard.press('Tab'); // Mark all read
       await page.keyboard.press('Tab'); // first notification
-      await expect(panel.locator('.notification-item').first()).toBeFocused();
+      await expect(panel.locator('.notification-item').first().getByRole('button')).toBeFocused();
       await page.keyboard.press('Enter');
       await expect(panel).toBeHidden();
       await expect(page).not.toHaveURL(/\/my-work$/);

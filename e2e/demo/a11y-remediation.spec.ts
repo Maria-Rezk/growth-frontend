@@ -27,6 +27,13 @@ async function violations(page: Page, selector: string, rules?: string[]) {
 
 const THEMES = ['light', 'dark'] as const;
 
+/** The first unread item on /notifications, pinned by its title so it stays the same item once read. */
+async function firstUnread(page: Page) {
+  const unread = page.locator('main article.notification-item').filter({ has: page.getByRole('button', { name: 'Mark read' }) }).first();
+  const title = (await unread.locator('.notification-item__open').innerText()).trim();
+  return page.locator('main article.notification-item').filter({ has: page.locator('.notification-item__open', { hasText: title }) }).first();
+}
+
 test.describe('A-1 content calendar is a table of weeks', () => {
   for (const theme of THEMES) {
     for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
@@ -63,5 +70,73 @@ test.describe('A-1 content calendar is a table of weeks', () => {
     await expect(first).toHaveAccessibleName(/, (Draft|Scheduled|Ready For Client|Approved|Published|In Internal Review|Changes Requested|Canceled)(, |$)/);
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/posts\/[^/?]+$/);
+  });
+});
+
+test.describe('A-2 notification items: open and mark read are separate controls', () => {
+  for (const theme of THEMES) {
+    test(`${theme}: the page and the bell panel have no nested or misused roles`, async ({ page }) => {
+      await useTheme(page, theme);
+      await open(page, '/notifications');
+      expect(await violations(page, 'main')).toEqual([]);
+      await page.locator('.topbar').getByRole('button', { name: /^Notifications/ }).click();
+      expect(await violations(page, '.notifications-panel')).toEqual([]);
+    });
+  }
+
+  test('each item: a named open button, its message readable, its own Mark read button', async ({ page }) => {
+    await open(page, '/notifications');
+    const item = await firstUnread(page);
+    await expect(item).not.toHaveAttribute('role', 'button');
+    const opener = item.locator('.notification-item__open');
+    await expect(opener).toHaveAccessibleName(/, unread$/);
+    // The message and time are content, not hidden behind a label.
+    await expect(item.locator('p')).toBeVisible();
+    await expect(item.locator('time')).toHaveAttribute('datetime', /\d{4}-\d\d-\d\dT/);
+
+    // Keyboard: Tab goes open, then Mark read, for the same item.
+    await opener.focus();
+    await page.keyboard.press('Tab');
+    await expect(item.getByRole('button', { name: 'Mark read' })).toBeFocused();
+    // Enter on Mark read marks it read and does not open it.
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/notifications$/);
+    await expect(opener).not.toHaveAccessibleName(/, unread$/);
+    await expect(item.getByRole('button', { name: 'Mark read' })).toHaveCount(0);
+  });
+
+  test('a click on the Mark read button does not also open the item; a click on the card does', async ({ page }) => {
+    await open(page, '/notifications');
+    const item = await firstUnread(page);
+    await item.getByRole('button', { name: 'Mark read' }).click();
+    await expect(item.getByRole('button', { name: 'Mark read' })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/notifications$/);
+    // Anywhere on the card, here over the message text, still opens it: a real
+    // mouse click there lands on the title button's stretched area.
+    const message = (await item.locator('p').boundingBox())!;
+    await page.mouse.click(message.x + message.width / 2, message.y + message.height / 2);
+    await expect(page).not.toHaveURL(/\/notifications$/);
+  });
+
+  test('Enter and Space on the title open it, with one history entry', async ({ page }) => {
+    for (const key of ['Enter', ' ']) {
+      await open(page, '/notifications');
+      const opener = page.locator('main .notification-item__open').first();
+      await opener.focus();
+      await page.keyboard.press(key);
+      await expect(page).not.toHaveURL(/\/notifications$/);
+      // Once: one step back returns to the list.
+      await page.goBack();
+      await expect(page).toHaveURL(/\/notifications$/);
+    }
+  });
+
+  test('the focus ring is drawn around the whole card', async ({ page }) => {
+    await open(page, '/notifications');
+    const item = page.locator('main article.notification-item').first();
+    await item.locator('.notification-item__open').focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    expect(await item.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
   });
 });
