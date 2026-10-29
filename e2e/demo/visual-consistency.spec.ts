@@ -43,3 +43,35 @@ test.describe('native checkboxes and radios use the brand accent (N-11)', () => 
     });
   }
 });
+
+test.describe('type floor (F-33)', () => {
+  const PAGES = ['/my-work', '/tasks', '/leads', '/approvals', '/posts?view=calendar', '/responsibilities', '/automations', '/notifications', '/posts/post-1', '/admin/activity'];
+
+  for (const viewport of [{ width: 320, height: 640 }, { width: 1440, height: 900 }]) {
+    test(`${viewport.width}px: nothing under 11px, and 11px only for caps labels and numbers`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      for (const path of PAGES) {
+        await open(page, path);
+        const offenders = await page.evaluate(() => {
+          const found: string[] = [];
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const text = node.textContent?.trim() ?? '';
+            const element = node.parentElement;
+            if (!text || !element) continue;
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            if (!rect.width || style.visibility === 'hidden' || element.closest('[aria-hidden="true"], .sr-only, .table-sort-icon')) continue;
+            // The documented exception: step names in the four ~57px columns of the stepper under 360px.
+            if (window.innerWidth < 360 && element.matches('.workflow-step strong') && parseFloat(style.fontSize) === 11) continue;
+            const size = parseFloat(style.fontSize);
+            const capsOrNumber = style.textTransform === 'uppercase' || /^[\d+\-–·:./%\s]+$/.test(text) || element.closest('kbd');
+            if (size < 11 || (size < 12 && !capsOrNumber)) found.push(`${size}px "${text.slice(0, 30)}" in .${element.className}`);
+          }
+          return [...new Set(found)];
+        });
+        expect(offenders, `${path} at ${viewport.width}px`).toEqual([]);
+      }
+    });
+  }
+});
