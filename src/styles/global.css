@@ -4855,12 +4855,19 @@ fieldset.field > legend {
 
 .calendar__grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 1px;
   background: var(--line);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   overflow: hidden;
+}
+
+/* One row per week (and one for the weekday names), the same seven columns
+   and 1px rules as the single grid had. */
+.calendar__week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
 }
 
 .calendar__weekday {
@@ -4874,6 +4881,8 @@ fieldset.field > legend {
 }
 
 .calendar__day {
+  /* Contains its screen-reader labels, which are absolutely positioned. */
+  position: relative;
   min-height: 96px;
   padding: 6px;
   background: var(--surface);

@@ -22,8 +22,6 @@ import { ROUTES, expect, open, test } from './fixtures';
 */
 
 const KNOWN: ReadonlyArray<{ rule: string; target: RegExp; ref: string }> = [
-  { rule: 'aria-required-children', target: /\.calendar__grid/, ref: 'A-1' },
-  { rule: 'aria-required-parent', target: /\.calendar__(weekday|day|cell)|role="gridcell"|gridcell|calendar/, ref: 'A-1' },
   { rule: 'nested-interactive', target: /\.notification-item/, ref: 'A-2' },
   { rule: 'aria-allowed-role', target: /\.notification-item/, ref: 'A-2' },
   { rule: 'aria-input-field-name', target: /\.palette__results/, ref: 'A-3' },
