@@ -6,7 +6,7 @@
 | Types | `npm run typecheck` | `tsc --noEmit` over `src/`. |
 | Unit and integration | `npm run test:run` | Vitest + Testing Library, everything under `src/`. |
 | End-to-end (demo) | `npm run e2e` | Playwright against a local server in **demo mode**: in-memory sample data, no backend. |
-| Accessibility | `npm run e2e:a11y` | axe-core (WCAG 2.0–2.2 A/AA and best practices) on every route, the public pages, the create dialogs and the overlays, in light and dark, at 1440 and 375 px. Fails on any violation not listed as a known, documented finding in `e2e/demo/a11y.spec.ts`; the full list lands in `e2e/.artifacts/a11y-report.json`. About 40 minutes on this machine, so it is a separate gate, not part of `npm run e2e`. It does not replace screen-reader testing. |
+| Accessibility | `npm run e2e:a11y` | axe-core (WCAG 2.0–2.2 A/AA and best practices) on every route, the public pages, the create dialogs and the overlays, in light and dark, at 1440 and 375 px. Fails on any violation not listed as a known, documented finding in `e2e/demo/a11y.spec.ts`; the full list lands in `e2e/.artifacts/a11y-report.json`. 20 to 40 minutes on this machine, so it is a separate gate, not part of `npm run e2e`. It does not replace screen-reader testing. |
 | Evidence | `npm run e2e:evidence` | Screenshots of the key pages at 1440 and 375 px, plus `qa/route-matrix.md`. |
 | End-to-end (live) | `npm run e2e:live` | Playwright against a **real deployment**. Read-only. See below. |
 | Build | `npm run build` | Type check, then the production bundle. |

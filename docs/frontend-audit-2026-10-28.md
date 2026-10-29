@@ -15,7 +15,7 @@ Carried forward:
 - Open P2/P3 findings below.
 - Verification V-1 to V-3, including the live-API lead source values.
 
-Phase 3B is not started.
+Phase 3B-1 closed, and Phase 3B-2 implemented on `phase-3b2-visual-accessibility` (see "Phase 3B-2 notes" at the end). Phase 4 is not started.
 
 | Finding | Status | Commit | Tests |
 |---|---|---|---|
@@ -52,15 +52,24 @@ Phase 3B is not started.
 | F-29 login "Show password" | ✅ Resolved (Phase 3B-1) | `0494040` | `pages/LoginPage.test.tsx` |
 | F-27 required and optional fields | ✅ Resolved (Phase 3B-1) | `1927bc6` | `components/ui/Fields.test.tsx`, `e2e/demo/form-fields.spec.ts` |
 | N-7 Leads on phones, option B | ✅ Implemented (Phase 3B-1); first lead on the first screen only at 430×932 | see the commit "Leads on phones: the chips are the status filter" | `e2e/demo/density.spec.ts` |
+| F-23 platform-aware shortcut hint | ✅ Resolved (Phase 3B-2) | `03d865a` | `utils/platform.test.ts`, `e2e/demo/navigation.spec.ts` (Windows, Linux, macOS) |
+| N-11 brand checkboxes and radios | ✅ Resolved (Phase 3B-2) | `af85069` | `e2e/demo/visual-consistency.spec.ts` (light and dark) |
+| N-12 composite controls as named groups | ✅ Resolved (Phase 3B-2); target size of the role rows found by V-3 and fixed | `0e5911f`, `9f30121` | `components/ui/Fields.test.tsx`, `e2e/demo/form-fields.spec.ts`, `e2e/demo/a11y.spec.ts` |
+| N-10 conditional fields on Accept invitation | ✅ Resolved (Phase 3B-2) | `bc3847e` | `pages/AcceptInvitationPage.test.tsx`, `e2e/demo/auth.spec.ts` (both account paths) |
+| F-28 waiting banner snooze | ✅ Resolved (Phase 3B-2): safe snooze, see "Phase 3B-2 notes" | `a80c470` | `utils/bannerSnooze.test.ts`, `e2e/demo/waiting-banner.spec.ts` |
+| F-33 typography and secondary-text contrast | ✅ Resolved (Phase 3B-2); one documented exception (stepper under 360 px) | `98b6681`, `ee6624a` | `e2e/demo/visual-consistency.spec.ts` (type floor), `e2e/demo/a11y.spec.ts` (contrast) |
+| N-13 route matrix labels and role-aware routing | ✅ Resolved (Phase 3B-2), regenerated with `npm run e2e:evidence` | `35d6ff0` | `e2e/demo/evidence.spec.ts` |
+| V-3 automated accessibility audit | ✅ Gate added (Phase 3B-2): `npm run e2e:a11y`; seven out-of-scope findings documented (A-1 to A-7) | `01f43b7` | `e2e/demo/a11y.spec.ts` |
 
 **Still open:**
 - **P2:** F-06, F-13, F-16, F-17
-- **P3:** F-23, F-28, F-30 – F-33, N-1, N-5, N-10 – N-13, and N-7 at 320 to 390 px (see "N-7 after option B")
+- **P3:** F-30 – F-32, N-1, N-5, N-14, and N-7 at 320 to 390 px (see "N-7 after option B")
+- **Accessibility, from V-3:** A-1 to A-7, of which A-1 is critical and A-2 and A-3 are serious (see "Phase 3B-2 notes")
 
 **Verification still outstanding (treat as P1):**
 - **V-1:** live suite on staging
 - **V-2:** a client-role pass
-- **V-3:** axe scan
+- ~~**V-3:** axe scan~~: done in Phase 3B-2 (`npm run e2e:a11y`). It does not replace a manual screen-reader pass (NVDA or VoiceOver), which has not been done.
 
 ## 0. How to read this
 
@@ -398,17 +407,17 @@ The gaps, in order of user impact:
 | ID | Where | Problem | Fix | Effort |
 |---|---|---|---|---|
 | F-22 ✅ | Topbar search at 320 px (19×32 px); Notification preference checkboxes (13×13); Automations toggles (40×22) | Touch targets under 24 px (WCAG 2.5.8) | Minimum 24×24 hit area; 44×44 on `pointer: coarse` via padding or a pseudo-element | S |
-| F-23 | `CommandPalette.tsx:67` | Shows the Mac "⌘K" glyph on Windows while the label says Ctrl+K | `navigator.platform`/`userAgentData` check → "Ctrl K" | S |
+| F-23 ✅ | `CommandPalette.tsx:67` | Shows the Mac "⌘K" glyph on Windows while the label says Ctrl+K | `navigator.platform`/`userAgentData` check → "Ctrl K" | S |
 | F-24 ✅ | Sidebar labels vs H1 | "Leads CRM" → "Leads", "Content posts" → "Content posts", "Client overview" → client name, "Responsibilities" → "Responsibility matrix" | Make each nav label match its H1 | S |
 | F-25 ✅ | `Sidebar.tsx:138` | The logo links to `/dashboard`, but staff land on `/my-work` | Link to `/` (LandingRedirect) | S |
 | F-26 ✅ | `LoginPage.tsx:35` | Post-login return keeps only `pathname`, so `?status=…` filters and hashes are lost | Store and restore `pathname + search + hash` | S |
 | F-27 ✅ | Forms (Create task etc.) | Required fields aren't marked; "Optional" appears only on some fields | Use a single convention: mark the minority (usually "Optional") everywhere, and add `aria-required` | S |
-| F-28 | `WaitingBanner` | Shown on every page and can't be dismissed; costs about 60 px on mobile | "Snooze for today" (per user, localStorage) | S |
+| F-28 ✅ | `WaitingBanner` | Shown on every page and can't be dismissed; costs about 60 px on mobile | "Snooze for today" (per user, localStorage) | S |
 | F-29 ✅ | Login | No "show password" toggle (the reset form has one) | Reuse the same control | S |
 | F-30 | `index.html:25` | Open TODO: no `apple-touch-icon` / web manifest | Export a 180 px PNG and a minimal `manifest.webmanifest` | S |
 | F-31 | Lint | 20 `react-refresh/only-export-components` warnings (contexts and Button export hooks/constants) | Move `useX` hooks and constants into sibling files; then make lint fail on warnings (`--max-warnings 0`) | S |
 | F-32 | `index.html` | Inter is loaded from Google Fonts: a third-party request and a possible GDPR question for EU clients | Self-host Inter (woff2, 3 weights) | S |
-| F-33 | Typography | 11 px / 10 px text used for meta (17 + 3 rules) | Minimum 12 px; check muted-text contrast at that size | S |
+| F-33 ✅ | Typography | 11 px / 10 px text used for meta (17 + 3 rules) | Minimum 12 px; check muted-text contrast at that size | S |
 
 ### Found during the fixes
 
@@ -423,10 +432,11 @@ The gaps, in order of user impact:
 | N-8 (P2) — ✅ Resolved `24a9ff7` | `.pipeline-summary` (Leads) and `.workflow-summary` (Posts), above 760 px | Verified at about 800 px on Leads; Posts not checked | Between the phone chip layout (F-19) and a wide screen, the `auto-fit` grid of stage tiles leaves empty bordered cells (on Leads at about 800 px, 5 + 2 stages). | Use the same chip row up to the width where all stages fit one row, or balance the columns | S |
 | N-9 (P2) — ✅ Resolved `bd9295b` | `services/demoStore.ts` (demo leads) | Verified | The demo leads stored free-text sources ("Instagram DM", "Website", "Referral"). The filter, the create form (`z.nativeEnum(LeadSource)`) and the API (enum sets identical per the backend source read) all use `INSTAGRAM`, `WEBSITE`, `REFERRAL`, so Source matched nothing in demo mode. It was a fixture defect, not a contract or normalisation problem. **Limitation:** the real API's stored values were not checked against a live instance; the contract comes from the backend source read, not a running API (V-1). | Fixtures use the enum; `Lead.source` is typed `LeadSource`, so a free-text value is now a compile error | S |
 | N-7 phone trade-off (note) | `/leads` at 375 px | Measured | After the closeout the first lead is at y 927 (was 931). Above it: topbar 56, banner 56, header 121, counts 91, stage chips 138, filter card 295. The card is already as short as its five controls get. Scope and View side by side wrap the scope options (tried and rejected); collapsing filters, hiding the subtitle or moving "New lead" into the title row on every page were ruled out by the brief. At 768 and 1024 px the first lead moved up 51 to 52 px. | A decision on a global phone page-header pattern (Phase 3B) | M |
-| N-10 (P3) | `pages/AcceptInvitationPage.tsx` | Verified | Full name and Password are required only when the invitation creates a new account, so neither "(optional)" nor an unmarked field is true for everyone; the form keeps its explanatory hints. | Ask "Do you already have an account?" first, then show only the fields that path needs, each correctly marked | M |
-| N-11 (P3) | Native checkboxes and radios | Verified | They use the browser's default blue, not the brand accent, next to magenta switches and segmented controls. | `accent-color: var(--accent)` on inputs | S |
-| N-12 (P3) | Role checklists (`assign-roles`), colour swatch picker | Code-confirmed | Composite controls inside a `Field`: the required convention cannot put aria-required on them, so they rely on their validation message alone. | Give them `role="group"` with a required description, or a fieldset/legend like Task types | S |
-| N-13 (note) | `qa/route-matrix.md` | Verified | The generated evidence file still lists the old labels ("Leads CRM", "Responsibilities"); it is regenerated by `npm run e2e:evidence`. | Regenerate with the next evidence run | S |
+| N-10 (P3) — ✅ Resolved `bc3847e` | `pages/AcceptInvitationPage.tsx` | Verified | Full name and Password are required only when the invitation creates a new account, so neither "(optional)" nor an unmarked field is true for everyone; the form keeps its explanatory hints. | Ask "Do you already have an account?" first, then show only the fields that path needs, each correctly marked | M |
+| N-11 (P3) — ✅ Resolved `af85069` | Native checkboxes and radios | Verified | They use the browser's default blue, not the brand accent, next to magenta switches and segmented controls. | `accent-color: var(--accent)` on inputs | S |
+| N-12 (P3) — ✅ Resolved `0e5911f` | Role checklists (`assign-roles`), colour swatch picker | Code-confirmed | Composite controls inside a `Field`: the required convention cannot put aria-required on them, so they rely on their validation message alone. | Give them `role="group"` with a required description, or a fieldset/legend like Task types | S |
+| N-13 (note) — ✅ Resolved `35d6ff0` | `qa/route-matrix.md` | Verified | The generated evidence file still lists the old labels ("Leads CRM", "Responsibilities"); it is regenerated by `npm run e2e:evidence`. | Regenerate with the next evidence run | S |
+| N-14 (P3) | `pages/BrandProfilePage.tsx` (colour picker) | Code-confirmed | The Hex field accepts `#abc` and `C9144B` (three digits, or no `#`). The native picker needs `#rrggbb`, so for those valid values it shows black instead of the colour. Found during N-12 and not fixed, because it is outside the approved scope. | Expand the value to `#rrggbb` before passing it to the swatch | S |
 | N-4 (note) | Dialogs | Rule | A field inside a dialog must not use `autoFocus` at open: it takes focus before the trap can record the opener, so focus cannot return on close. `Modal` now focuses the first field itself. `autoFocus` on a field revealed mid-dialog is fine. | — | — |
 
 ---
@@ -582,3 +592,85 @@ Measured with Playwright on the demo data, first lead top (title bottom):
 
 The filter card is 245 px instead of 295 px (368 px at 320 px). The header is 8 px taller, because the switch is taller than the button. The rest of the distance on smaller phones is the topbar, banner, page header, counts and chips (option C, a Phase 3B-2 decision).
 
+---
+
+## Phase 3B-2 notes (29 October 2026)
+
+Branch `phase-3b2-visual-accessibility`, cut from `phase-3b1-ui-consistency` @ `8ef59c7`. Not merged, not pushed.
+
+### F-28: what the banner holds, and why snoozing is safe
+
+- **Staff:** reviews submitted to the signed-in person 24 hours ago or more, read from the first 25 items of their approval queue. **Clients:** posts that have waited 48 hours or more for their approval.
+- **Urgency:** these are reminders about overdue approvals, not alerts. Hiding the banner hides no information. Every item stays in the approval queue (staff), on Home (clients) and in the notifications feed (`REVIEW_WAITING_24H` and `_48H`, sent by the backend).
+- **Implementation:** a display preference on the frontend. No business rule changes, and no new reminder metadata was needed, because the item ids and wait times are already in the data.
+  - The snooze is stored per user (`growth.waiting-banner.snooze.<userId>`).
+  - It records each late item as `id@days waited`, and lasts until local midnight.
+- **When the banner reappears:**
+  - at local midnight;
+  - when an item becomes late that was not on screen when the banner was snoozed;
+  - when an item waits into another day (the 24h → 48h escalation);
+  - when the staff page was full and the total grows.
+- **Accessibility:**
+  - Snoozing confirms itself in a toast and moves focus to the page.
+  - The banner used to be a link with `role="status"`, which replaced its link role. It is now a "Reminder" region holding a link and a button.
+  - Its height is unchanged at every width: 56 px at 320 and 375, 37 px from 768. Under 480 px the visible label is "Snooze", but the accessible name stays "Snooze for today".
+
+### F-33: type floor and contrast
+
+- **Tokens:** `--text-meta` (12 px) is the smallest size for anything read as text. `--text-label` (11 px) is only for uppercase, letter-spaced labels and for numbers in counters, badges and keycaps. Nothing goes below 11 px.
+- **Rules changed:** 23 raw 10–11.5 px rules now use the tokens.
+  - Raised to 12 px: meta chips, wait times, calendar entries (10 px on phones before), "+n more" and routing notes.
+  - Raised to 11 px: the 10 px notification badge and the 10.5 px area key.
+- **Measured** on ten pages at 320–1920 px:
+  - no new overflow or clipping;
+  - components are 0–1 px taller (routing notes 4 px taller at 320 px);
+  - calendar day cells are unchanged.
+- **Exception:** the stepper's step names under 360 px stay at 11 px. At 12 px, "Approved" and "Published" overflow their ~57 px columns again (measured).
+- **Contrast fixes:**
+  - The count pill's muted grey on grey was 4.4:1. It now uses the secondary ink.
+  - The light theme's `--muted` changed from #6b7280 to #646c7a, because axe found it at 4.41–4.44:1 on the accent and danger tints. It is now 4.8:1 or more on every tint and 5.3:1 on white, and still well apart from the secondary ink (7.6:1). This is the only global token change.
+
+### V-3 findings
+
+**What `npm run e2e:a11y` covers:** axe-core 4.13, WCAG 2.0–2.2 A/AA rules plus best practices, across 172 scenes:
+- 31 page addresses, including the table and calendar views and the 404;
+- three public pages, signed out;
+- ten dialogs;
+- three overlays;
+- each in light and dark, at 1440 and 375 px.
+
+**Personas:** the demo signs in as a platform admin, so there is no client persona. `/home` is audited as staff see it, and the client-only navigation is not covered (V-2 is still open).
+
+**Fixed (in scope):**
+- muted-text contrast: 26 nodes on four scenes (F-33);
+- target size of the role checkboxes, in two dialogs (N-12).
+
+**Documented, not fixed (outside the approved scope).** Each finding is pinned in `a11y.spec.ts`, so anything new fails the gate. Node counts are from the first sweep across both themes and both widths.
+
+| Ref | Severity | Rule | Where | Evidence | Recommended fix |
+|---|---|---|---|---|---|
+| A-1 | Critical | `aria-required-children`, `aria-required-parent` (WCAG 1.3.1) | `components/domain/ContentCalendar.tsx`, `/posts?view=calendar` | `.calendar__grid` has `role="grid"`, but its `columnheader` and `gridcell` children sit directly inside it, with no `role="row"` (4 + 168 nodes, 42 distinct) | Wrap the weekday header, and each week, in an element with `role="row"`. Alternatively, drop the grid roles and use a list of days, since the calendar has no grid keyboard model |
+| A-2 | Serious | `nested-interactive` (4.1.2); `aria-allowed-role` (minor) | `NotificationsPage` and the notifications panel | `<article role="button" tabindex="0">` contains links. A screen reader announces one button, and the links inside it are not reachable as links | Make the item a plain article, with "open" on its title link and "mark read" as its own button |
+| A-3 | Serious | `aria-input-field-name` (4.1.2) | `CommandPalette.tsx`, the results list | `<div role="listbox" class="palette__results">` has no accessible name | Add `aria-label="Search results"`, or `aria-labelledby` pointing at the input's label |
+| A-4 | Minor | `aria-allowed-role` | `Sidebar.tsx`, the drawer on phones | `<aside role="dialog">` | Put the dialog role on a `div` that holds the nav |
+| A-5 | Moderate (best practice) | `landmark-unique`, `landmark-no-duplicate-banner` | Detail pages and every dialog | Two unnamed `aside` landmarks on detail pages. While a dialog is open, the page's `header.topbar` and a second banner both count | Name each `aside`, and make the dialog header a `div` |
+| A-6 | Moderate (best practice) | `region`, `skip-link` | `/login`, `/forgot-password`, `/accept-invitation` | The global "Skip to main content" link targets `#main-content`, which the sign-in pages lack, and it sits outside any landmark | Give the sign-in pages' `<main>` `id="main-content"` and `tabIndex={-1}`, or render the skip link only inside the app shell |
+| A-7 | Minor (best practice) | `empty-table-header` | Tables with an actions column (Members, Employees, Clients, plans, table views) | `<th class="cell-right"></th>` | Add a visually hidden "Actions" header |
+
+Automated rules catch only part of the real problems. A manual pass with a screen reader and a keyboard is still needed before production.
+
+
+### Phase 3B-2 gates (final run)
+
+| Gate | Result |
+|---|---|
+| ESLint | 0 errors, 20 warnings (the same pre-existing `react-refresh` warnings, F-31) |
+| TypeScript | passes |
+| Unit tests | 433/433 (52 files), none skipped |
+| E2E (`npm run e2e`) | 204/204 in 16.4 min, none skipped, no retries |
+| Production build | passes |
+| Accessibility (`npm run e2e:a11y`) | 172/172 scenes in 20.0 min, 0 unknown violations. The 382 remaining nodes all belong to A-1 to A-7: critical 172 (A-1), serious 12 (A-2, A-3), moderate 112 (A-5, A-6), minor 86 (A-2, A-4, A-7) |
+| Responsive sweep | 49 page × width checks at 320 to 1920 px, no overflow or clipping; 247 keyboard focus stops, all with a visible indicator |
+| Evidence (`npm run e2e:evidence`) | 50/50; `qa/route-matrix.md` regenerated |
+
+Browser coverage is Chrome only, as for every phase. Firefox and Safari were not run.
