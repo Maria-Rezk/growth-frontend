@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROUTES, expect, test } from './fixtures';
+import { ROUTES, type RouteAccess, expect, test } from './fixtures';
 
 /*
   Visual evidence and the route verification matrix, written to ./qa:
@@ -67,6 +67,12 @@ for (const size of SIZES) {
   }
 }
 
+const ACCESS_LABEL: Record<RouteAccess, string> = {
+  shared: 'Staff and clients',
+  agency: 'Staff (a client is sent to Home)',
+  admin: 'Platform admins',
+};
+
 test.afterAll(() => {
   const status = (row?: Row) => (!row ? '—' : row.overflow || row.consoleErrors ? 'FAIL' : 'pass');
   const lines = [
@@ -78,15 +84,35 @@ test.afterAll(() => {
     'A "pass" here means the page rendered its heading, logged no console errors and did not',
     'scroll sideways. It is not evidence of compatibility with the real API.',
     '',
-    '| Route | Page | Heading rendered | Desktop 1440 | Mobile 375 | Desktop load | Screenshots |',
-    '|---|---|---|---|---|---|---|',
+    '"Page" is the label the navigation shows. "Who reaches it" is how `src/App.tsx` guards the',
+    'route; the guards are cosmetic and the API enforces the real rule. The demo signs in as a',
+    'platform admin with every permission, so every row is rendered as staff: the client-side',
+    'redirects are covered by unit tests (`AgencyRoute.test.tsx`), not by this run.',
+    '',
+    '| Route | Page | Who reaches it | Heading rendered | Desktop 1440 | Mobile 375 | Desktop load | Screenshots |',
+    '|---|---|---|---|---|---|---|---|',
   ];
   for (const route of ROUTES) {
     const desktop = rows.find((row) => row.route === route.path && row.size === 'desktop');
     const mobile = rows.find((row) => row.route === route.path && row.size === 'mobile');
     const shots = [desktop?.screenshot, mobile?.screenshot].filter(Boolean).map((shot) => `[${shot!.includes('mobile') ? 'mobile' : 'desktop'}](${shot})`).join(' · ') || '—';
-    lines.push(`| \`${route.path}\` | ${route.label} | ${desktop?.heading ?? mobile?.heading ?? '—'} | ${status(desktop)} | ${status(mobile)} | ${desktop ? `${desktop.loadMs} ms` : '—'} | ${shots} |`);
+    lines.push(`| \`${route.path}\` | ${route.label} | ${ACCESS_LABEL[route.access]} | ${desktop?.heading ?? mobile?.heading ?? '—'} | ${status(desktop)} | ${status(mobile)} | ${desktop ? `${desktop.loadMs} ms` : '—'} | ${shots} |`);
   }
+  lines.push(
+    '',
+    '## Where people land',
+    '',
+    '| Who | `/` sends them to |',
+    '|---|---|',
+    '| Staff with a client | `/my-work` (My work) |',
+    '| A client-side member | `/home` (Home) |',
+    '| A platform admin with no client | `/admin/dashboard` (Operations dashboard) |',
+    '| Anyone else with no client | An explanation in place, no redirect |',
+    '| Signed out | `/login`, then back to the full address they asked for |',
+    '',
+    'Public, without signing in: `/login`, `/forgot-password`, `/accept-invitation`, and shared report links.',
+    'Any other address shows "Page not found" inside the app, with the typed address kept.',
+  );
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(path.join(OUT, 'route-matrix.md'), `${lines.join('\n')}\n`);
 });

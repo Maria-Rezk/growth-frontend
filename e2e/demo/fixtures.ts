@@ -29,31 +29,39 @@ export function sidebar(page: Page) {
   return page.getByRole('navigation', { name: 'Main navigation' });
 }
 
-/** The 25 routes a staff member with every permission can reach, with the heading each must show. */
-export const ROUTES: ReadonlyArray<{ path: string; heading: RegExp; label: string }> = [
-  { path: '/my-work', heading: /My work/, label: 'My work' },
-  { path: '/dashboard', heading: /Solu1ions Demo Workspace/, label: 'Client overview' },
-  { path: '/brand-profile', heading: /Brand profile/, label: 'Brand profile' },
-  { path: '/content-plans', heading: /Content plans/, label: 'Content plans' },
-  { path: '/content-plans/plan-1', heading: /June Growth Content Plan/, label: 'Content plan detail' },
-  { path: '/ai-studio', heading: /AI studio/, label: 'AI studio' },
-  { path: '/posts', heading: /Content posts/, label: 'Content posts' },
-  { path: '/posts/post-1', heading: /Agency Growth OS launch teaser/, label: 'Post detail' },
-  { path: '/campaigns', heading: /Campaigns/, label: 'Campaigns' },
-  { path: '/campaigns/campaign-1', heading: /Summer Laser Offer Campaign/, label: 'Campaign detail' },
-  { path: '/leads', heading: /^Leads$/, label: 'Leads' },
-  { path: '/leads/lead-1', heading: /Nour Clinic/, label: 'Lead detail' },
-  { path: '/tasks', heading: /Tasks/, label: 'Tasks' },
-  { path: '/tasks/task-1', heading: /Revise launch carousel CTA/, label: 'Task detail' },
-  { path: '/approvals', heading: /Approval queue/, label: 'Approval queue' },
-  { path: '/responsibilities', heading: /^Responsibility matrix$/, label: 'Responsibility matrix' },
-  { path: '/automations', heading: /Automations/, label: 'Automations' },
-  { path: '/reports', heading: /Reports/, label: 'Reports' },
-  { path: '/members', heading: /Members/, label: 'Members' },
-  { path: '/notifications', heading: /Notifications/, label: 'Notifications' },
-  { path: '/home', heading: /Home/, label: 'Client home' },
-  { path: '/admin/dashboard', heading: /Operations dashboard/, label: 'Operations dashboard' },
-  { path: '/admin/activity', heading: /Activity log/, label: 'Activity log' },
-  { path: '/admin/employees', heading: /Employees/, label: 'Employees' },
-  { path: '/admin/clients', heading: /Clients/, label: 'Clients' },
+/**
+ * Who a route is for, as `src/App.tsx` guards it:
+ * - `shared`: any signed-in member, staff or client.
+ * - `agency`: staff only. AgencyRoute sends a client-side member to Home.
+ * - `admin`: platform admins only. AdminRoute sends anyone else away.
+ */
+export type RouteAccess = 'shared' | 'agency' | 'admin';
+
+/** The 25 routes a staff member with every permission can reach, with the heading each must show and who else may. */
+export const ROUTES: ReadonlyArray<{ path: string; heading: RegExp; label: string; access: RouteAccess }> = [
+  { path: '/my-work', heading: /My work/, label: 'My work', access: 'agency' },
+  { path: '/dashboard', heading: /Solu1ions Demo Workspace/, label: 'Client overview', access: 'agency' },
+  { path: '/brand-profile', heading: /Brand profile/, label: 'Brand profile', access: 'shared' },
+  { path: '/content-plans', heading: /Content plans/, label: 'Content plans', access: 'shared' },
+  { path: '/content-plans/plan-1', heading: /June Growth Content Plan/, label: 'Content plan detail', access: 'shared' },
+  { path: '/ai-studio', heading: /AI studio/, label: 'AI studio', access: 'agency' },
+  { path: '/posts', heading: /Content posts/, label: 'Content posts', access: 'shared' },
+  { path: '/posts/post-1', heading: /Agency Growth OS launch teaser/, label: 'Post detail', access: 'shared' },
+  { path: '/campaigns', heading: /Campaigns/, label: 'Campaigns', access: 'agency' },
+  { path: '/campaigns/campaign-1', heading: /Summer Laser Offer Campaign/, label: 'Campaign detail', access: 'agency' },
+  { path: '/leads', heading: /^Leads$/, label: 'Leads', access: 'agency' },
+  { path: '/leads/lead-1', heading: /Nour Clinic/, label: 'Lead detail', access: 'agency' },
+  { path: '/tasks', heading: /Tasks/, label: 'Tasks', access: 'agency' },
+  { path: '/tasks/task-1', heading: /Revise launch carousel CTA/, label: 'Task detail', access: 'agency' },
+  { path: '/approvals', heading: /Approval queue/, label: 'Approval queue', access: 'agency' },
+  { path: '/responsibilities', heading: /^Responsibility matrix$/, label: 'Responsibility matrix', access: 'agency' },
+  { path: '/automations', heading: /Automations/, label: 'Automations', access: 'agency' },
+  { path: '/reports', heading: /Reports/, label: 'Reports', access: 'shared' },
+  { path: '/members', heading: /Members/, label: 'Members', access: 'agency' },
+  { path: '/notifications', heading: /Notifications/, label: 'Notifications', access: 'shared' },
+  { path: '/home', heading: /Home/, label: 'Client home', access: 'shared' },
+  { path: '/admin/dashboard', heading: /Operations dashboard/, label: 'Operations dashboard', access: 'admin' },
+  { path: '/admin/activity', heading: /Activity log/, label: 'Activity log', access: 'admin' },
+  { path: '/admin/employees', heading: /Employees/, label: 'Employees', access: 'admin' },
+  { path: '/admin/clients', heading: /Clients/, label: 'Clients', access: 'admin' },
 ];
