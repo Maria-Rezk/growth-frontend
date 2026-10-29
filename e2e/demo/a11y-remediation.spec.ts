@@ -263,11 +263,13 @@ test.describe('A-4 phone menu: a dialog on an element that allows it', () => {
     });
   }
 
-  test('on desktop the sidebar is no dialog and no complementary landmark, just its navigation', async ({ page }) => {
+  test('on desktop the sidebar is a named region, not a dialog, and all of it is inside a landmark', async ({ page }) => {
     await open(page, '/tasks/task-1');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.locator('#app-sidebar')).not.toHaveAttribute('role', /.+/);
-    expect(await page.locator('#app-sidebar').evaluate((element) => element.tagName)).toBe('DIV');
-    await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+    const region = page.getByRole('region', { name: 'Menu' });
+    await expect(region).toBeVisible();
+    expect(await region.evaluate((element) => element.tagName)).toBe('DIV');
+    await expect(region.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+    expect(await violations(page, '#app-sidebar', ['region', 'aria-allowed-role', 'landmark-unique'])).toEqual([]);
   });
 });

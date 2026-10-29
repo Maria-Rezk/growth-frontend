@@ -142,9 +142,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
     is only ever true there — the menu button is hidden on wider screens.
     Closed, CSS hides it from the tab order as well as from sight.
 
-    A div, not an <aside> (A-4): aside cannot take role="dialog", and the
-    sidebar is not complementary content. Its landmark is the "Main
-    navigation" nav inside it, which is what screen readers list.
+    A div, not an <aside> (A-4): aside cannot take role="dialog". The same
+    element is named "Menu" either way: a modal dialog while open on a
+    phone, otherwise a region, so the logo link and the footer around the
+    "Main navigation" nav stay inside a landmark.
   */
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, open);
@@ -154,7 +155,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       ref={ref}
       id={SIDEBAR_ID}
       className={open ? 'sidebar sidebar--open' : 'sidebar'}
-      {...(open ? { role: 'dialog', 'aria-modal': true, 'aria-label': t('a11y.menu') } : {})}
+      {...(open ? { role: 'dialog', 'aria-modal': true } : { role: 'region' })}
+      aria-label={t('a11y.menu')}
     >
       {/* Plain Link, not NavLink — the brand is a shortcut home, not a nav
           item, and it should never render in the active state. "/" is the
