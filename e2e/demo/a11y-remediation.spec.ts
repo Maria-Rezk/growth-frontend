@@ -140,3 +140,100 @@ test.describe('A-2 notification items: open and mark read are separate controls'
     expect(await item.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('solid');
   });
 });
+
+test.describe('A-3 search: a combobox with a named list of results', () => {
+  async function openPalette(page: Page) {
+    await open(page, '/my-work');
+    await page.locator('.topbar .search-trigger').click();
+    const dialog = page.getByRole('dialog', { name: 'Search' });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  }
+
+  for (const theme of THEMES) {
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+      test(`${theme}, ${viewport.width}px: no axe violations with results and when empty`, async ({ page }) => {
+        await useTheme(page, theme);
+        await page.setViewportSize(viewport);
+        const dialog = await openPalette(page);
+        await page.keyboard.type('ca');
+        await expect(dialog.getByRole('option').first()).toBeVisible();
+        expect(await violations(page, '.palette')).toEqual([]);
+        await page.keyboard.press('Control+a');
+        await page.keyboard.type('zzqq');
+        await expect(dialog.getByRole('status')).toHaveText('Nothing matches “zzqq” on this client.');
+        expect(await violations(page, '.palette')).toEqual([]);
+      });
+    }
+  }
+
+  test('the input owns the named list, and says whether it has options', async ({ page }) => {
+    const dialog = await openPalette(page);
+    const input = dialog.getByRole('combobox', { name: 'Search' });
+    const list = dialog.getByRole('listbox', { name: 'Search results' });
+    await expect(input).toBeFocused();
+    await expect(input).toHaveAttribute('aria-controls', (await list.getAttribute('id'))!);
+    await expect(input).toHaveAttribute('aria-expanded', 'false');
+    // Before typing, the instructions describe the input.
+    await expect(input).toHaveAccessibleDescription('Type at least two characters. ↑↓ to move, Enter to open.');
+    await page.keyboard.type('ca');
+    await expect(list.getByRole('option').first()).toBeVisible();
+    await expect(input).toHaveAttribute('aria-expanded', 'true');
+    // Results are grouped under their kind's name.
+    await expect(list.getByRole('group', { name: 'Tasks' })).toBeVisible();
+  });
+
+  test('the count and the empty state are announced once, from one status', async ({ page }) => {
+    const dialog = await openPalette(page);
+    const status = dialog.getByRole('status');
+    await expect(status).toHaveCount(1);
+    await page.keyboard.type('ca');
+    const options = dialog.getByRole('option');
+    await expect(options.first()).toBeVisible();
+    const count = await options.count();
+    await expect(status).toHaveText(`${count} ${count === 1 ? 'result' : 'results'}`);
+    // The count is not also shown as a visible hint.
+    await expect(dialog.locator('.palette__hint')).toHaveCount(0);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type('zzqq');
+    await expect(status).toHaveText('Nothing matches “zzqq” on this client.');
+    await expect(dialog.getByText('Nothing matches “zzqq” on this client.')).toHaveCount(1);
+  });
+
+  test('arrows move the active option, Enter opens it; Tab never lands on an option', async ({ page }) => {
+    const dialog = await openPalette(page);
+    const input = dialog.getByRole('combobox', { name: 'Search' });
+    await page.keyboard.type('ca');
+    const options = dialog.getByRole('option');
+    await expect(options.first()).toBeVisible();
+    await expect(options.first()).toHaveAttribute('aria-selected', 'true');
+    await expect(input).toHaveAttribute('aria-activedescendant', (await options.first().getAttribute('id'))!);
+
+    await page.keyboard.press('ArrowDown');
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(options.first()).toHaveAttribute('aria-selected', 'false');
+    await expect(input).toHaveAttribute('aria-activedescendant', (await options.nth(1).getAttribute('id'))!);
+    await page.keyboard.press('ArrowUp');
+    await expect(options.first()).toHaveAttribute('aria-selected', 'true');
+    // Focus stays in the input throughout.
+    await expect(input).toBeFocused();
+
+    for (const option of await options.all()) await expect(option).toHaveAttribute('tabindex', '-1');
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('role'))).not.toBe('option');
+    await input.focus();
+
+    // Enter opens the active result: its page replaces My work.
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(page).not.toHaveURL(/\/my-work$/);
+  });
+
+  test('Escape closes it and returns focus to the search button', async ({ page }) => {
+    await openPalette(page);
+    await page.keyboard.type('ca');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Search' })).toBeHidden();
+    await expect(page.locator('.topbar .search-trigger')).toBeFocused();
+  });
+});

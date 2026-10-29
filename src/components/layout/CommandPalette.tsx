@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { taskTypeSummary } from '@/utils/taskTypes';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -85,6 +85,8 @@ function Palette({ onClose }: { onClose: () => void }) {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
+  const hintId = useId();
   useFocusTrap(dialogRef, true, inputRef);
 
   const companyId = activeCompanyId ?? '';
@@ -144,6 +146,20 @@ function Palette({ onClose }: { onClose: () => void }) {
     return [...map.entries()];
   }, [results]);
 
+  /*
+    One live region, always mounted so screen readers are listening before
+    it changes, and changing only when the state does (the query is
+    debounced): "Searching…", the count, or the empty state. The visible
+    hint and the announcement are the same element, so nothing is said twice.
+  */
+  const status = !enabled
+    ? ''
+    : loading && results.length === 0
+      ? 'Searching…'
+      : results.length === 0
+        ? `Nothing matches “${debounced}” on this client.`
+        : `${results.length} ${results.length === 1 ? 'result' : 'results'}`;
+
   let index = -1;
   return createPortal(
     <div className="modal-backdrop palette-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -157,47 +173,58 @@ function Palette({ onClose }: { onClose: () => void }) {
             onChange={(event) => setQuery(event.target.value)}
             placeholder={isClient ? 'Search your content…' : 'Search tasks, content, leads, clients…'}
             aria-label="Search"
+            // A combobox (A-3): it owns the results list, says whether it has options, and points at the active one.
+            role="combobox"
+            aria-autocomplete="list"
+            aria-controls={listboxId}
+            aria-expanded={results.length > 0}
             aria-activedescendant={results[active] ? `palette-${results[active].kind}-${results[active].id}` : undefined}
+            aria-describedby={enabled ? undefined : hintId}
             autoComplete="off"
           />
           <kbd aria-hidden="true">esc</kbd>
         </div>
 
-        <div className="palette__results" role="listbox">
-          {!enabled ? <p className="palette__hint">Type at least two characters. ↑↓ to move, Enter to open.</p> : null}
-          {enabled && loading && results.length === 0 ? <p className="palette__hint">Searching…</p> : null}
-          {enabled && !loading && results.length === 0 ? <p className="palette__hint">Nothing matches “{debounced}” on this client.</p> : null}
-          {grouped.map(([kind, items]) => {
-            const Icon = KIND_ICON[kind];
-            return (
-              <div key={kind} className="palette__group">
-                <p className="palette__group-label">{KIND_LABEL[kind]}</p>
-                {items.map((result) => {
-                  index += 1;
-                  const current = index === active;
-                  return (
-                    <button
-                      key={`${result.kind}-${result.id}`}
-                      id={`palette-${result.kind}-${result.id}`}
-                      type="button"
-                      role="option"
-                      aria-selected={current}
-                      className={clsx('palette__item', current && 'palette__item--active')}
-                      onMouseEnter={() => setActive(indexOf(results, result))}
-                      onClick={() => choose(result)}
-                    >
-                      <Icon size={16} />
-                      <span className="palette__item-main">
-                        <strong>{result.title}</strong>
-                        {result.meta ? <span className="muted">{result.meta}</span> : null}
-                      </span>
-                      {result.status ? <StatusBadge value={result.status} /> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })}
+        <div className="palette__results">
+          {!enabled ? <p className="palette__hint" id={hintId}>Type at least two characters. ↑↓ to move, Enter to open.</p> : null}
+          {/* The count is for screen readers; the other states are shown too. */}
+          <p className={results.length > 0 ? 'sr-only' : status ? 'palette__hint' : 'sr-only'} role="status">{status}</p>
+          <div className="palette__list" id={listboxId} role="listbox" aria-label="Search results">
+            {grouped.map(([kind, items]) => {
+              const Icon = KIND_ICON[kind];
+              const labelId = `${listboxId}-${kind}`;
+              return (
+                <div key={kind} className="palette__group" role="group" aria-labelledby={labelId}>
+                  <p className="palette__group-label" id={labelId}>{KIND_LABEL[kind]}</p>
+                  {items.map((result) => {
+                    index += 1;
+                    const current = index === active;
+                    return (
+                      <button
+                        key={`${result.kind}-${result.id}`}
+                        id={`palette-${result.kind}-${result.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={current}
+                        // Options are reached with the arrow keys from the input, not with Tab.
+                        tabIndex={-1}
+                        className={clsx('palette__item', current && 'palette__item--active')}
+                        onMouseEnter={() => setActive(indexOf(results, result))}
+                        onClick={() => choose(result)}
+                      >
+                        <Icon size={16} />
+                        <span className="palette__item-main">
+                          <strong>{result.title}</strong>
+                          {result.meta ? <span className="muted">{result.meta}</span> : null}
+                        </span>
+                        {result.status ? <StatusBadge value={result.status} /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>,
