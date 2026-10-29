@@ -273,3 +273,31 @@ test.describe('A-4 phone menu: a dialog on an element that allows it', () => {
     expect(await violations(page, '#app-sidebar', ['region', 'aria-allowed-role', 'landmark-unique'])).toEqual([]);
   });
 });
+
+test.describe('A-5 one banner, and every landmark distinguishable', () => {
+  const LANDMARK_RULES = ['landmark-unique', 'landmark-no-duplicate-banner', 'landmark-no-duplicate-contentinfo', 'landmark-complementary-is-top-level', 'region'];
+
+  for (const theme of THEMES) {
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
+      test(`${theme}, ${viewport.width}px: a detail page and an open dialog`, async ({ page }) => {
+        await useTheme(page, theme);
+        await page.setViewportSize(viewport);
+        await open(page, '/tasks/task-1');
+        await expect(page.getByRole('banner')).toHaveCount(1);
+        expect(await violations(page, 'body', LANDMARK_RULES)).toEqual([]);
+
+        await open(page, '/leads');
+        await page.locator('main').getByRole('button', { name: 'New lead', exact: true }).click();
+        const dialog = page.getByRole('dialog', { name: 'Create lead' });
+        await expect(dialog).toBeVisible();
+        await expect(page.getByRole('banner')).toHaveCount(1);
+        await expect(page.getByRole('contentinfo')).toHaveCount(0);
+        expect(await violations(page, 'body', LANDMARK_RULES)).toEqual([]);
+        // The dialog keeps its title, Close button and footer actions.
+        await expect(dialog.getByRole('heading', { name: 'Create lead' })).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Close dialog' })).toBeVisible();
+        await expect(dialog.getByRole('button', { name: 'Create lead' })).toBeVisible();
+      });
+    }
+  }
+});

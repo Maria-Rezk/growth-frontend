@@ -22,8 +22,6 @@ import { ROUTES, expect, open, test } from './fixtures';
 */
 
 const KNOWN: ReadonlyArray<{ rule: string; target: RegExp; ref: string }> = [
-  { rule: 'landmark-unique', target: /#app-sidebar|\.topbar|aside|header|nav|main/, ref: 'A-5' },
-  { rule: 'landmark-no-duplicate-banner', target: /\.topbar|header/, ref: 'A-5' },
   { rule: 'region', target: /\.skip-link/, ref: 'A-6' },
   { rule: 'skip-link', target: /\.skip-link/, ref: 'A-6' },
   { rule: 'empty-table-header', target: /th/, ref: 'A-7' },

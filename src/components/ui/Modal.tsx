@@ -115,14 +115,16 @@ export function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
       >
-        <header className="modal__header">
+        {/* Divs, not <header>/<footer> (A-5): rendered in a portal outside <main>,
+            a header counted as a second page banner beside the topbar. */}
+        <div className="modal__header">
           <h2 id={titleId}>{title}</h2>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close dialog">
             <CloseIcon size={17} />
           </button>
-        </header>
+        </div>
         <div className="modal__body">{children}</div>
-        {footer ? <footer className="modal__footer">{footer}</footer> : null}
+        {footer ? <div className="modal__footer">{footer}</div> : null}
       </section>
     </div>,
     document.body,
