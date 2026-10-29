@@ -11,7 +11,8 @@
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "e2e": "playwright test --project=demo --grep-invert @evidence",
+    "e2e": "playwright test --project=demo --grep-invert \"@evidence|@a11y\"",
+    "e2e:a11y": "playwright test --project=demo e2e/demo/a11y.spec.ts",
     "e2e:evidence": "playwright test --project=demo e2e/demo/evidence.spec.ts",
     "e2e:live": "playwright test --project=live"
   },
@@ -28,6 +29,7 @@
     "zod": "3.24.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.48.2",
     "@testing-library/jest-dom": "6.6.3",
