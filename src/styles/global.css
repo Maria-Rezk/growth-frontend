@@ -5696,16 +5696,26 @@ fieldset.field > legend {
 
 /* ------------------------------------------------------ Leads filter card */
 /*
-  The view switch sits in the filter grid. Wide screens keep their single
-  row, with the switch as its last column, where it already sat; between
-  761 and 1180px it now shares the second row with Source instead of taking
-  a third. Phones: Scope, Search, Status beside Source, then View on one
-  line with its label (as on Tasks). Scope and View do not fit side by side
-  on a phone without wrapping the scope options, and the view switch stays
-  last so the visual order matches the keyboard (DOM) order.
+  Wide screens: one filter row, the view switch as its last column; between
+  761 and 1180px the switch shares the second row with Source.
+
+  Phones (N-7): the card had five controls in four rows. Two of them are now
+  elsewhere, with nothing lost:
+  - Status is hidden: the stage chips above set the same seven statuses
+    through the same URL value, and pressing the active chip again clears
+    it. The dropdown stays on tablet and desktop.
+  - The view switch moves into the header row beside "New lead", which has
+    room to spare; this card's own switch is hidden. The header's order
+    (New lead, then the switch) is also its Tab order.
+  Left: Scope, Search, Source, each a full row so none is cramped.
 */
 .toolbar--leads .toolbar__view .segmented {
   justify-self: start;
+}
+
+.leads-view--phone,
+.pipeline-summary__clear {
+  display: none;
 }
 
 @media (min-width: 1181px) {
@@ -5715,21 +5725,38 @@ fieldset.field > legend {
 }
 
 @media (max-width: 760px) {
-  .toolbar--leads .toolbar__filters--wide > .toolbar__view {
+  .toolbar--leads .toolbar__status,
+  .toolbar--leads .leads-view--wide {
+    display: none;
+  }
+
+  .toolbar--leads .toolbar__filters--wide > .field {
     grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
+  }
+
+  /* The header row: New lead on the left, the view switch on the right.
+     The stacked phone header shrinks its action area to fit; this one
+     takes the full width so the two can sit at either end. */
+  .page-header__action:has(.leads-header-actions) {
+    align-self: stretch;
+  }
+
+  .leads-header-actions {
+    width: 100%;
     justify-content: space-between;
-    gap: var(--s-3);
   }
 
-  .toolbar--leads .toolbar__view .segmented {
-    width: auto;
+  .leads-view--phone {
+    display: block;
   }
 
-  /* Search takes a whole row: it is the longest input. */
-  .toolbar--leads .toolbar__filters--wide > :nth-child(2) {
-    grid-column: 1 / -1;
+  /* The chip that filters shows how to clear it. */
+  .pipeline-summary__item[aria-pressed="true"] .pipeline-summary__clear {
+    display: inline;
+    margin-inline-start: 2px;
+    color: var(--accent-text);
+    font-size: 15px;
+    line-height: 1;
   }
 }
 

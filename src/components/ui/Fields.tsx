@@ -35,6 +35,7 @@ export function Field({
   hint,
   optional = false,
   required = false,
+  className,
   children,
 }: {
   label: string;
@@ -45,6 +46,8 @@ export function Field({
   optional?: boolean;
   /** Not shown; exposed as aria-required on the control. */
   required?: boolean;
+  /** Extra class on the field wrapper, for layout. */
+  className?: string;
   children: ReactNode;
 }) {
   const hintId = useId();
@@ -74,7 +77,7 @@ export function Field({
       : children;
 
   return (
-    <div className="field">
+    <div className={clsx('field', className)}>
       <label className="field__label" htmlFor={htmlFor}>
         {label}
         {optional ? <OptionalMark /> : null}

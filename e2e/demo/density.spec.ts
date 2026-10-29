@@ -117,52 +117,124 @@ test.describe('My work says each count once', () => {
   }
 });
 
-test.describe('Leads filter card', () => {
-  const top = async (page: Page, selector: string) => Math.round((await page.locator(selector).boundingBox())!.y);
+test.describe('Leads filters on phones (N-7)', () => {
+  const PHONES = [{ width: 320, height: 568 }, { width: 375, height: 812 }, { width: 390, height: 844 }, { width: 430, height: 932 }];
+  const box = async (locator: Locator) => (await locator.boundingBox())!;
 
-  test('wide screens keep one row, with the view switch as its last column', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await open(page, '/leads');
-    const tops = new Set(await Promise.all(['[aria-label="Lead scope"]', '#lead-search', '#lead-filter', '#lead-source-filter', '[aria-label="Lead view"]'].map((selector) => top(page, selector))));
-    // Segmented controls and inputs differ by a few pixels in height; one row means one band.
-    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(6);
-  });
-
-  for (const width of [768, 1024]) {
-    test(`at ${width}px the view switch shares a row instead of taking its own`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
+  for (const viewport of PHONES) {
+    test(`${viewport.width}x${viewport.height}: the chips are the status filter, the view switch sits in the header`, async ({ page }) => {
+      await page.setViewportSize(viewport);
       await open(page, '/leads');
-      const viewTop = await top(page, '[aria-label="Lead view"]');
-      const sourceTop = await top(page, '#lead-source-filter');
-      expect(Math.abs(viewTop - sourceTop)).toBeLessThanOrEqual(6);
+
+      // Status: the dropdown is gone; all seven stage chips are there instead.
+      await expect(page.locator('#lead-filter')).toBeHidden();
+      const stages = page.getByRole('group', { name: 'Filter by pipeline stage' }).getByRole('button');
+      await expect(stages).toHaveCount(7);
+      for (let index = 0; index < 7; index += 1) await expect(stages.nth(index)).toBeVisible();
+
+      // One view switch, in the header row beside "New lead", not cramped.
+      const views = page.getByRole('group', { name: 'Lead view' });
+      await expect(views).toHaveCount(1);
+      const newLead = await box(page.locator('main').getByRole('button', { name: 'New lead' }));
+      const view = await box(views);
+      expect(Math.abs((view.y + view.height / 2) - (newLead.y + newLead.height / 2))).toBeLessThanOrEqual(4);
+      expect(view.x).toBeGreaterThanOrEqual(newLead.x + newLead.width + 16);
+      expect(view.x + view.width).toBeLessThanOrEqual(viewport.width - 16 + 0.5);
+      for (const option of await views.getByRole('button').all()) expect((await box(option)).height).toBeGreaterThanOrEqual(32);
+
+      // Scope, Search and Source: one full row each, in that order.
+      const card = await box(page.locator('main .toolbar--leads'));
+      const scope = await box(page.getByRole('group', { name: 'Lead scope' }));
+      const search = await box(page.locator('#lead-search'));
+      const source = await box(page.locator('#lead-source-filter'));
+      expect(scope.y).toBeLessThan(search.y);
+      expect(search.y).toBeLessThan(source.y);
+      for (const control of [search, source]) expect(control.width).toBeGreaterThan(card.width - 2 * 16 - 4);
+
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
     });
   }
 
-  for (const width of [320, 375]) {
-    test(`on a ${width}px phone: Scope, Search, Status beside Source, then View, in keyboard order`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 812 });
+  test('a chip sets and clears the status; the active one is marked, the "×" is not read out', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await open(page, '/leads');
+    const group = page.getByRole('group', { name: 'Filter by pipeline stage' });
+    const interested = group.getByRole('button', { name: 'Interested 1', exact: true });
+    await interested.click();
+    await expect(page).toHaveURL(/status=INTERESTED/);
+    await expect(interested).toHaveAttribute('aria-pressed', 'true');
+    await expect(interested.locator('.pipeline-summary__clear')).toBeVisible();
+    await expect(page.locator('main .kanban-card')).toHaveCount(1);
+    await expect(page.locator('main .kanban-card')).toContainText('Nour Clinic');
+    // Pressing it again is "All statuses".
+    await interested.click();
+    await expect(page).not.toHaveURL(/status=/);
+    await expect(interested).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('main .kanban-card')).toHaveCount(3);
+  });
+
+  test('Tab goes New lead, Pipeline, Table, and never into the hidden Status dropdown', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await open(page, '/leads');
+    await page.locator('main').getByRole('button', { name: 'New lead' }).focus();
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Pipeline' })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Table' })).toBeFocused();
+    await page.locator('#lead-search').focus();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#lead-source-filter')).toBeFocused();
+  });
+
+  test('filters and view survive resizing between phone and desktop', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await open(page, '/leads');
+    await page.getByRole('group', { name: 'Filter by pipeline stage' }).getByRole('button', { name: /^Interested/ }).click();
+    await page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Table' }).click();
+    await expect(page.locator('main .data-table')).toBeVisible();
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await expect(page.locator('#lead-filter')).toBeVisible();
+    await expect(page.locator('#lead-filter')).toHaveValue('INTERESTED');
+    await expect(page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('main .data-table tbody tr')).toHaveCount(1);
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expect(page.getByRole('group', { name: 'Filter by pipeline stage' }).getByRole('button', { name: /^Interested/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('on a phone a filtered URL survives reload, Back and Forward', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page, '/leads?status=CONTACTED&view=table');
+    await expect(page.getByRole('group', { name: 'Filter by pipeline stage' }).getByRole('button', { name: /^Contacted/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
+    await page.reload();
+    await expect(page.locator('main .data-table')).toContainText('Alpha Retail');
+    await page.locator('main .data-table').getByRole('link', { name: 'Alpha Retail' }).click();
+    await expect(page).toHaveURL(/\/leads\/lead-2$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/status=CONTACTED/);
+    await expect(page.locator('main .data-table')).toContainText('Alpha Retail');
+    await page.goForward();
+    await expect(page).toHaveURL(/\/leads\/lead-2$/);
+  });
+});
+
+test.describe('Leads filters on tablet and desktop keep the Status dropdown', () => {
+  for (const viewport of [{ width: 768, height: 1024 }, { width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
+    test(`${viewport.width}px: Status dropdown and the in-card view switch, no header switch`, async ({ page }) => {
+      await page.setViewportSize(viewport);
       await open(page, '/leads');
-      const scope = await top(page, '[aria-label="Lead scope"]');
-      const view = await top(page, '[aria-label="Lead view"]');
-      const search = await top(page, '#lead-search');
-      const status = await top(page, '#lead-filter');
-      const source = await top(page, '#lead-source-filter');
-      expect(scope).toBeLessThan(search);
-      expect(search).toBeLessThan(status);
-      if (width > 340) expect(status).toBe(source);
-      expect(source).toBeLessThan(view);
-      // Tab walks the controls in the order they are shown.
-      await page.locator('#lead-search').focus();
-      await page.keyboard.press('Tab');
-      await expect(page.locator('#lead-filter')).toBeFocused();
-      await page.keyboard.press('Tab');
-      await expect(page.locator('#lead-source-filter')).toBeFocused();
-      await page.keyboard.press('Tab');
-      await expect(page.getByRole('group', { name: 'Lead view' }).getByRole('button', { name: 'Pipeline' })).toBeFocused();
-      // Nothing cramped: the scope options stay on one line.
-      const options = page.getByRole('group', { name: 'Lead scope' }).getByRole('button');
-      expect(new Set(await options.evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)))).size).toBe(1);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+      await expect(page.locator('#lead-filter')).toBeVisible();
+      await expect(page.locator('.leads-view--phone')).toBeHidden();
+      await expect(page.locator('.toolbar--leads').getByRole('group', { name: 'Lead view' })).toBeVisible();
+      await page.locator('#lead-filter').selectOption('NEW');
+      await expect(page.locator('main .kanban-card')).toHaveCount(1);
+      if (viewport.width >= 1181) {
+        const tops = await Promise.all(['[aria-label="Lead scope"]', '#lead-search', '#lead-filter', '#lead-source-filter'].map(async (selector) => Math.round((await page.locator(selector).boundingBox())!.y)));
+        expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(6);
+      }
     });
   }
 });

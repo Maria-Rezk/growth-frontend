@@ -51,10 +51,11 @@ Phase 3B is not started.
 | F-26 full, safe return after sign-in | ✅ Resolved (Phase 3B-1) | `8af4343` | `config/appRoutes.test.ts`, `e2e/demo/auth.spec.ts` |
 | F-29 login "Show password" | ✅ Resolved (Phase 3B-1) | `0494040` | `pages/LoginPage.test.tsx` |
 | F-27 required and optional fields | ✅ Resolved (Phase 3B-1) | `1927bc6` | `components/ui/Fields.test.tsx`, `e2e/demo/form-fields.spec.ts` |
+| N-7 Leads on phones, option B | ✅ Implemented (Phase 3B-1); first lead on the first screen only at 430×932 | see the commit "Leads on phones: the chips are the status filter" | `e2e/demo/density.spec.ts` |
 
 **Still open:**
 - **P2:** F-06, F-13, F-16, F-17
-- **P3:** F-23, F-28, F-30 – F-33, N-1, N-5, N-7 (phone part, see N-7 options), N-10 – N-13
+- **P3:** F-23, F-28, F-30 – F-33, N-1, N-5, N-10 – N-13, and N-7 at 320 to 390 px (see "N-7 after option B")
 
 **Verification still outstanding (treat as P1):**
 - **V-1:** live suite on staging
@@ -560,4 +561,24 @@ Measured at 375 px, after Phase 3A: the first lead starts at y 927. Above it: to
 | Trade-offs | A new interaction pattern, and one extra tap for Status and Source. | Status is set differently on phones and on desktop; the gain is smaller and only reaches the fold. | A design-system decision rather than a Leads fix; a snoozed banner can hide a real reminder. |
 
 **Recommendation: B first.** It reaches the fold without hiding any filter or adding a new pattern, at the lowest cost, and leaves desktop untouched. A is the better long-term pattern if more filters are added; C is worth doing as its own design-system change in Phase 3B-2, where it also helps every other list page.
+
+### N-7 after option B (implemented)
+
+Phones only (760 px and below); tablet and desktop are unchanged.
+
+- **Status dropdown hidden.** The stage chips set exactly the same seven statuses (`LEAD_PIPELINE` must cover `LeadStatus`, or the build fails), through the same URL value. Pressing the active chip again clears the status, and the active chip shows a "×", hidden from screen readers since the button already reports "pressed". The dropdown stays at 761 px and up.
+- **Pipeline/Table switch moved** into the header row, right-aligned beside "New lead". That row had about 190 px to spare even at 320 px, so nothing is cramped. Tab order follows the visual order: New lead, Pipeline, Table. The filter card's own switch is hidden on phones; both read and set the same URL value.
+- **Search and Source** stay on full-width rows. Side by side they would be too narrow at 320 to 390 px, and at 430 px the first lead is already on screen.
+
+Measured with Playwright on the demo data, first lead top (title bottom):
+
+| Viewport | Before | After | Change | Title on the first screen |
+|---|---|---|---|---|
+| 320×568 | 1077 (1109) | 961 (993) | −116 px | no |
+| 375×812 | 927 (959) | 885 (918) | −42 px | no, 106 px short |
+| 390×844 | 927 (959) | 869 (902) | −58 px | no, 58 px short |
+| 430×932 | 911 (943) | 850 (883) | −61 px | **yes** |
+| 768×1024, 1024×768, 1440×900 | 893, 715, 606 | 894, 715, 605 | ±1 px | yes (unchanged) |
+
+The filter card is 245 px instead of 295 px (368 px at 320 px). The header is 8 px taller, because the switch is taller than the button. The rest of the distance on smaller phones is the topbar, banner, page header, counts and chips (option C, a Phase 3B-2 decision).
 

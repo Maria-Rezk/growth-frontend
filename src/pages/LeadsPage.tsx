@@ -187,9 +187,23 @@ function LeadsInner({ companyId }: { companyId: string }) {
         title="Leads"
         subtitle="Social enquiries and website forms, assigned and tracked through to close."
         action={
-          <RoleGate permission="leads:manage" fallback={<Button size="sm" disabled>New lead</Button>}>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>New lead</Button>
-          </RoleGate>
+          <span className="button-row leads-header-actions">
+            <RoleGate permission="leads:manage" fallback={<Button size="sm" disabled>New lead</Button>}>
+              <Button size="sm" onClick={() => setCreateOpen(true)}>New lead</Button>
+            </RoleGate>
+            {/* Phones only (CSS): the view switch rides in this row, which has
+                room to spare, instead of taking a row of its own in the
+                filter card. The card's own switch serves wider screens. Both
+                read and set the same URL value. */}
+            <span className="leads-view leads-view--phone">
+              <SegmentedControl<ViewMode>
+                label="Lead view"
+                value={view}
+                onChange={setViewMode}
+                options={[{ label: 'Pipeline', value: 'pipeline' }, { label: 'Table', value: 'table' }]}
+              />
+            </span>
+          </span>
         }
       />
 
@@ -212,6 +226,9 @@ function LeadsInner({ companyId }: { companyId: string }) {
             <span>{humanize(item)}</span>
             {/* "—" on failure too: a failed count must not read as "nobody in this stage". */}
             <strong title={counts.error ? `Could not load: ${counts.error}` : undefined}>{counts.loading || counts.error ? '—' : counts.data?.[item] ?? 0}</strong>
+            {/* Phones (CSS): on the chip that filters, a sign that pressing again
+                clears it. Decorative: the button already says "pressed". */}
+            {status === item ? <span className="pipeline-summary__clear" aria-hidden="true">×</span> : null}
           </button>
         ))}
       </div>
@@ -230,7 +247,10 @@ function LeadsInner({ companyId }: { companyId: string }) {
           <Field label="Search" htmlFor="lead-search">
             <Input id="lead-search" placeholder="Search name or contact" value={search} onChange={(event) => setSearchFilter(event.target.value)} />
           </Field>
-          <Field label="Status" htmlFor="lead-filter">
+          {/* Hidden on phones (CSS), where the stage chips above are the status
+              filter: the same seven statuses, the same URL value, and pressing
+              the active chip again is "All statuses". */}
+          <Field label="Status" htmlFor="lead-filter" className="toolbar__status">
             <Select id="lead-filter" value={status} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All statuses</option>
               {STATUS_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
@@ -242,9 +262,9 @@ function LeadsInner({ companyId }: { companyId: string }) {
               {SOURCE_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
             </Select>
           </Field>
-          {/* In the filter grid so a phone can set it beside Scope (CSS); on a
-              wide screen it is the last column of the same single row. */}
-          <div className="field toolbar__view">
+          {/* The last column of the single filter row on wide screens; on
+              phones the header carries the switch instead. */}
+          <div className="field toolbar__view leads-view leads-view--wide">
             <span className="field__label">View</span>
             <SegmentedControl<ViewMode>
               label="Lead view"
