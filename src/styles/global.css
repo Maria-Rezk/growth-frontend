@@ -95,7 +95,11 @@
   /* Text */
   --ink: var(--n-900);
   --ink-secondary: var(--n-600);
-  --muted: var(--n-500);
+  /* A shade under --n-500: at #6b7280 the muted text fell under 4.5:1 on every
+     tinted surface (4.39 on --n-100, 4.42 on the accent tint, 4.45 on the
+     danger tint). #646c7a is 4.8:1 or more on all of them, 5.3 on white,
+     and still well apart from --ink-secondary (7.6). F-33. */
+  --muted: #646c7a;
 
   /* Status */
   --danger: #b42318;
