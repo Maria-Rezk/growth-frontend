@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { Field, Input } from '@/components/ui/Fields';
+import { Field, FieldGroup, Input } from '@/components/ui/Fields';
 import { Logo } from '@/components/brand/Logo';
 import { appRoutes, unwrapInvitationToken } from '@/config/appRoutes';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -21,21 +21,28 @@ import { PASSWORD_MIN_LENGTH } from '@/types/domain';
   token server-side, so asking for it again can only introduce a mismatch the
   user has no way to resolve.
 
-  fullName and password are optional here because an already-registered
-  invitee just claims the membership. authService omits empty optionals rather
-  than sending "" so the DTO's @MinLength doesn't reject a valid existing-user
-  request.
+  Which of the two it is, the page cannot know: nothing tells the frontend
+  whether the invited address already has an account. So the invitee says,
+  and only the fields that path needs are shown, each marked for what it is
+  on that path (N-10). "I already have one" is the default because it is
+  what a blank form always sent: { token } alone. An existing-account
+  request never carries a name or password, even if one was typed before
+  switching; authService omits the empty optionals so the DTO's @MinLength
+  doesn't reject it.
 */
 const invitationSchema = z
   .object({
-    token: z.string().trim().min(1, 'Invitation token is required.'),
-    fullName: z.string().trim().optional(),
-    password: z.union([z.string().min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`), z.literal('')]).optional(),
+    token: z.string(),
+    account: z.enum(['existing', 'new']),
+    fullName: z.string().optional(),
+    password: z.string().optional(),
   })
-  // Setting a password means creating an account, which needs a name too.
-  .refine((values) => !values.password || (values.fullName?.trim().length ?? 0) >= 2, {
-    message: 'Full name is required when setting a password.',
-    path: ['fullName'],
+  // One refinement for everything, so a missing token and a missing name are reported together.
+  .superRefine((values, ctx) => {
+    if (!values.token.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['token'], message: 'Invitation token is required.' });
+    if (values.account !== 'new') return;
+    if ((values.fullName?.trim().length ?? 0) < 2) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['fullName'], message: 'Full name is required for a new account.' });
+    if ((values.password ?? '').length < PASSWORD_MIN_LENGTH) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.` });
   });
 
 type InvitationForm = z.infer<typeof invitationSchema>;
@@ -58,17 +65,20 @@ export function AcceptInvitationPage() {
 
   const form = useForm<InvitationForm>({
     resolver: zodResolver(invitationSchema),
-    defaultValues: { token: linkToken, fullName: '', password: '' },
+    defaultValues: { token: linkToken, account: 'existing', fullName: '', password: '' },
     mode: 'onBlur',
   });
+
+  const creating = form.watch('account') === 'new';
 
   if (isAuthenticated) return <Navigate to={appRoutes.dashboard} replace />;
 
   const submit = form.handleSubmit(async (values) => {
+    const isNew = values.account === 'new';
     const result = await acceptInvitation({
       token: unwrapInvitationToken(values.token),
-      fullName: values.fullName?.trim() || undefined,
-      password: values.password || undefined,
+      fullName: isNew ? values.fullName?.trim() || undefined : undefined,
+      password: isNew ? values.password || undefined : undefined,
     });
 
     if (!result.accepted) return; // surfaced through `error`
@@ -109,33 +119,48 @@ export function AcceptInvitationPage() {
               </div>
             </div>
           )}
-          <Field
-            label="Full name"
-            htmlFor="name"
-            hint="Only needed if this invitation creates a new account."
-            error={form.formState.errors.fullName?.message}
+          <FieldGroup
+            label="Do you already have an account?"
+            hint={creating ? undefined : 'Accept, then sign in with your usual email and password.'}
           >
-            <Input
-              id="name"
-              autoComplete="name"
-              aria-invalid={Boolean(form.formState.errors.fullName)}
-              {...form.register('fullName')}
-            />
-          </Field>
-          <Field
-            label="Password"
-            htmlFor="password"
-            hint={`At least ${PASSWORD_MIN_LENGTH} characters. Leave blank if you already have an account.`}
-            error={form.formState.errors.password?.message}
-          >
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              aria-invalid={Boolean(form.formState.errors.password)}
-              {...form.register('password')}
-            />
-          </Field>
+            <div className="choice-chips">
+              <label className="choice-chip">
+                <input type="radio" value="existing" {...form.register('account')} />
+                <span>Yes, I have an account</span>
+              </label>
+              <label className="choice-chip">
+                <input type="radio" value="new" {...form.register('account')} />
+                <span>No, create my account</span>
+              </label>
+            </div>
+          </FieldGroup>
+          {creating ? (
+            <>
+              <Field label="Full name" htmlFor="name" required error={form.formState.errors.fullName?.message}>
+                <Input
+                  id="name"
+                  autoComplete="name"
+                  aria-invalid={Boolean(form.formState.errors.fullName)}
+                  {...form.register('fullName')}
+                />
+              </Field>
+              <Field
+                label="Password"
+                htmlFor="password"
+                required
+                hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
+                error={form.formState.errors.password?.message}
+              >
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(form.formState.errors.password)}
+                  {...form.register('password')}
+                />
+              </Field>
+            </>
+          ) : null}
           {error ? <p className="error-box" role="alert">{error}</p> : null}
           <Button type="submit" loading={form.formState.isSubmitting}>Accept invitation</Button>
         </form>

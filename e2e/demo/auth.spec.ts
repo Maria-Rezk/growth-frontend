@@ -43,11 +43,41 @@ test.describe('authentication (demo)', () => {
     await expect(page).toHaveURL(/\/accept-invitation$/);
     await expect(page.getByLabel('Invitation token')).toHaveCount(0);
 
+    // N-10: a new account is a choice; only then are name and password asked for, and required.
+    await expect(page.getByLabel('Full name')).toHaveCount(0);
+    await page.getByRole('radio', { name: 'No, create my account' }).check();
+    await expect(page.getByLabel('Full name')).toHaveAttribute('aria-required', 'true');
+    await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('aria-required', 'true');
     await page.getByLabel('Full name').fill('E2E Invitee');
     await page.getByLabel('Password', { exact: true }).fill('e2e-demo-password');
     await page.getByRole('button', { name: 'Accept invitation' }).click();
     await expect(page.locator('main h1').first()).toBeVisible();
     await expect(page).not.toHaveURL(/accept-invitation|login/);
+  });
+
+  test('an invitee with an account accepts with the token alone and is sent to sign in (N-10)', async ({ page }) => {
+    await open(page, '/my-work');
+    await page.getByRole('button', { name: 'Logout' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.evaluate(() => {
+      window.history.pushState({}, '', '/accept-invitation?token=inv-e2e.secret');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    const account = page.getByRole('group', { name: 'Do you already have an account?' });
+    await expect(account.getByRole('radio', { name: 'Yes, I have an account' })).toBeChecked();
+    await expect(page.getByText('(optional)')).toHaveCount(0);
+    await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+    // Keyboard: arrow keys move between the two choices, and back.
+    await account.getByRole('radio', { name: 'Yes, I have an account' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(account.getByRole('radio', { name: 'No, create my account' })).toBeChecked();
+    await expect(page.getByLabel('Full name')).toBeVisible();
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.getByLabel('Full name')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Accept invitation' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByText('Invitation accepted. Please log in to continue.')).toBeVisible();
   });
 
   test('signing in returns to the full page that asked for it: path, filters and hash', async ({ page }) => {
