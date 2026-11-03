@@ -3,7 +3,7 @@
 | Gate | Command | What it proves |
 |---|---|---|
 | Lint | `npm run lint` | ESLint (flat config, typescript-eslint, React hooks rules). Fails on errors; warnings are reported. |
-| Types | `npm run typecheck` | `tsc --noEmit` over `src/`. |
+| Types | `npm run typecheck` | `tsc --noEmit` twice: `tsconfig.json` for the app in `src/` (browser types), then `tsconfig.node.json` for the Vite, Vitest and Playwright configs and every Playwright spec (Node types, plus the DOM for `page.evaluate` callbacks). |
 | Unit and integration | `npm run test:run` | Vitest + Testing Library, everything under `src/`. |
 | End-to-end (demo) | `npm run e2e` | Playwright against a local server in **demo mode**: in-memory sample data, no backend. |
 | Accessibility | `npm run e2e:a11y` | axe-core (WCAG 2.0–2.2 A/AA and best practices) on every route, the public pages, the create dialogs and the overlays, in light and dark, at 1440 and 375 px. Fails on any violation not listed as a known, documented finding in `e2e/demo/a11y.spec.ts`; the full list lands in `e2e/.artifacts/a11y-report.json`. 20 to 40 minutes on this machine, so it is a separate gate, not part of `npm run e2e`. It does not replace screen-reader testing. |

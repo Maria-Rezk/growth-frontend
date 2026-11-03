@@ -1,0 +1,25 @@
+{
+  /*
+    The Node-side TypeScript the app's tsconfig.json never sees: the Vite,
+    Vitest and Playwright configs, and the Playwright specs (N-1). They run
+    in Node, so Node's types; the specs also hand callbacks to
+    page.evaluate(), which run in the browser, hence the DOM lib. The app
+    itself stays in tsconfig.json with browser types only.
+  */
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts", "e2e/**/*.ts"]
+}
