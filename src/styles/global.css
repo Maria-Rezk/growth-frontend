@@ -1985,7 +1985,6 @@ a.list-row:hover strong {
   position: relative;
 }
 
-.notifications-menu,
 .notifications-panel {
   position: absolute;
   inset-inline-end: 0;
@@ -1999,8 +1998,6 @@ a.list-row:hover strong {
   overflow: hidden;
 }
 
-.notifications-menu__header,
-.notifications-menu__footer,
 .notifications-panel__header {
   padding: var(--s-3) var(--s-4);
   display: flex;
@@ -2020,15 +2017,6 @@ a.list-row:hover strong {
   margin-top: 2px;
 }
 
-.notifications-menu__footer {
-  border-top: 1px solid var(--line);
-  border-bottom: 0;
-  justify-content: center;
-  color: var(--accent-text);
-  font-weight: 500;
-}
-
-.notifications-menu__body,
 .notifications-panel__body {
   max-height: 380px;
   overflow: auto;
@@ -2037,7 +2025,6 @@ a.list-row:hover strong {
   gap: var(--s-1);
 }
 
-.notifications-menu__body>p,
 .notifications-panel__body>p {
   padding: var(--s-3);
   font-size: 13px;
