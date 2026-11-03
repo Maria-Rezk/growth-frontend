@@ -231,7 +231,7 @@ The gaps, in order of user impact:
 
 ### P2 — Medium
 
-#### F-06 · Demo mode ships in the production bundle
+#### F-06 · Demo mode ships in the production bundle — ◐ Re-measured in Phase 4B-0 (see the correction below and `docs/demo-architecture-review.md`)
 - **Where:** `services/demoStore.ts` (436 lines of fixtures), imported by 21 modules. There are 151 `env.demoMode` branches across services.
 - **Category:** Frontend / Performance / Maintainability · **Status:** Confirmed: the demo string "Nour Clinic" is in the production `index-*.js`.
 - **Problem:**
@@ -244,6 +244,11 @@ The gaps, in order of user impact:
   - Do it incrementally, one service per PR, starting with the leaf services.
 - **Expected result:** Production `index` chunk gets smaller; services shrink by roughly 30–40 %; demo and real paths can't drift apart.
 - **Effort:** Large (incremental).
+- **Correction (Phase 4B-0, 3 November 2026):** two statements above are wrong for the current code.
+  - **"The code is not tree-shaken" is wrong.** Rollup folds `env.demoMode` to `false` and removes every demo branch and all demo logic. A build with the flag hard-wired to `false` is byte-identical to the real one.
+  - **The expected size gain is small.** What ships is 4,214 bytes of fixture data, about 1.7 KB gzip: 13 records, plus 64 date calls at load. It is kept alive by `CompanyProvider`'s module-level `DEMO_MEMBERSHIPS` and by cross-references inside `demoStore`. Removing it saves 2.9% of the main chunk, not the larger gain implied above.
+  - **What remains true, and matters more:** the duplicated implementations (151 branches in 24 files), demo mode bypassing the real auth and role code, so no E2E test covers it, unit tests that depend on the untracked `.env`, and no guard against a production build with demo mode on.
+  - **Recommended route:** a fake backend at the axios transport, loaded dynamically, migrated one service at a time after a small "step 0".
 
 #### F-07 · Missing records show a generic retryable error with no way back — ✅ Resolved
 - **Where:**
@@ -827,8 +832,8 @@ Every command in it was run, except `npm run e2e:live`, which needs a staging de
 
 | ID | Where | Finding | Suggested fix |
 |---|---|---|---|
-| N-15 (P3) | `pages/ClientHomePage.tsx` | A private copy of `monthName`, the same as `utils/format.ts` | Import the shared one |
-| N-16 (P3) | Unit suite | One unidentified failure in 19 full runs after the flake fix | Record failing test names in CI and repeat the suite before release |
+| N-15 (P3) | `pages/ClientHomePage.tsx` | A private copy of `monthName`, the same as `utils/format.ts`. Still open; re-checked in Phase 4B-0, and outside its scope. | Import the shared one |
+| N-16 (P3) — **unresolved** | Unit suite | One unidentified failure in 19 full runs after the flake fix. Phase 4B-0 ran it 9 more times with failing names logged: 6 parallel (27–100% starting CPU) and 3 serial, all 451/451. The slowest test was 2.4 s (48% of the 5 s timeout). Not reproduced; the likely mechanism is a timeout in a user-event test under heavy contention (a hypothesis). See `docs/demo-architecture-review.md` §2. | Record failing test names in CI and repeat the suite before release |
 | N-17 (note) | Tooling | `npm ci --dry-run` still empties `node_modules` first on npm 10. It did so here, and `node_modules` was reinstalled from the unchanged lockfile | Documented in the README troubleshooting |
 
 ### Phase 4A gates (final run)
@@ -848,3 +853,23 @@ The E2E and accessibility runs took about twice their usual time. Other workload
 - **The A-7 table test:** it failed reproducibly, because it ran eight pages through axe inside one 45 s budget. It is now one test per page (`e9e0ff1`).
 
 Browser coverage is Chrome only. `npm run e2e:live` was not run, because it needs a staging deployment.
+
+---
+
+## Phase 4B-0: demo architecture review (3 November 2026)
+
+Branch `phase-4b-demo-architecture`, cut from `phase-4a-engineering-quality` @ `ddd59d2`. Investigation only: no service, authentication, permission or demo behaviour changed. The full review, inventory, bundle baseline, options and migration plan are in **`docs/demo-architecture-review.md`**.
+
+**Status of the findings it reviewed:**
+
+| Finding | Status | Note |
+|---|---|---|
+| F-06 demo infrastructure in production | ◐ Re-measured, still open | Only about 4.2 KB of data and no logic ships (see the correction under F-06). The structural problems remain, and the plan addresses them. |
+| N-15 duplicate `monthName` | Open | Unchanged; outside this phase |
+| N-16 unidentified unit failure | **Unresolved** | 9 logged runs, none failed. Needs failing names recorded in CI. |
+| N-17 `npm ci --dry-run` empties `node_modules` | Closed as a note | Documented in the README's troubleshooting section. No code involved. |
+| N-18 (new, P2) | Open | Unit tests depend on the untracked `.env`. With `VITE_DEMO_MODE=true` there, the service tests take the demo branches. Fix: pin the flag for Vitest (migration step 0). |
+| N-19 (new, P2) | Open | Nothing prevents a production build with `VITE_DEMO_MODE=true`, which would ship a signed-in demo platform admin to every visitor. Fix: a build guard with an explicit opt-in for demo deployments (step 0). |
+| N-20 (new, note) | Open | No browser test covers the real session restore, 401 refresh, 403 handling or role loading, because every E2E test runs in demo mode, which bypasses them. Migration step 6 changes that. |
+
+**One inconsistency in this document corrected:** F-06's claim that demo code is not tree-shaken, shown above. The Phase 4A section's statement that the README commit "overstates" the commands run stands as written.
