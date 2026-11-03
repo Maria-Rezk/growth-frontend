@@ -49,6 +49,7 @@ On Windows PowerShell, use `Copy-Item .env.example .env` instead.
 | `VITE_API_BASE_URL` | `http://localhost:3000/api` | The API, including its `/api` prefix. Use `/api` when the dev proxy is on. |
 | `VITE_DEV_PROXY_TARGET` | empty | Dev only. When set, Vite forwards `/api` to this host server-side. This avoids CORS for a remote **staging** API, because the refresh token is an httpOnly cookie and every request is credentialed. |
 | `VITE_DEMO_MODE` | `false` | `true` runs the whole app on in-memory sample data, with no backend and no sign-in. |
+| `VITE_ALLOW_DEMO_BUILD` | `false` | `npm run build` refuses `VITE_DEMO_MODE=true` unless this is `true` too: only set it for a build meant to be a demo deployment. |
 | `VITE_ENABLE_ARABIC` | `false` | Shows the language toggle. Only the navigation is translated so far. |
 | `VITE_API_TIMEOUT_MS` | `25000` | Request timeout. Must be 1000 or more. |
 | `VITE_APP_NAME` | `Solu1ions — Business Development` | The text after the page name in the browser tab. |
@@ -74,7 +75,9 @@ For design review, or for working on the UI without an API, add this to `.env.de
 VITE_DEMO_MODE=true
 ```
 
-You are signed in as a demo platform admin with every permission. The data lives in memory (`src/services/demoStore.ts`), so a full page reload starts over. Demo mode proves the screens and flows work, not that they match the real API. Demo mode currently ships in the production bundle too (audit finding F-06), so a production build must leave `VITE_DEMO_MODE` unset or `false`.
+You are signed in as a demo platform admin with every permission. The data lives in memory (`src/services/demoStore.ts`), so a full page reload starts over. Demo mode proves the screens and flows work, not that they match the real API.
+
+A normal production build contains none of the demo data or demo-only code; `npm run build && npm run check:demo-free` proves it. `npm run build` refuses `VITE_DEMO_MODE=true` unless `VITE_ALLOW_DEMO_BUILD=true` says the build is meant to be a demo deployment.
 
 ## Authentication
 
@@ -92,6 +95,7 @@ You are signed in as a demo platform admin with every permission. The data lives
 | `npm run dev` | Dev server with hot reload. |
 | `npm run build` | Type-checks the app, then builds it for production into `dist/`. |
 | `npm run preview` | Serves the production build locally. |
+| `npm run check:demo-free` | After a build: fails if any demo record, email or demo-only helper is in `dist/`. |
 | `npm run lint` | ESLint. Fails on any error **or warning**. |
 | `npm run typecheck` | TypeScript for the app (`tsconfig.json`) and for the configs and Playwright specs (`tsconfig.node.json`). |
 | `npm run test` / `npm run test:run` | Vitest unit and integration tests: watch mode, or a single run. |
