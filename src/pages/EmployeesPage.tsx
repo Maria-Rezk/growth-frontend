@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { RequireAdmin, useIsSuperAdmin } from '@/components/layout/RequireAdmin';
+import { RequireAdmin } from '@/components/layout/RequireAdmin';
+import { useIsSuperAdmin } from '@/hooks/useIsSuperAdmin';
 import { PageHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';

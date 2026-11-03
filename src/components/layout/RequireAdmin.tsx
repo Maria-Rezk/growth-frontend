@@ -49,9 +49,3 @@ export function SuperAdminOnly({ children, fallback = null }: { children: ReactN
   const { user } = useAuth();
   return <>{isSuperAdmin(user?.platformRole) ? children : fallback}</>;
 }
-
-/** `true` when the signed-in user is a Super Admin. For non-JSX branches. */
-export function useIsSuperAdmin(): boolean {
-  const { user } = useAuth();
-  return isSuperAdmin(user?.platformRole);
-}

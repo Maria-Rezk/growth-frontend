@@ -1,20 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, type ButtonVariant } from '@/components/ui/Button';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-
-export interface ConfirmOptions {
-  title: string;
-  /** What happens if they say yes — including what cannot be undone. */
-  message: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  /** `danger` for anything that deletes or cancels; `primary` for a step that is merely worth a second look. */
-  tone?: Extract<ButtonVariant, 'primary' | 'danger'>;
-}
-
-type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
-
-const ConfirmContext = createContext<ConfirmFn | null>(null);
+import { ConfirmContext, type ConfirmFn, type ConfirmOptions } from './ConfirmDialog';
 
 /**
  * `const ok = await confirm({ … })` — the app's own confirm dialog.
@@ -75,10 +62,4 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       </Modal>
     </ConfirmContext.Provider>
   );
-}
-
-export function useConfirm(): ConfirmFn {
-  const confirm = useContext(ConfirmContext);
-  if (!confirm) throw new Error('useConfirm must be used inside ConfirmProvider.');
-  return confirm;
 }

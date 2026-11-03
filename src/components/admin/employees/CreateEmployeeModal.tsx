@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
-import { useIsSuperAdmin } from '@/components/layout/RequireAdmin';
+import { useIsSuperAdmin } from '@/hooks/useIsSuperAdmin';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';

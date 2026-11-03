@@ -4,7 +4,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect, useState } from 'react';
-import { ConfirmProvider, useConfirm } from './ConfirmDialog';
+import { useConfirm } from './ConfirmDialog';
+import { ConfirmProvider } from './ConfirmProvider';
 import { Modal } from './Modal';
 
 function Harness() {

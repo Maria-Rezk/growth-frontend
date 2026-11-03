@@ -7,7 +7,7 @@ import { AppErrorBoundary } from '@/components/layout/AppErrorBoundary';
 import { DevApiWarning } from '@/components/layout/DevApiWarning';
 import { NetworkStatusToast } from '@/components/layout/NetworkStatusToast';
 import { ThemedToaster } from '@/components/layout/ThemedToaster';
-import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
+import { ConfirmProvider } from '@/components/ui/ConfirmProvider';
 import { AuthProvider } from '@/context/AuthProvider';
 import { LocaleProvider } from '@/context/LocaleProvider';
 import { ThemeProvider } from '@/context/ThemeProvider';
