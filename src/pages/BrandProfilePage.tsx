@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -20,8 +20,7 @@ import { applyServerFieldErrors } from '@/lib/forms';
 import { brandProfilesService } from '@/services/brandProfiles';
 import { queryKeys } from '@/lib/queryClient';
 import type { BrandProfile, BrandProfileInput } from '@/types/domain';
-
-const HEX = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+import { isHexColour, normalizeHex } from '@/utils/hexColour';
 
 const brandProfileSchema = z.object({
   brandName: z.string().trim().min(2, 'Brand name is required.'),
@@ -38,7 +37,7 @@ const brandProfileSchema = z.object({
   // structured arrays, edited as rows
   colors: z.array(z.object({
     name: z.string().trim().min(1, 'Colour name is required.'),
-    hex: z.string().trim().regex(HEX, 'Use a hex value such as #C9144B.'),
+    hex: z.string().trim().refine(isHexColour, 'Use a hex value such as #C9144B.'),
   })),
   services: z.array(z.object({
     name: z.string().trim().min(1, 'Service name is required.'),
@@ -95,7 +94,8 @@ function toPayload(values: BrandProfileForm): BrandProfileInput {
     serviceAreas: textToList(values.serviceAreas),
     ctaPreferences: textToList(values.ctaPreferences),
     forbiddenWords: textToList(values.forbiddenWords),
-    colors: values.colors.map((c) => ({ name: c.name, hex: c.hex.startsWith('#') ? c.hex : `#${c.hex}` })),
+    // Validated above, so normalizeHex always has a colour to return.
+    colors: values.colors.map((c) => ({ name: c.name, hex: normalizeHex(c.hex) ?? c.hex })),
     services: values.services.map((s) => ({ name: s.name, description: s.description || undefined, priceRange: s.priceRange || undefined })),
     offers: values.offers.map((o) => ({ title: o.title, description: o.description || undefined, validUntil: o.validUntil || undefined })),
   };
@@ -243,12 +243,10 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
                 {/* Native swatch bound to the same field — typing updates the
                     picker and picking updates the text. */}
                 <Field label="Pick" htmlFor={`color-swatch-${index}`}>
-                  <input
+                  <ColourSwatch
                     id={`color-swatch-${index}`}
-                    className="color-swatch"
-                    type="color"
-                    value={HEX.test(form.watch(`colors.${index}.hex`) ?? '') ? form.watch(`colors.${index}.hex`) : '#000000'}
-                    onChange={(e) => form.setValue(`colors.${index}.hex`, e.target.value, { shouldDirty: true })}
+                    hex={form.watch(`colors.${index}.hex`)}
+                    onPick={(hex) => form.setValue(`colors.${index}.hex`, hex, { shouldDirty: true, shouldValidate: true })}
                   />
                 </Field>
                 <Button type="button" variant="secondary" size="sm" onClick={() => colors.remove(index)} aria-label={`Remove colour ${index + 1}`}>Remove</Button>
@@ -376,4 +374,18 @@ function BrandFreshness({ updatedAt }: { updatedAt?: string }) {
       {label}{days >= 90 ? ' · worth a review' : ''}
     </span>
   );
+}
+
+/**
+ * The native picker beside a Hex field. It shows the field's colour however it
+ * was typed ("#abc", "C9144B"), and while the field holds something that is
+ * not a colour yet, it keeps the last colour it showed rather than the
+ * browser's black. Picking writes "#rrggbb" back into the field.
+ */
+function ColourSwatch({ id, hex, onPick }: { id: string; hex: string | undefined; onPick: (hex: string) => void }) {
+  const normalized = normalizeHex(hex);
+  const [lastShown, setLastShown] = useState(normalized ?? '#000000');
+  // Adjusting state while rendering, as React recommends for derived values: no effect, no extra paint.
+  if (normalized && normalized !== lastShown) setLastShown(normalized);
+  return <input id={id} className="color-swatch" type="color" value={normalized ?? lastShown} onChange={(event) => onPick(event.target.value)} />;
 }
