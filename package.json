@@ -10,7 +10,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "e2e": "playwright test --project=demo --grep-invert \"@evidence|@a11y\"",
     "e2e:a11y": "playwright test --project=demo e2e/demo/a11y.spec.ts",
     "e2e:evidence": "playwright test --project=demo e2e/demo/evidence.spec.ts",

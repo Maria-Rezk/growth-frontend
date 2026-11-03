@@ -2,7 +2,7 @@
 
 | Gate | Command | What it proves |
 |---|---|---|
-| Lint | `npm run lint` | ESLint (flat config, typescript-eslint, React hooks rules). Fails on errors; warnings are reported. |
+| Lint | `npm run lint` | ESLint (flat config, typescript-eslint, React hooks and Fast Refresh rules). Fails on any error or warning (`--max-warnings 0`). |
 | Types | `npm run typecheck` | `tsc --noEmit` twice: `tsconfig.json` for the app in `src/` (browser types), then `tsconfig.node.json` for the Vite, Vitest and Playwright configs and every Playwright spec (Node types, plus the DOM for `page.evaluate` callbacks). |
 | Unit and integration | `npm run test:run` | Vitest + Testing Library, everything under `src/`. |
 | End-to-end (demo) | `npm run e2e` | Playwright against a local server in **demo mode**: in-memory sample data, no backend. |
