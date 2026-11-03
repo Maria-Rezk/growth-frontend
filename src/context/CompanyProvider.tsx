@@ -33,7 +33,8 @@ function writeActiveCompanyId(companyId: string): void {
 }
 
 const DEMO_COMPANY_DATA = { list: [demoCompany], error: null as string | null };
-const DEMO_MEMBERSHIPS: SessionMembership[] = demoMemberships.map((membership) => ({
+// Pure: unused outside demo mode, so a production build drops it and the demo data it reads (F-06).
+const DEMO_MEMBERSHIPS: SessionMembership[] = /* @__PURE__ */ demoMemberships.map((membership) => ({
   id: membership.id,
   companyId: membership.companyId,
   roles: membershipRoles(membership),

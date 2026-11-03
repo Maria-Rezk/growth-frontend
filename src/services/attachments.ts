@@ -111,13 +111,6 @@ export const attachmentsService = {
     return normalizeAttachment(unwrap<RawAttachment>(response.data), parent);
   },
 
-  /** Demo-only: what the API does in one transaction with a create. */
-  async addAllDemo(companyId: string, parent: AttachmentParent, fields: AttachmentCreateFields): Promise<void> {
-    for (const fileId of fields.attachmentFileIds ?? []) await attachmentsService.add(companyId, parent, { fileId });
-    for (const link of fields.attachmentLinks ?? []) await attachmentsService.add(companyId, parent, link);
-    for (const note of fields.attachmentTexts ?? []) await attachmentsService.add(companyId, parent, note);
-  },
-
   async remove(companyId: string, parent: AttachmentParent, attachmentId: string): Promise<void> {
     if (env.demoMode) {
       const index = demoAttachments.findIndex((item) => item.id === attachmentId);
@@ -132,3 +125,14 @@ export const attachmentsService = {
     return attachmentsService.add(companyId, parent, stored.id, label);
   },
 };
+
+/**
+ * Demo-only: what the API does in one transaction with a create. A function rather than a
+ * method on attachmentsService, so a production build, where every caller is a removed demo
+ * branch, drops it (F-06).
+ */
+export async function addAllDemoAttachments(companyId: string, parent: AttachmentParent, fields: AttachmentCreateFields): Promise<void> {
+  for (const fileId of fields.attachmentFileIds ?? []) await attachmentsService.add(companyId, parent, { fileId });
+  for (const link of fields.attachmentLinks ?? []) await attachmentsService.add(companyId, parent, link);
+  for (const note of fields.attachmentTexts ?? []) await attachmentsService.add(companyId, parent, note);
+}

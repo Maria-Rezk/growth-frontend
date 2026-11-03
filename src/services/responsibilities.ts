@@ -20,12 +20,17 @@ import type {
 // ---------------------------------------------------------------------------
 // Demo store (in-file: keeps demoStore.ts untouched). Only used in demo mode.
 // ---------------------------------------------------------------------------
+// Marked free of side effects so a production build drops the demo records with it (F-06).
+/* @__NO_SIDE_EFFECTS__ */
+function demoTimestamp(): string {
+  return new Date().toISOString();
+}
 const demoAreas: ResponsibilityArea[] = [
-  { id: 'demo-area-1', companyId: 'demo-company', name: 'Design', areaKey: 'DESIGN', description: null, sortOrder: 1, isActive: true, createdById: null, updatedById: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'demo-area-2', companyId: 'demo-company', name: 'Marketing', description: null, sortOrder: 2, isActive: true, createdById: null, updatedById: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'demo-area-1', companyId: 'demo-company', name: 'Design', areaKey: 'DESIGN', description: null, sortOrder: 1, isActive: true, createdById: null, updatedById: null, createdAt: demoTimestamp(), updatedAt: demoTimestamp() },
+  { id: 'demo-area-2', companyId: 'demo-company', name: 'Marketing', description: null, sortOrder: 2, isActive: true, createdById: null, updatedById: null, createdAt: demoTimestamp(), updatedAt: demoTimestamp() },
 ];
 const demoMatrix: ResponsibilityMatrix = {
-  areas: demoAreas.map((area) => ({ id: area.id, name: area.name, sortOrder: area.sortOrder, areaKey: area.areaKey ?? null })),
+  areas: /* @__PURE__ */ demoAreas.map((area) => ({ id: area.id, name: area.name, sortOrder: area.sortOrder, areaKey: area.areaKey ?? null })),
   members: [
     { userId: 'demo-user-1', fullName: 'Kamal', email: 'kamal@agency.com', role: 'DESIGNER' },
     { userId: 'demo-user-2', fullName: 'Naya', email: 'naya@agency.com', role: 'SOCIAL_MEDIA_MANAGER' },

@@ -3,7 +3,7 @@ import { apiRoutes } from '@/config/apiRoutes';
 import { appRoutes } from '@/config/appRoutes';
 import { http, unwrap } from '@/lib/http';
 import { getAllItems } from '@/lib/paging';
-import { buildMetrics, demoCompany, demoDelay, demoReportShares, demoReports, makeId, demoNotFound } from '@/services/demoStore';
+import { buildMetrics, buildOverview, demoCompany, demoDelay, demoReportShares, demoReports, makeId, demoNotFound } from '@/services/demoStore';
 import type { PublicReport, Report, ReportOverview, ReportShareResult, ReportShareStatus } from '@/types/domain';
 
 const SHARE_DAYS = 90;
@@ -39,10 +39,9 @@ function normalizeOverview(raw: RawOverview): ReportOverview {
 
 export const reportsService = {
   async overview(companyId: string, params?: { month?: number; year?: number }): Promise<ReportOverview> {
-    if (env.demoMode) {
-      const { buildOverview } = await import('@/services/demoStore');
-      return demoDelay(buildOverview());
-    }
+    // A static import, like every other use: a dynamic import() of demoStore made Rollup keep all of its
+    // exports, so the demo fixtures shipped in production even though this branch is removed (F-06).
+    if (env.demoMode) return demoDelay(buildOverview());
     const response = await http.get(apiRoutes.reports.overview(companyId), { params });
     return normalizeOverview(unwrap<RawOverview>(response.data));
   },

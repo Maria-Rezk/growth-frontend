@@ -14,7 +14,7 @@ import {
   pushNotification,
   demoNotFound,
 } from '@/services/demoStore';
-import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
+import { addAllDemoAttachments, attachmentFieldsForWire, type AttachmentCreateFields } from '@/services/attachments';
 import type { Lead, LeadNote, LeadStatus, LeadStatusHistory, ListParams, LostReason } from '@/types/domain';
 
 export interface LeadStatusOutcome {
@@ -175,7 +175,7 @@ export const leadsService = {
         updatedAt: new Date().toISOString(),
       };
       demoLeads.unshift(lead);
-      await attachmentsService.addAllDemo(companyId, { entityType: 'LEAD', entityId: lead.id }, payload);
+      await addAllDemoAttachments(companyId, { entityType: 'LEAD', entityId: lead.id }, payload);
       pushNotification({ type: 'LEAD_ASSIGNED', title: 'New lead created', message: lead.name, readAt: null, relatedEntityType: 'LEAD', relatedEntityId: lead.id });
       return demoDelay(lead);
     }

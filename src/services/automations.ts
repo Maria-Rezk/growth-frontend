@@ -79,24 +79,31 @@ export function normalizeRun(raw: RawRun, companyId: string): AutomationRun {
   };
 }
 
+// Marked free of side effects, and the records use plain string values rather than reading the
+// enum objects, so a production build drops the demo records with it (F-06).
+/* @__NO_SIDE_EFFECTS__ */
+function demoAgo(milliseconds: number): string {
+  return new Date(Date.now() - milliseconds).toISOString();
+}
+
 const demoRules: AutomationRule[] = [
   {
     id: 'demo-rule-1',
     companyId: 'demo-company',
     name: 'Fix-ups when the client asks for changes',
-    triggerType: AutomationTriggerType.POST_CHANGES_REQUESTED,
-    actionType: AutomationActionType.CREATE_POST_CHANGES_TASKS,
+    triggerType: 'POST_CHANGES_REQUESTED',
+    actionType: 'CREATE_POST_CHANGES_TASKS',
     isActive: true,
-    createdAt: new Date(Date.now() - 20 * 864e5).toISOString(),
+    createdAt: demoAgo(20 * 864e5),
   },
   {
     id: 'demo-rule-2',
     companyId: 'demo-company',
     name: 'Follow up interested leads',
-    triggerType: AutomationTriggerType.LEAD_BECAME_INTERESTED,
-    actionType: AutomationActionType.CREATE_LEAD_FOLLOW_UP_TASK,
+    triggerType: 'LEAD_BECAME_INTERESTED',
+    actionType: 'CREATE_LEAD_FOLLOW_UP_TASK',
     isActive: false,
-    createdAt: new Date(Date.now() - 10 * 864e5).toISOString(),
+    createdAt: demoAgo(10 * 864e5),
   },
 ];
 
@@ -107,11 +114,11 @@ const demoRuns: AutomationRun[] = [
     ruleId: 'demo-rule-1',
     ruleName: demoRules[0].name,
     status: 'SUCCESS',
-    triggerType: AutomationTriggerType.POST_CHANGES_REQUESTED,
-    actionType: AutomationActionType.CREATE_POST_CHANGES_TASKS,
+    triggerType: 'POST_CHANGES_REQUESTED',
+    actionType: 'CREATE_POST_CHANGES_TASKS',
     entityType: 'POST',
     entityId: 'demo-post-1',
-    createdAt: new Date(Date.now() - 3 * 36e5).toISOString(),
+    createdAt: demoAgo(3 * 36e5),
   },
   {
     id: 'demo-run-2',
@@ -119,12 +126,12 @@ const demoRuns: AutomationRun[] = [
     ruleId: 'demo-rule-2',
     ruleName: demoRules[1].name,
     status: 'FAILED',
-    triggerType: AutomationTriggerType.LEAD_BECAME_INTERESTED,
-    actionType: AutomationActionType.CREATE_LEAD_FOLLOW_UP_TASK,
+    triggerType: 'LEAD_BECAME_INTERESTED',
+    actionType: 'CREATE_LEAD_FOLLOW_UP_TASK',
     entityType: 'LEAD',
     entityId: 'demo-lead-1',
     error: 'No active member to assign the follow-up task to.',
-    createdAt: new Date(Date.now() - 30 * 36e5).toISOString(),
+    createdAt: demoAgo(30 * 36e5),
   },
 ];
 

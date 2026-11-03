@@ -12,7 +12,7 @@ import {
   makeId,
   demoNotFound,
 } from '@/services/demoStore';
-import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
+import { addAllDemoAttachments, attachmentFieldsForWire, type AttachmentCreateFields } from '@/services/attachments';
 import type {
   Campaign,
   CampaignObjective,
@@ -89,7 +89,7 @@ export const campaignsService = {
         updatedAt: new Date().toISOString(),
       };
       demoCampaigns.unshift(campaign);
-      await attachmentsService.addAllDemo(companyId, { entityType: 'CAMPAIGN', entityId: campaign.id }, payload);
+      await addAllDemoAttachments(companyId, { entityType: 'CAMPAIGN', entityId: campaign.id }, payload);
       return demoDelay(campaign);
     }
     // No status on create — backend assigns DRAFT.

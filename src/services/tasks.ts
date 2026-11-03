@@ -15,7 +15,7 @@ import {
   pushNotification,
   demoNotFound,
 } from '@/services/demoStore';
-import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
+import { addAllDemoAttachments, attachmentFieldsForWire, type AttachmentCreateFields } from '@/services/attachments';
 import type {
   ApproverResolution,
   ListParams,
@@ -261,7 +261,7 @@ export const tasksService = {
         throw demoReviewError(422, TaskReviewErrorCode.CUSTOM_TASK_TYPE_REQUIRED, 'Say what the other type of work is: customTaskType is required with OTHER');
       }
       demoTasks.unshift(task);
-      await attachmentsService.addAllDemo(companyId, { entityType: 'TASK', entityId: task.id }, payload);
+      await addAllDemoAttachments(companyId, { entityType: 'TASK', entityId: task.id }, payload);
       demoTaskLogs.unshift({ id: makeId('task-log'), taskId: task.id, action: 'TASK_CREATED', createdAt: new Date().toISOString() });
       // A draft tells nobody anything until it is published.
       if (!task.isDraft) pushNotification({ type: 'TASK_ASSIGNED', title: 'Task created', message: task.title, readAt: null, relatedEntityType: 'TASK', relatedEntityId: task.id });

@@ -15,7 +15,7 @@ import {
   pushNotification,
   demoNotFound,
 } from '@/services/demoStore';
-import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
+import { addAllDemoAttachments, attachmentFieldsForWire, type AttachmentCreateFields } from '@/services/attachments';
 import { PostReviewErrorCode } from '@/types/domain';
 import type {
   ContentPlan,
@@ -232,7 +232,7 @@ export const contentService = {
         updatedAt: new Date().toISOString(),
       };
       demoPosts.unshift(post);
-      await attachmentsService.addAllDemo(companyId, { entityType: 'POST', entityId: post.id }, payload);
+      await addAllDemoAttachments(companyId, { entityType: 'POST', entityId: post.id }, payload);
       return demoDelay(post);
     }
     const { attachmentFileIds, attachmentLinks, attachmentTexts, ...rest } = payload;
