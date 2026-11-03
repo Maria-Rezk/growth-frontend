@@ -67,10 +67,16 @@ Phase 3B-1 closed, and Phase 3B-2 implemented on `phase-3b2-visual-accessibility
 | A-5 duplicate and unnamed landmarks | ✅ Resolved (3B-2 remediation) | `09e22e2` (and `efc5308`) | `e2e/demo/a11y-remediation.spec.ts` |
 | A-6 skip link without a target on sign-in pages | ✅ Resolved (3B-2 remediation) | `0baa02a` | `e2e/demo/a11y-remediation.spec.ts` |
 | A-7 empty action-column headers | ✅ Resolved (3B-2 remediation) | `f79f5f3` | `DataTable.test.tsx`, `e2e/demo/a11y-remediation.spec.ts` |
+| N-1 configs and E2E specs not type-checked | ✅ Resolved (Phase 4A) | `d21c89b` | `npm run typecheck` (planted errors caught) |
+| F-31 20 lint warnings | ✅ Resolved (Phase 4A); lint now fails on warnings | `0224c85`, `4cddfeb`, `5b474e4`, `70802bc`, `c6b6bae` | `npm run lint` (0 errors, 0 warnings) |
+| F-17 unused UI files (deletion part) and N-5 old menu | ✅ Resolved (Phase 4A); the table migration stays in Phase 4C | `70802bc` | import graph and repo search (see "Phase 4A") |
+| N-14 colour picker black for valid hex | ✅ Resolved (Phase 4A) | `c866386` | `utils/hexColour.test.ts`, `e2e/demo/brand-colours.spec.ts` |
+| F-13 stale README | ✅ Resolved (Phase 4A) | `392e362` | commands run (see "Phase 4A") |
+| Auth and token-refresh test flake (pre-existing) | ✅ Fixed (Phase 4A) | `42a4947` | 10 full unit runs |
 
 **Still open:**
-- **P2:** F-06, F-13, F-16, F-17
-- **P3:** F-30 – F-32, N-1, N-5, N-14, and N-7 at 320 to 390 px (see "N-7 after option B")
+- **P2:** F-06, F-16, F-17 (the hand-built tables only; Phase 4C)
+- **P3:** F-30, F-32, N-15, N-16, and N-7 at 320 to 390 px (see "N-7 after option B")
 - **Accessibility, from V-3:** none open. A-1 to A-7 were resolved in the remediation; the gate's list of allowed exceptions is empty. A manual screen-reader pass is still outstanding (see below).
 
 **Verification still outstanding (treat as P1):**
@@ -309,7 +315,7 @@ The gaps, in order of user impact:
 - **Fix:** Send the header only when `env.apiBaseUrl` contains `ngrok`, or only when `import.meta.env.DEV`.
 - **Effort:** Small.
 
-#### F-13 · README and setup docs are stale
+#### F-13 · README and setup docs are stale — ✅ Resolved (Phase 4A, `392e362`)
 - **Where:** `README.md`.
 - **Category:** Maintainability · **Status:** Confirmed.
 - **Problem:**
@@ -356,7 +362,7 @@ The gaps, in order of user impact:
   - Then split the file by feature (`shell.css`, `forms.css`, `tables.css`, `kanban.css`, …) without changing any selector.
 - **Effort:** Medium (mechanical).
 
-#### F-17 · Dead and duplicated UI components
+#### F-17 · Dead and duplicated UI components — ◐ Unused files removed (Phase 4A, `70802bc`); tables in Phase 4C
 - **Where:**
   - **Unused** (0 imports): `components/ui/EmptyState.tsx`, `ErrorState.tsx`, `Spinner.tsx`, `Table.tsx`, `Input.tsx`, `Select.tsx`, `primitives.tsx`, `states.tsx`.
   - **Hand-built `<table>`s** outside `DataTable`: `ApprovalsCard`, `ClientDetailPanel`, `ClientHealthCard`, `ContentPlansCard`, `InternalApprovalsCard`, `OverdueLeadsModal`, `TeamWorkloadCard`, `ResponsibilitiesPage`.
@@ -422,7 +428,7 @@ The gaps, in order of user impact:
 | F-28 ✅ | `WaitingBanner` | Shown on every page and can't be dismissed; costs about 60 px on mobile | "Snooze for today" (per user, localStorage) | S |
 | F-29 ✅ | Login | No "show password" toggle (the reset form has one) | Reuse the same control | S |
 | F-30 | `index.html:25` | Open TODO: no `apple-touch-icon` / web manifest | Export a 180 px PNG and a minimal `manifest.webmanifest` | S |
-| F-31 | Lint | 20 `react-refresh/only-export-components` warnings (contexts and Button export hooks/constants) | Move `useX` hooks and constants into sibling files; then make lint fail on warnings (`--max-warnings 0`) | S |
+| F-31 ✅ | Lint | 20 `react-refresh/only-export-components` warnings (contexts and Button export hooks/constants) | Move `useX` hooks and constants into sibling files; then make lint fail on warnings (`--max-warnings 0`) | S |
 | F-32 | `index.html` | Inter is loaded from Google Fonts: a third-party request and a possible GDPR question for EU clients | Self-host Inter (woff2, 3 weights) | S |
 | F-33 ✅ | Typography | 11 px / 10 px text used for meta (17 + 3 rules) | Minimum 12 px; check muted-text contrast at that size | S |
 
@@ -431,9 +437,9 @@ The gaps, in order of user impact:
 | ID | Where | Status | Problem | Fix | Effort |
 |---|---|---|---|---|---|
 | N-3 (P2) — ✅ Resolved `be6c1d1` | `.notifications-panel` (`global.css`, around line 1896) | Verified at 375 px: the panel spans x −21 to 323 | The panel is anchored to the bell's right edge with `width: min(400px, 100vw - 32px)`. On phones the bell sits about 54 px in from the right, so the panel runs off the left edge. The phone e2e test holds only the right edge until this is fixed. | Below 640 px, use `position: fixed; inset-inline: 16px; top: var(--topbar-h)` | S |
-| N-1 (P3) | `tsconfig.json` (`include: ["src"]`) | Verified | `vite.config.ts`, `playwright.config.ts` and `e2e/` are never type-checked | Add a `tsconfig.node.json` to `npm run typecheck` | S |
+| N-1 (P3) — ✅ Resolved `d21c89b` | `tsconfig.json` (`include: ["src"]`) | Verified | `vite.config.ts`, `playwright.config.ts` and `e2e/` are never type-checked | Add a `tsconfig.node.json` to `npm run typecheck` | S |
 | N-2 (P3) — ✅ Resolved `bfafe28` | `hooks/useAsync.ts` (`refetch`) | Code-confirmed | `useCallback(…, [query])` changes identity every render | Depend on `query.refetch` | S |
-| N-5 (P3) | `components/layout/NotificationsMenu.tsx` | Verified (0 imports) | A second, unused notifications menu that still shares the `.notifications-menu` rules with the live panel | Delete it with the F-17 cleanup | S |
+| N-5 (P3) — ✅ Resolved `70802bc` | `components/layout/NotificationsMenu.tsx` | Verified (0 imports) | A second, unused notifications menu that still shares the `.notifications-menu` rules with the live panel | Delete it with the F-17 cleanup | S |
 | N-6 (**P1**) — ✅ Resolved | `pages/LeadsPage.tsx:149-152` | Verified in the browser and pinned by a `test.fixme` in `e2e/demo/density.spec.ts` | On `/leads` the stage chips, Status, Source, Search and the Pipeline/Table switch do nothing. Each setter calls `setUrlFilters` twice in one tick (the filter, then `page: 1`). React Router's functional `setSearchParams` reads the last-rendered params, so the second call overwrites the first. Follow-up tiles and Scope work because they set everything in one call. Present since `45b44a9`. | Set both in one call, e.g. `setUrlFilters({ status: value, page: '1' })`, for all four setters; then remove the `fixme`. | S |
 | N-7 (P3) — ◐ Partly (`567711e`, `34b2e49`) | `/leads` toolbar on phones | Verified | After F-19 the first lead at 375 px starts about 120 px below the first screen. The rest is the filter card: Scope, three fields, then the view switch. The Tasks scope-and-view row (F-18) was not applied, because it would add a row on desktop, where the Leads toolbar is already a single 95 px row. | Phone-only rearrangement once N-6 is fixed | S |
 | N-8 (P2) — ✅ Resolved `24a9ff7` | `.pipeline-summary` (Leads) and `.workflow-summary` (Posts), above 760 px | Verified at about 800 px on Leads; Posts not checked | Between the phone chip layout (F-19) and a wide screen, the `auto-fit` grid of stage tiles leaves empty bordered cells (on Leads at about 800 px, 5 + 2 stages). | Use the same chip row up to the width where all stages fit one row, or balance the columns | S |
@@ -443,7 +449,7 @@ The gaps, in order of user impact:
 | N-11 (P3) — ✅ Resolved `af85069` | Native checkboxes and radios | Verified | They use the browser's default blue, not the brand accent, next to magenta switches and segmented controls. | `accent-color: var(--accent)` on inputs | S |
 | N-12 (P3) — ✅ Resolved `0e5911f` | Role checklists (`assign-roles`), colour swatch picker | Code-confirmed | Composite controls inside a `Field`: the required convention cannot put aria-required on them, so they rely on their validation message alone. | Give them `role="group"` with a required description, or a fieldset/legend like Task types | S |
 | N-13 (note) — ✅ Resolved `35d6ff0` | `qa/route-matrix.md` | Verified | The generated evidence file still lists the old labels ("Leads CRM", "Responsibilities"); it is regenerated by `npm run e2e:evidence`. | Regenerate with the next evidence run | S |
-| N-14 (P3) | `pages/BrandProfilePage.tsx` (colour picker) | Code-confirmed | The Hex field accepts `#abc` and `C9144B` (three digits, or no `#`). The native picker needs `#rrggbb`, so for those valid values it shows black instead of the colour. Found during N-12 and not fixed, because it is outside the approved scope. | Expand the value to `#rrggbb` before passing it to the swatch | S |
+| N-14 (P3) — ✅ Resolved `c866386` | `pages/BrandProfilePage.tsx` (colour picker) | Code-confirmed | The Hex field accepts `#abc` and `C9144B` (three digits, or no `#`). The native picker needs `#rrggbb`, so for those valid values it shows black instead of the colour. Found during N-12 and not fixed, because it is outside the approved scope. | Expand the value to `#rrggbb` before passing it to the swatch | S |
 | N-4 (note) | Dialogs | Rule | A field inside a dialog must not use `autoFocus` at open: it takes focus before the trap can record the opener, so focus cannot return on close. `Modal` now focuses the first field itself. `autoFocus` on a field revealed mid-dialog is fine. | — | — |
 
 ---
@@ -734,3 +740,111 @@ There is also a new main-suite spec, `e2e/demo/a11y-remediation.spec.ts`. It run
 | Before and after | 116 captures across 10 screens at 6 widths, light and dark. 59 are pixel-identical; the rest differ by under 0.7%, from demo timestamps, anti-aliasing, the text cursor or animation timing |
 
 Browser coverage is Chrome only. Firefox and Safari were not run. No screen reader was used.
+
+---
+
+## Phase 4A: engineering quality (3 November 2026)
+
+Branch `phase-4a-engineering-quality`, cut from `phase-3b2-a11y-remediation` @ `1903a79`. Not merged, not pushed.
+
+### N-1: configuration and E2E type checking
+
+`tsconfig.json` includes only `src/`. As a result, none of these were ever type-checked:
+- `vite.config.ts`
+- `vitest.config.ts`
+- `playwright.config.ts`
+- the 20 Playwright specs
+
+The new `tsconfig.node.json` covers them. It uses Node types, plus the DOM lib for `page.evaluate` callbacks, and keeps the app's browser-only project separate. `npm run typecheck` runs both projects.
+
+They passed as they stood. Planted errors in a spec and in `vite.config.ts` were caught. Vite, Vitest and Playwright still read `tsconfig.json`, so their behaviour is unchanged.
+
+### F-31: zero lint warnings
+
+All 20 warnings came from `react-refresh/only-export-components`: a `.tsx` file exported a component alongside a non-component. Fast Refresh cannot hot-swap such a module, so it remounts it and loses state. No rule was disabled.
+
+| Warnings | Cause | Change |
+|---|---|---|
+| 5 | Each `XContext.tsx` exported its Provider and its `useX` hook | Provider moved (`git mv`, history kept) to `XProvider.tsx`; `XContext.ts` keeps the context, its value type and the hook. All 66 hook importers and all 16 test mocks unchanged |
+| 1 | `ConfirmDialog.tsx` exported `ConfirmProvider` and `useConfirm` | Same split: `ConfirmProvider.tsx` and `ConfirmDialog.ts`; the ten callers of the hook unchanged |
+| 1 | `useIsSuperAdmin` in `RequireAdmin.tsx` | Moved to `hooks/useIsSuperAdmin.ts` |
+| 3 | `useAttachmentAccess`, `linkError`, `pendingCount` exported but used only in their own files | No longer exported |
+| 9 | Helpers and constants in component files | Moved verbatim:<br>• assignee option values → `utils/assigneeOptions.ts`<br>• `noteError` → `utils/linkOrNote.ts`<br>• staged attachments → `utils/pendingAttachments.ts`<br>• `ATTACHMENT_ACCEPT` → `types/domain.ts`<br>• `monthName` → `utils/format.ts`<br>• `buttonClass` → `ui/buttonClass.ts` |
+| 1 | `ui/primitives.tsx` re-exported `buttonClass` | The barrel was unused; deleted with the dead code |
+
+`npm run lint` now runs with `--max-warnings 0`.
+
+### F-17 / N-5: dead code removed
+
+An import graph of `src/` found nine files nothing imports. It counts static imports, re-exports, dynamic `import()`, `lazy()` and `vi.mock` paths as uses, and includes `index.html`, the configs and `e2e/` as importers. A repo-wide search found these files named only in this document's own list. No README, test, config or template-string import uses them, and no barrel is consumed.
+
+| File | What it was |
+|---|---|
+| `components/layout/NotificationsMenu.tsx` | The old notifications menu (N-5), replaced by `NotificationsDropdown` |
+| `components/ui/EmptyState.tsx`, `ErrorState.tsx`, `states.tsx` | Duplicates of `ui/State.tsx`, which every page uses |
+| `components/ui/Input.tsx`, `Select.tsx` | Duplicates of `ui/Fields.tsx` |
+| `components/ui/Spinner.tsx` | Unused |
+| `components/ui/Table.tsx` | An alias of `DataTable` |
+| `components/ui/primitives.tsx` | An unused barrel |
+
+The old menu's `.notifications-menu` selectors were dropped from rules it shared with the live panel. The panel's computed styles are identical before and after, at 375 and 1440 px. `vite-env.d.ts` also has no importers, but it is an ambient type declaration and stays. The hand-built tables were not touched (Phase 4C).
+
+### N-14: colour picker
+
+- **Cause:** the Hex field's value went straight to `<input type="color">`. That input accepts only `#rrggbb` and silently shows black for anything else: `#abc`, `C9144B`, and any half-typed value.
+- **Inconsistent saving:** saving only added a missing `#`, so one colour could be stored three ways.
+- **Fix:** `utils/hexColour` normalises 3 or 6 digits, with or without `#`, in either case, to lower-case `#rrggbb`. That is what the picker takes and returns, what the demo data already used, and a `#`-prefixed hex string as the API always received.
+  - Validation, the swatch and the save mapping all use it.
+  - The swatch keeps its last colour while the field holds a half-typed value.
+  - Picking a colour writes it back and revalidates the field.
+
+### F-13: README
+
+The README was rewritten against the code:
+- requirements;
+- `npm ci` from the lockfile;
+- the env file load order;
+- every `VITE_` variable;
+- local development pointed at a local API, with staging in `.env.development.local`;
+- demo mode and its limits;
+- the auth model;
+- every script;
+- the folder layout;
+- troubleshooting without deleting the lockfile.
+
+Every command in it was run, except `npm run e2e:live`, which needs a staging deployment. The commit message says every command was run; that overstates it by this one.
+
+### Test flake found and fixed (pre-existing)
+
+- **Symptom:** two `httpRefresh` tests, and once an `AuthContext` test, failed in about 1 in 7 full unit runs, by timing out at 5 s or by seeing 6 requests instead of 3.
+- **Cause:** each test resets modules and imports a fresh copy. The first import in a worker also pays for transforming the whole module graph, which takes about 0.5 s alone and up to 5 s under a full parallel run. A timed-out test's retries then landed in the next test's fake network.
+- **Not caused by Phase 4A:** the base commit `1903a79` fails the same way, in 1 of 8 runs.
+- **Fix:** a `beforeAll` warms the import once per file.
+- **Result:** the files' slowest test fell from 5,035 ms to 636 ms, and 10 further full runs passed.
+- **Open:** in one earlier run after the fix, a different test failed once, and its name was not captured. It was neither of these files, which stayed under 636 ms in that run. It is listed under "New findings".
+
+### New findings (not fixed)
+
+| ID | Where | Finding | Suggested fix |
+|---|---|---|---|
+| N-15 (P3) | `pages/ClientHomePage.tsx` | A private copy of `monthName`, the same as `utils/format.ts` | Import the shared one |
+| N-16 (P3) | Unit suite | One unidentified failure in 19 full runs after the flake fix | Record failing test names in CI and repeat the suite before release |
+| N-17 (note) | Tooling | `npm ci --dry-run` still empties `node_modules` first on npm 10. It did so here, and `node_modules` was reinstalled from the unchanged lockfile | Documented in the README troubleshooting |
+
+### Phase 4A gates (final run)
+
+| Gate | Result |
+|---|---|
+| ESLint | 0 errors, **0 warnings**; `npm run lint` now fails on any warning |
+| TypeScript | `npm run typecheck` passes both projects: the app, and the configs and E2E specs |
+| Unit tests | 451/451 (55 files), none skipped |
+| E2E (`npm run e2e`) | 258/258 in 28.4 min, none skipped, no retries |
+| Accessibility (`npm run e2e:a11y`) | 172/172 scenes in 37.9 min, 0 violation nodes, no allowed exceptions |
+| Production build | passes; `npm run preview` serves it |
+| Responsive sweep | 49 page × width checks at 320–1920 px, no overflow or clipping; all 247 focus stops show a visible indicator |
+
+The E2E and accessibility runs took about twice their usual time. Other workloads on the machine (another project's dev server, two other agent runtimes and a separate build) held the CPU at about 80%. An earlier E2E run under that load had four failures:
+- **Two calendar tests and one notification test:** they passed alone, and in the final run.
+- **The A-7 table test:** it failed reproducibly, because it ran eight pages through axe inside one 45 s budget. It is now one test per page (`e9e0ff1`).
+
+Browser coverage is Chrome only. `npm run e2e:live` was not run, because it needs a staging deployment.
