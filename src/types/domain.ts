@@ -436,6 +436,16 @@ export const ATTACHMENT_LABEL_MAX = 180;
 
 /** Mirrors the API: 25MB per file, 20 attachments per record, 20 ids on a create. */
 export const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
+
+/** What the upload picker accepts — the API refuses anything else at upload. */
+export const ATTACHMENT_ACCEPT = [
+  'image/*',
+  '.pdf',
+  '.doc,.docx,.xls,.xlsx,.ppt,.pptx',
+  '.csv,.txt',
+  '.mp4,.mov',
+  '.zip',
+].join(',');
 export const ATTACHMENTS_PER_RECORD = 20;
 
 /** Post stages: tasks on the post with a `sequence`. Only on the single-post read. */

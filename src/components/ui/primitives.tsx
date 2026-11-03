@@ -1,4 +1,5 @@
-export { Button, ButtonLink, buttonClass } from './Button';
+export { Button, ButtonLink } from './Button';
+export { buttonClass } from './buttonClass';
 export type { ButtonVariant, ButtonSize } from './Button';
 export { Badge } from './Badge';
 export { Card, CardHeader, PageHeader } from './Card';

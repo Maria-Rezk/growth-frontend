@@ -7,7 +7,7 @@ import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
-import { ReportBody, monthName } from '@/components/domain/ReportBody';
+import { ReportBody } from '@/components/domain/ReportBody';
 import { ReportShareDialog } from '@/components/domain/ReportShareDialog';
 import { appRoutes } from '@/config/appRoutes';
 import { usePermission } from '@/hooks/usePermission';
@@ -15,7 +15,7 @@ import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { reportsService } from '@/services/reports';
-import { formatDate } from '@/utils/format';
+import { formatDate, monthName } from '@/utils/format';
 
 /**
  * One monthly report, laid out to be read — by the client as much as the

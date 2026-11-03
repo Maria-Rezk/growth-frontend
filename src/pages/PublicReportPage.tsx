@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { Logo } from '@/components/brand/Logo';
-import { ReportBody, monthName } from '@/components/domain/ReportBody';
+import { ReportBody } from '@/components/domain/ReportBody';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/Card';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
@@ -8,7 +8,7 @@ import { EmptyState, ErrorState } from '@/components/ui/State';
 import { useAsync } from '@/hooks/useAsync';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { reportsService } from '@/services/reports';
-import { formatDate } from '@/utils/format';
+import { formatDate, monthName } from '@/utils/format';
 
 /**
  * A monthly report opened from a public link — no login, no app chrome.

@@ -124,3 +124,8 @@ export function formatHours(hours?: number | null): string {
   if (hours === undefined || hours === null || Number.isNaN(hours)) return '—';
   return formatAgeMinutes(hours * 60);
 }
+
+/** "March" for 3, in the reader's language. */
+export function monthName(month: number): string {
+  return new Date(2000, month - 1, 1).toLocaleString(undefined, { month: 'long' });
+}

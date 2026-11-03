@@ -13,19 +13,9 @@ import { useAsync, useMutation } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { attachmentsService, type AttachmentParent } from '@/services/attachments';
 import { fileTooLargeError } from '@/services/files';
-import { ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_RECORD, isPlatformAdmin, type AttachmentInput } from '@/types/domain';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_RECORD, isPlatformAdmin, type AttachmentInput } from '@/types/domain';
 import { formatBytes } from '@/utils/format';
 import { canAddAttachment, canRemoveAttachment } from '@/utils/permissions';
-
-/** What the upload picker accepts — the API refuses anything else at upload. */
-export const ATTACHMENT_ACCEPT = [
-  'image/*',
-  '.pdf',
-  '.doc,.docx,.xls,.xlsx,.ppt,.pptx',
-  '.csv,.txt',
-  '.mp4,.mov',
-  '.zip',
-].join(',');
 
 const LABEL_EXAMPLES: Record<AttachmentParent['entityType'], string> = {
   TASK: 'Final export',
@@ -36,7 +26,7 @@ const LABEL_EXAMPLES: Record<AttachmentParent['entityType'], string> = {
 };
 
 /** Who may add and remove on this parent, from the signed-in person's roles on the client. */
-export function useAttachmentAccess(entityType: AttachmentParent['entityType']) {
+function useAttachmentAccess(entityType: AttachmentParent['entityType']) {
   const { user } = useAuth();
   const roles = useActiveRoles();
   const isAdmin = isPlatformAdmin(user?.platformRole);

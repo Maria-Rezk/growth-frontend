@@ -4,41 +4,12 @@ import { Button } from '@/components/ui/Button';
 import { FileDropzone } from '@/components/ui/FileDropzone';
 import { CloseIcon } from '@/components/ui/icons';
 import { UploadProgress } from '@/components/ui/UploadProgress';
-import { ATTACHMENT_ACCEPT } from '@/components/domain/AttachmentsPanel';
 import { LinkOrNoteForm } from '@/components/domain/LinkOrNoteForm';
 import { errorMessage } from '@/lib/http';
 import { filesService } from '@/services/files';
-import { ATTACHMENTS_PER_RECORD, type PendingLink, type PendingText } from '@/types/domain';
+import { ATTACHMENT_ACCEPT, ATTACHMENTS_PER_RECORD } from '@/types/domain';
+import { pendingCount, type PendingAttachments, type PendingUpload } from '@/utils/pendingAttachments';
 import { formatBytes } from '@/utils/format';
-import type { AttachmentCreateFields } from '@/services/attachments';
-
-export interface PendingUpload {
-  fileId: string;
-  name: string;
-  size: number;
-}
-
-/** Everything staged in a create form: files already uploaded, plus links and notes. */
-export interface PendingAttachments {
-  files: PendingUpload[];
-  links: PendingLink[];
-  texts: PendingText[];
-}
-
-export const NO_PENDING_ATTACHMENTS: PendingAttachments = { files: [], links: [], texts: [] };
-
-/** What the create call takes. Files, links and notes share one limit of 20. */
-export function pendingPayload(pending: PendingAttachments): AttachmentCreateFields {
-  return {
-    attachmentFileIds: pending.files.map((file) => file.fileId),
-    attachmentLinks: pending.links,
-    attachmentTexts: pending.texts,
-  };
-}
-
-export function pendingCount(pending: PendingAttachments): number {
-  return pending.files.length + pending.links.length + pending.texts.length;
-}
 
 /**
  * Files, links and notes picked in a create form. The record does not exist
