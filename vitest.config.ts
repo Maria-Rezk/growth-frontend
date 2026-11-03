@@ -10,6 +10,13 @@ export default mergeConfig(
   defineConfig({
     test: {
       exclude: [...configDefaults.exclude, 'e2e/**'],
+      /*
+        The unit tests exercise the real code paths: auth, refresh, roles and
+        the HTTP services, through fake adapters. Demo mode would replace
+        them, and Vitest reads .env and the shell, so a developer with
+        VITE_DEMO_MODE=true had 80 tests fail (N-18). Pinned off here.
+      */
+      env: { VITE_DEMO_MODE: 'false' },
     },
   }),
 );
