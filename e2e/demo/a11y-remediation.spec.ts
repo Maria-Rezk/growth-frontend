@@ -354,18 +354,19 @@ test.describe('A-6 the skip link works on the sign-in pages', () => {
 test.describe('A-7 actions columns have a header for screen readers', () => {
   const TABLES = ['/members', '/admin/employees', '/admin/clients', '/content-plans', '/posts?view=table', '/leads?view=table', '/tasks?view=table', '/reports'];
 
+  // One test per page and theme: eight pages and their axe scans in one 45 s budget passed only on an idle machine.
   for (const theme of THEMES) {
-    test(`${theme}: every table header names its column, no axe violations in the tables`, async ({ page }) => {
-      await useTheme(page, theme);
-      for (const path of TABLES) {
+    for (const path of TABLES) {
+      test(`${theme}, ${path}: every table header names its column, no axe violations in the table`, async ({ page }) => {
+        await useTheme(page, theme);
         await open(page, path);
         const table = page.locator('main table').first();
         await expect(table).toBeVisible();
         const empty = await table.locator('th').evaluateAll((cells) => cells.filter((cell) => !(cell.textContent ?? '').trim()).length);
-        expect(empty, path).toBe(0);
-        expect(await violations(page, 'main table'), path).toEqual([]);
-      }
-    });
+        expect(empty).toBe(0);
+        expect(await violations(page, 'main table')).toEqual([]);
+      });
+    }
   }
 
   test('the client People table in the Manage dialog, at 375 and 1440 px', async ({ page }) => {
