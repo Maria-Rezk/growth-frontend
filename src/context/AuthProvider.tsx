@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authService } from '@/services/auth';
 import { env } from '@/config/env';
 import {
@@ -13,8 +13,7 @@ import { useStorageSync } from '@/hooks/useStorageSync';
 import { MY_MEMBERSHIPS_KEY, queryClient } from '@/lib/queryClient';
 import { demoUser as DEMO_USER } from '@/services/demoStore';
 import type { AuthResponse, LoginRequest, User } from '@/types/domain';
-
-type AcceptResult = { accepted: boolean; authenticated: boolean };
+import { AuthContext, type AcceptResult, type AuthContextValue } from './AuthContext';
 
 /*
   Cross-tab sign-in/sign-out signal.
@@ -36,20 +35,6 @@ function broadcastAuthEvent(kind: 'signed-in' | 'signed-out'): void {
     // next request notices the session changed.
   }
 }
-
-interface AuthContextValue {
-  user: User | null;
-  token: string | null;
-  loading: boolean;
-  error: string | null;
-  isAuthenticated: boolean;
-  login: (payload: LoginRequest) => Promise<boolean>;
-  acceptInvitation: (payload: { token: string; fullName?: string; password?: string }) => Promise<AcceptResult>;
-  logout: () => void;
-  reloadUser: (options?: { silent?: boolean }) => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => (env.demoMode ? DEMO_USER : null));
@@ -313,10 +298,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used inside AuthProvider.');
-  return context;
 }

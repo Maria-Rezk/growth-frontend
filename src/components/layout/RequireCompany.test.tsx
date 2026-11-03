@@ -25,7 +25,8 @@ vi.mock('@/services/memberships', () => ({
   },
 }));
 
-import { CompanyProvider, useCompany } from '@/context/CompanyContext';
+import { useCompany } from '@/context/CompanyContext';
+import { CompanyProvider } from '@/context/CompanyProvider';
 import { RequireCompany } from './RequireCompany';
 
 /** A page with state of its own: a draft the person has half typed for ONE client. */

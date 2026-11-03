@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { LocaleProvider, useLocale } from './LocaleContext';
+import { useLocale } from './LocaleContext';
+import { LocaleProvider } from './LocaleProvider';
 
 beforeEach(() => {
   vi.resetModules();
@@ -53,7 +54,8 @@ describe('LocaleProvider with storage unavailable', () => {
       throw new Error('storage disabled');
     });
 
-    const { LocaleProvider: MockedLocaleProvider, useLocale: useMockedLocale } = await import('./LocaleContext');
+    const { LocaleProvider: MockedLocaleProvider } = await import('./LocaleProvider');
+    const { useLocale: useMockedLocale } = await import('./LocaleContext');
     function MockedHarness() {
       const { lang } = useMockedLocale();
       return <span>lang:{lang}</span>;

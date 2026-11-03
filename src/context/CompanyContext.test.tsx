@@ -18,7 +18,8 @@ vi.mock('@/services/companies', () => ({
 const mine = vi.fn();
 vi.mock('@/services/memberships', () => ({ membershipsService: { mine: () => mine() } }));
 
-import { CompanyProvider, useCompany } from './CompanyContext';
+import { useCompany } from './CompanyContext';
+import { CompanyProvider } from './CompanyProvider';
 
 const ALL: Company[] = [
   { id: 'A', name: 'Alpha' } as Company,

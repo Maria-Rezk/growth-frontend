@@ -1,18 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { env } from '@/config/env';
 import { messages, type AppLanguage } from '@/i18n/messages';
+import { LocaleContext, type Direction, type LocaleContextValue } from './LocaleContext';
 
-type Direction = 'ltr' | 'rtl';
-
-interface LocaleContextValue {
-  lang: AppLanguage;
-  dir: Direction;
-  setLang: (lang: AppLanguage) => void;
-  toggle: () => void;
-  t: (key: string) => string;
-}
-
-const LocaleContext = createContext<LocaleContextValue | null>(null);
 const LANG_KEY = 'growth.lang';
 
 function resolveInitialLang(): AppLanguage {
@@ -58,10 +48,4 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
-}
-
-export function useLocale() {
-  const context = useContext(LocaleContext);
-  if (!context) throw new Error('useLocale must be used inside LocaleProvider.');
-  return context;
 }

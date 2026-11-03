@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { CompanyProvider } from '@/context/CompanyContext';
-import { NotificationsProvider } from '@/context/NotificationsContext';
+import { CompanyProvider } from '@/context/CompanyProvider';
+import { NotificationsProvider } from '@/context/NotificationsProvider';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { WaitingBanner } from '@/components/layout/WaitingBanner';

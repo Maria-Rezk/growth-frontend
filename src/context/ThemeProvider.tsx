@@ -1,30 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
-
-/** What the user chose. `system` defers to the OS setting. */
-export type ThemePreference = 'light' | 'dark' | 'system';
-
-/** What is actually painted. `system` is always resolved to one of these. */
-export type ResolvedTheme = 'light' | 'dark';
-
-interface ThemeContextValue {
-  /** The user's stored choice, including `system`. */
-  preference: ThemePreference;
-  /** The concrete theme currently applied to <html>. Never `system`. */
-  theme: ResolvedTheme;
-  setPreference: (preference: ThemePreference) => void;
-  /** Cycles light → dark → system → light. */
-  cycle: () => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ThemeContext, type ResolvedTheme, type ThemeContextValue, type ThemePreference } from './ThemeContext';
 
 /** Must stay in sync with the boot script in index.html. */
 export const THEME_STORAGE_KEY = 'growth.theme';
@@ -109,10 +84,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used inside ThemeProvider.');
-  return context;
 }

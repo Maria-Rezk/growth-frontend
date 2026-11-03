@@ -17,7 +17,7 @@ import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
   Same no-mocking-library approach as httpRefresh.test.ts: a fake axios
   adapter stands in for the network, and `vi.resetModules()` + a fresh
-  `import('./AuthContext')` per test isolates the module-level state in
+  `import('./AuthContext')` and `import('./AuthProvider')` per test isolates the module-level state in
   http.ts (the in-memory token, the handler singletons) between tests.
 */
 
@@ -50,8 +50,9 @@ async function boot(routes: Record<string, Route>) {
   const axios = (await import('axios')).default;
   const network = fakeNetwork(routes);
   axios.defaults.adapter = network.adapter;
-  const mod = await import('./AuthContext');
-  return { ...mod, ...network };
+  const { useAuth } = await import('./AuthContext');
+  const { AuthProvider } = await import('./AuthProvider');
+  return { AuthProvider, useAuth, ...network };
 }
 
 beforeEach(() => {

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { companiesService } from '@/services/companies';
 import { membershipsService } from '@/services/memberships';
 import { useAuth } from '@/context/AuthContext';
@@ -10,38 +10,8 @@ import { demoCompany, demoMemberships } from '@/services/demoStore';
 import { isPlatformAdmin, type Company, type CompanyMembershipRole, type SessionMembership } from '@/types/domain';
 import { sortByName } from '@/utils/sort';
 import { membershipRoles } from '@/utils/roles';
+import { CompanyContext, type CompanyContextValue } from './CompanyContext';
 
-interface CompanyContextValue {
-  /** The clients this person can reach: everything for a platform admin, their ACTIVE memberships otherwise. */
-  companies: Company[];
-  /** The signed-in person's own ACTIVE memberships. Never anybody else's. */
-  memberships: SessionMembership[];
-  activeCompany: Company | null;
-  activeCompanyId: string | null;
-  /** True until the client list, and (for anyone but a platform admin) the person's memberships, are known. */
-  loading: boolean;
-  error: string | null;
-  setActiveCompanyId: (companyId: string) => void;
-  refreshCompanies: () => Promise<void>;
-  /** Re-reads the person's memberships (`GET /me/memberships`), the only place roles come from. */
-  refreshMemberships: () => Promise<void>;
-  /**
-   * True when the memberships could not be read, so this person's roles are
-   * unknown and every role-gated control is hidden. Not the same as having no
-   * roles: a platform admin legitimately has none and still passes every check.
-   */
-  rolesUnavailable: boolean;
-  /**
-   * Why: `unsupported` when the server has no `/me/memberships` at all (a 404 —
-   * retrying cannot help, it needs a backend release), `failed` for anything
-   * transient. Null while roles are known.
-   */
-  rolesUnavailableReason: 'unsupported' | 'failed' | null;
-  currentMembership: SessionMembership | null;
-  hasRole: (...roles: CompanyMembershipRole[]) => boolean;
-}
-
-const CompanyContext = createContext<CompanyContextValue | null>(null);
 const ACTIVE_COMPANY_KEY = 'growth.activeCompanyId';
 
 function readActiveCompanyId(): string | null {
@@ -115,7 +85,6 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   // ---- the client list ---------------------------------------------------------------------
   /** Tagged with the person it was loaded for, so one person's clients are never shown to the next. */
   const [loaded, setLoaded] = useState<{ userId: string; list: Company[]; error: string | null } | null>(null);
-
 
   const refreshCompanies = useCallback(async () => {
     if (env.demoMode || !userId) return;
@@ -240,10 +209,4 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>;
-}
-
-export function useCompany() {
-  const context = useContext(CompanyContext);
-  if (!context) throw new Error('useCompany must be used inside CompanyProvider.');
-  return context;
 }

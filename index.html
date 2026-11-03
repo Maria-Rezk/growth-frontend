@@ -36,7 +36,7 @@
     <script>
       /*
         Runs before first paint so the app never flashes light then repaints
-        dark. Must stay in sync with THEME_STORAGE_KEY in ThemeContext.tsx.
+        dark. Must stay in sync with THEME_STORAGE_KEY in ThemeProvider.tsx.
         Kept inline and dependency-free on purpose — an external file would
         be fetched after parse and reintroduce the flash.
       */

@@ -1,32 +1,15 @@
-import { createContext, useCallback, useContext, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient, type Query } from '@tanstack/react-query';
 import { notificationsService } from '@/services/notifications';
 import { useAuth } from '@/context/AuthContext';
 import { errorMessage } from '@/lib/http';
 import { queryKeys } from '@/lib/queryClient';
 import type { NotificationPreferences, NotificationType } from '@/types/domain';
+import { NotificationsContext, type NotificationsContextValue } from './NotificationsContext';
 
 const NOTHING_MUTED: ReadonlySet<NotificationType> = new Set();
 
 const isFeedQuery = (query: Query) => query.queryKey[1] !== 'preferences';
-
-interface NotificationsContextValue {
-  /** From the server, which already leaves muted types out. */
-  unreadCount: number;
-  refreshUnreadCount: () => Promise<void>;
-  /** Types switched off on the account. */
-  muted: ReadonlySet<NotificationType>;
-  setMuted: (type: NotificationType, muted: boolean) => void;
-  preferences: NotificationPreferences | null;
-  preferencesLoading: boolean;
-  preferencesError: string | null;
-  /** Replaces the whole preferences object. Optimistic; rolls back on failure. */
-  savePreferences: (next: NotificationPreferences) => Promise<boolean>;
-  saving: boolean;
-  saveError: string | null;
-}
-
-const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -109,10 +92,4 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     [muted, preferences, preferencesQuery.error, preferencesQuery.isLoading, refreshUnreadCount, saveMutation.error, saveMutation.isPending, savePreferences, serverCount, setMuted],
   );
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
-}
-
-export function useNotifications() {
-  const context = useContext(NotificationsContext);
-  if (!context) throw new Error('useNotifications must be used inside NotificationsProvider.');
-  return context;
 }
