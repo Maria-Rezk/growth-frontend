@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -7,7 +7,19 @@ import { MemoryRouter } from 'react-router-dom';
 import { PostStatus, type ContentPost } from '@/types/domain';
 import { ContentCalendar } from './ContentCalendar';
 
-afterEach(cleanup);
+/*
+  The clock is frozen outside the fixture month. A day's label says "today", so with the real
+  clock the tests on November 2026 dates failed on exactly those days. Only Date is faked:
+  user-event still needs real timers.
+*/
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 5, 15, 12) });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+});
 
 const post = (id: string, title: string, status: PostStatus, scheduledAt: string | null) =>
   ({ id, title, status, scheduledAt, platform: 'INSTAGRAM' }) as unknown as ContentPost;
