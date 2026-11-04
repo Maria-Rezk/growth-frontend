@@ -1,13 +1,13 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
-import { demoBuildProblem } from './src/config/buildGuard';
+import { DEMO_BUILD_MODE, demoBuildProblem } from './src/config/buildGuard';
 
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const proxyTarget = env.VITE_DEV_PROXY_TARGET;
-  // No production build in demo mode unless it says it is meant to be a demo deployment (N-19).
-  const demoProblem = demoBuildProblem(command, env);
+  // Only the dedicated demo target may build demo mode (N-19).
+  const demoProblem = demoBuildProblem(command, mode, env);
   if (demoProblem) throw new Error(demoProblem);
 
   return {
@@ -18,6 +18,8 @@ export default defineConfig(({ mode, command }) => {
       },
     },
     build: {
+      // A demo bundle never lands where a real deployment picks up its files.
+      outDir: mode === DEMO_BUILD_MODE ? 'dist-demo' : 'dist',
       rollupOptions: {
         output: {
           /*
