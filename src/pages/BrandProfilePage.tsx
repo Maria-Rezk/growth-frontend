@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { z } from 'zod';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { useClientView } from '@/hooks/useClientView';
@@ -19,87 +18,8 @@ import { useAuth } from '@/context/AuthContext';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { brandProfilesService } from '@/services/brandProfiles';
 import { queryKeys } from '@/lib/queryClient';
-import type { BrandProfile, BrandProfileInput } from '@/types/domain';
-import { isHexColour, normalizeHex } from '@/utils/hexColour';
-
-const brandProfileSchema = z.object({
-  brandName: z.string().trim().min(2, 'Brand name is required.'),
-  industry: z.string().trim().min(2, 'Industry is required.'),
-  description: z.string().trim().min(10, 'Add a short brand description.'),
-  targetAudience: z.string().trim().min(10, 'Describe the target audience.'),
-  toneOfVoice: z.string().trim().min(3, 'Tone of voice is required.'),
-  brandNotes: z.string().optional().default(''),
-  // string-array fields, edited as comma-separated text
-  languages: z.string().optional().default(''),
-  serviceAreas: z.string().optional().default(''),
-  ctaPreferences: z.string().optional().default(''),
-  forbiddenWords: z.string().optional().default(''),
-  // structured arrays, edited as rows
-  colors: z.array(z.object({
-    name: z.string().trim().min(1, 'Colour name is required.'),
-    hex: z.string().trim().refine(isHexColour, 'Use a hex value such as #C9144B.'),
-  })),
-  services: z.array(z.object({
-    name: z.string().trim().min(1, 'Service name is required.'),
-    description: z.string().optional().default(''),
-    priceRange: z.string().optional().default(''),
-  })),
-  offers: z.array(z.object({
-    title: z.string().trim().min(1, 'Offer title is required.'),
-    description: z.string().optional().default(''),
-    validUntil: z.string().optional().default(''),
-  })),
-});
-
-type BrandProfileForm = z.infer<typeof brandProfileSchema>;
-
-const EMPTY: BrandProfileForm = {
-  brandName: '', industry: '', description: '', targetAudience: '', toneOfVoice: '', brandNotes: '',
-  languages: '', serviceAreas: '', ctaPreferences: '', forbiddenWords: '',
-  colors: [], services: [], offers: [],
-};
-
-const listToText = (value?: string[]) => (Array.isArray(value) ? value.join(', ') : '');
-const textToList = (value?: string) => (value ? value.split(',').map((item) => item.trim()).filter(Boolean) : []);
-
-/** API shape -> form shape. Typed both ends now that BrandProfile is accurate. */
-function toFormValues(profile: BrandProfile): BrandProfileForm {
-  return {
-    brandName: profile.brandName ?? '',
-    industry: profile.industry ?? '',
-    description: profile.description ?? '',
-    targetAudience: profile.targetAudience ?? '',
-    toneOfVoice: profile.toneOfVoice ?? '',
-    brandNotes: profile.brandNotes ?? '',
-    languages: listToText(profile.languages),
-    serviceAreas: listToText(profile.serviceAreas),
-    ctaPreferences: listToText(profile.ctaPreferences),
-    forbiddenWords: listToText(profile.forbiddenWords),
-    colors: (profile.colors ?? []).map((c) => ({ name: c.name ?? '', hex: c.hex ?? '' })),
-    services: (profile.services ?? []).map((s) => ({ name: s.name ?? '', description: s.description ?? '', priceRange: s.priceRange ?? '' })),
-    offers: (profile.offers ?? []).map((o) => ({ title: o.title ?? '', description: o.description ?? '', validUntil: o.validUntil ?? '' })),
-  };
-}
-
-/** Form shape -> API payload. */
-function toPayload(values: BrandProfileForm): BrandProfileInput {
-  return {
-    brandName: values.brandName,
-    industry: values.industry,
-    description: values.description,
-    targetAudience: values.targetAudience,
-    toneOfVoice: values.toneOfVoice,
-    brandNotes: values.brandNotes || undefined,
-    languages: textToList(values.languages),
-    serviceAreas: textToList(values.serviceAreas),
-    ctaPreferences: textToList(values.ctaPreferences),
-    forbiddenWords: textToList(values.forbiddenWords),
-    // Validated above, so normalizeHex always has a colour to return.
-    colors: values.colors.map((c) => ({ name: c.name, hex: normalizeHex(c.hex) ?? c.hex })),
-    services: values.services.map((s) => ({ name: s.name, description: s.description || undefined, priceRange: s.priceRange || undefined })),
-    offers: values.offers.map((o) => ({ title: o.title, description: o.description || undefined, validUntil: o.validUntil || undefined })),
-  };
-}
+import { normalizeHex } from '@/utils/hexColour';
+import { brandProfileSchema, EMPTY_BRAND_PROFILE, toFormValues, toPayload, type BrandProfileForm } from './brandProfileForm';
 
 export function BrandProfilePage() {
   return <RequireCompany>{(companyId) => <BrandProfileInner companyId={companyId} />}</RequireCompany>;
@@ -114,7 +34,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
     { queryKey: queryKeys.brandProfile(companyId) },
   );
 
-  const form = useForm<BrandProfileForm>({ resolver: zodResolver(brandProfileSchema), defaultValues: EMPTY, mode: 'onBlur' });
+  const form = useForm<BrandProfileForm>({ resolver: zodResolver(brandProfileSchema), defaultValues: EMPTY_BRAND_PROFILE, mode: 'onBlur' });
 
   const save = useMutation(brandProfilesService.upsert, {
     invalidateKeys: [queryKeys.brandProfile(companyId)],
@@ -156,7 +76,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
   const canEdit = usePermission('brand:edit');
 
   const submit = form.handleSubmit(async (values) => {
-    const result = await save.mutate(companyId, toPayload(values), Boolean(profile.data));
+    const result = await save.mutate(companyId, toPayload(values, Boolean(profile.data)), Boolean(profile.data));
     if (result) {
       profile.setData(result);
       form.reset(toFormValues(result));

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { SuperAdminOnly } from '@/components/layout/RequireAdmin';
 import { Badge } from '@/components/ui/Badge';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldGroup, Input, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
@@ -213,10 +214,48 @@ function MembersSection({ client }: { client: Company }) {
     invalidateKeys: invalidate,
     onSuccess: syncOwnRoles,
   });
-  const remove = useMutation(companiesService.removeMember, {
-    invalidateKeys: invalidate,
-    onSuccess: syncOwnRoles,
-  });
+  /*
+    `removeMember` resolves `void`, and `mutate()` resolves `null` on failure,
+    so its raw result cannot tell "removed" from "failed" (an `undefined` and
+    a `null` both read as falsy). Resolving `true` makes success explicit: the
+    toast below is shown only when the DELETE actually succeeded.
+  */
+  const remove = useMutation(
+    async (companyId: string, membershipId: string) => {
+      await companiesService.removeMember(companyId, membershipId);
+      return true as const;
+    },
+    { invalidateKeys: invalidate, onSuccess: syncOwnRoles },
+  );
+  const confirm = useConfirm();
+  const memberName = (member: Membership) =>
+    member.user?.fullName ?? employeeName.get(member.userId) ?? member.user?.email ?? 'this person';
+
+  /*
+    Removal cuts somebody's access to this client on the spot, so it always
+    asks first — the same dialog MembersPage uses. Cancelling leaves the
+    membership (and, from the role editor, its current roles) untouched.
+  */
+  const confirmAndRemove = async (member: Membership) => {
+    if (remove.loading) return;
+    const name = memberName(member);
+    const ok = await confirm({
+      title: 'Remove from client',
+      message: (
+        <>
+          Remove <strong>{name}</strong> from <strong>{client.name}</strong>? They lose access to this client
+          immediately. Their history is kept, and they can be assigned again later.
+        </>
+      ),
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setPendingId(member.id);
+    setEditingId(null);
+    const removed = await remove.mutate(client.id, member.id);
+    if (removed) toast.success(`${name} removed from ${client.name}.`);
+  };
 
   const submit = form.handleSubmit(async (values) => {
     const created = await add.mutate(client.id, { userId: values.userId, roles: values.roles });
@@ -234,12 +273,11 @@ function MembersSection({ client }: { client: Company }) {
     thing from "no longer works on this client". It routes to DELETE instead.
   */
   const saveRoles = (member: Membership, roles: CompanyMembershipRole[]) => {
-    setPendingId(member.id);
     if (roles.length === 0) {
-      setEditingId(null);
-      void remove.mutate(client.id, member.id).then(() => toast.success('Removed from client.'));
+      void confirmAndRemove(member);
       return;
     }
+    setPendingId(member.id);
     void changeRole
       .mutate(client.id, member.id, { roles })
       .then((updated) => { if (updated) toast.success('Roles updated.'); });
@@ -301,10 +339,9 @@ function MembersSection({ client }: { client: Company }) {
                         variant="ghost"
                         size="sm"
                         loading={remove.loading && pendingId === member.id}
-                        onClick={() => {
-                          setPendingId(member.id);
-                          void remove.mutate(client.id, member.id).then(() => toast.success('Removed from client.'));
-                        }}
+                        disabled={remove.loading}
+                        aria-label={`Remove ${memberName(member)} from ${client.name}`}
+                        onClick={() => void confirmAndRemove(member)}
                       >
                         Remove
                       </Button>

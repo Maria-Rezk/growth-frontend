@@ -16,6 +16,9 @@ import { CreateEmployeeModal } from '@/components/admin/employees/CreateEmployee
 import { EditEmployeeModal } from '@/components/admin/employees/EditEmployeeModal';
 import { PlatformRoleModal } from '@/components/admin/employees/PlatformRoleModal';
 import { AssignClientModal } from '@/components/admin/employees/AssignClientModal';
+import { EmployeeStatusAction } from '@/components/admin/employees/EmployeeStatusAction';
+import { deactivationBlockReason } from '@/components/admin/employees/employeeStatus';
+import { useAuth } from '@/context/AuthContext';
 
 export function EmployeesPage() {
   return (
@@ -28,6 +31,9 @@ export function EmployeesPage() {
 function EmployeesInner() {
   const employees = useAsync(() => usersService.list(), [], { queryKey: queryKeys.employees });
   const superAdmin = useIsSuperAdmin();
+  const { user } = useAuth();
+  const viewerId = user?.id;
+  const allEmployees = employees.data;
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [assignTarget, setAssignTarget] = useState<Employee | null>(null);
@@ -91,16 +97,24 @@ function EmployeesInner() {
           {superAdmin ? (
             <Button variant="ghost" size="sm" onClick={() => setRoleTarget(employee)}>Platform role</Button>
           ) : null}
+          <EmployeeStatusAction
+            employee={employee}
+            blockedReason={deactivationBlockReason(employee, {
+              viewerId,
+              viewerIsSuperAdmin: superAdmin,
+              employees: allEmployees ?? [],
+            })}
+          />
         </div>
       ),
     },
-  ], [superAdmin]);
+  ], [allEmployees, superAdmin, viewerId]);
 
   return (
     <>
       <PageHeader
         title="Employees"
-        subtitle="Create employee accounts, reset access and assign them to clients."
+        subtitle="Create employee accounts, reset access, deactivate or reactivate them, and assign them to clients."
         action={<Button size="sm" onClick={() => setCreateOpen(true)}>Add employee</Button>}
       />
 
