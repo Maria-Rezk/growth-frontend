@@ -72,6 +72,9 @@ test.describe('required and optional fields', () => {
     await expectMarks(dialog, ['Title', 'Priority'], ['Description', 'Responsibility area', 'Due date']);
     await expect(dialog.locator('legend', { hasText: 'Type' })).toContainText('(optional)');
     await expect(dialog.locator('legend', { hasText: 'Steps' })).toContainText('(optional)');
+    // The PLAN task type reads "Content"; "Plan" is not offered as a type.
+    await expect(dialog.getByRole('checkbox', { name: 'Content', exact: true })).toBeVisible();
+    await expect(dialog.getByRole('checkbox', { name: 'Plan', exact: true })).toHaveCount(0);
     // The old wording, "Optional." inside the hint, is gone.
     await expect(dialog.getByText(/^Optional\./)).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Create task' }).click();

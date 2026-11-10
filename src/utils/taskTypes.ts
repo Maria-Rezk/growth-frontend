@@ -1,7 +1,8 @@
 import { TaskType, type Task } from '@/types/domain';
 
 export const TASK_TYPE_OPTIONS: ReadonlyArray<{ value: TaskType; label: string; labelAr: string }> = [
-  { value: TaskType.PLAN, label: 'Plan', labelAr: 'الخطة' },
+  // Shown as "Content"; the value stays PLAN on the wire and in the database.
+  { value: TaskType.PLAN, label: 'Content', labelAr: 'المحتوى' },
   { value: TaskType.DESIGN, label: 'Design', labelAr: 'التصميم' },
   { value: TaskType.CAPTIONS, label: 'Captions', labelAr: 'الكابشن' },
   { value: TaskType.REELS, label: 'Reels', labelAr: 'الريلز' },

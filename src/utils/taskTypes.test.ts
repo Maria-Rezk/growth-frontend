@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { readTaskTypes, taskTypeChips, taskTypeSummary } from './taskTypes';
+import { TASK_TYPE_OPTIONS, readTaskTypes, taskTypeChips, taskTypeLabel, taskTypeSummary } from './taskTypes';
 
 describe('task types', () => {
+  it('shows PLAN as "Content" while the value on the wire stays PLAN', () => {
+    expect(taskTypeLabel('PLAN')).toBe('Content');
+    expect(taskTypeLabel('PLAN', 'ar')).toBe('المحتوى');
+    expect(TASK_TYPE_OPTIONS.find((option) => option.label === 'Content')?.value).toBe('PLAN');
+    // An existing task stored as PLAN reads as Content.
+    expect(taskTypeChips({ taskTypes: ['PLAN', 'DESIGN'], customTaskType: null })).toEqual(['Content', 'Design']);
+    expect(TASK_TYPE_OPTIONS.some((option) => option.label === 'Plan')).toBe(false);
+  });
+
   it('shows the typed text for OTHER instead of the word', () => {
     expect(taskTypeChips({ taskTypes: ['REELS', 'OTHER'], customTaskType: 'Event setup' })).toEqual(['Reels', 'Event setup']);
   });

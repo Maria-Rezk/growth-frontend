@@ -141,6 +141,14 @@ test.describe('the same URL filters on Tasks and Posts', () => {
     await expect(page.locator('main .kanban-card')).toHaveCount(1);
   });
 
+  test('Tasks: the PLAN type filter reads "Content" and still sends type=PLAN', async ({ page }) => {
+    await open(page, '/tasks');
+    const filter = page.locator('#task-type-filter');
+    await expect(filter.locator('option[value="PLAN"]')).toHaveText('Content');
+    await filter.selectOption({ label: 'Content' });
+    await expect(page).toHaveURL(/type=PLAN/);
+  });
+
   test('Posts: a stage tile, search and the view switch combine and are kept in the URL', async ({ page }) => {
     await open(page, '/posts');
     await page.getByRole('group', { name: 'Filter by workflow stage' }).getByRole('button', { name: /^Draft/ }).click();
