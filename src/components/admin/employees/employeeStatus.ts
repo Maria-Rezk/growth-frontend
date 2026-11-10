@@ -22,6 +22,38 @@ export function hidesStatusAction(
   return target.platformRole === PlatformRole.SUPER_ADMIN && !context.viewerIsSuperAdmin;
 }
 
+/** What the Employees page offers on one row. Every flag is visibility only — the API stays the authority. */
+export interface EmployeeActionVisibility {
+  /** The Edit dialog: name and password reset. */
+  edit: boolean;
+  /** The Status field inside the Edit dialog. Same rule as the row's status action, plus its blocks. */
+  editStatus: boolean;
+  /** The row's Deactivate / Activate button. */
+  statusAction: boolean;
+}
+
+/**
+ * The one place the Employees page decides which actions a row shows (guide 1.5).
+ *
+ * - An Agency Admin may change nothing on a Super Admin account — status,
+ *   password or name — so Edit and the status action are both hidden there.
+ * - Nobody is offered their own status: not on the row, not inside Edit.
+ * - Inside Edit, status is also left out when deactivation is blocked (the
+ *   last active Super Admin), so the dialog is never a way round the row's guard.
+ */
+export function employeeActionVisibility(
+  target: Employee,
+  context: { viewerId: string | null | undefined; viewerIsSuperAdmin: boolean; employees: readonly Employee[] },
+): EmployeeActionVisibility {
+  const protectedAccount = target.platformRole === PlatformRole.SUPER_ADMIN && !context.viewerIsSuperAdmin;
+  const statusAction = !hidesStatusAction(target, context);
+  return {
+    edit: !protectedAccount,
+    statusAction,
+    editStatus: !protectedAccount && statusAction && deactivationBlockReason(target, context) === null,
+  };
+}
+
 /**
  * Why the Deactivate action is unavailable for this employee, or `null` when
  * it may be offered.
