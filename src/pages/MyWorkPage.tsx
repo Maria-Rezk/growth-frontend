@@ -28,6 +28,8 @@ import {
   type DueBucket,
 } from '@/utils/dueBuckets';
 import { TaskStatus } from '@/types/domain';
+import { useAuth } from '@/context/AuthContext';
+import { isStepFlow, liveStep, stepActions } from '@/utils/taskSteps';
 import { ListSkeleton } from '@/components/ui/Skeleton';
 
 /**
@@ -290,6 +292,7 @@ function DueGroup({
   onMove: (task: MyWorkTask, status: TaskStatus) => void;
   onSubmit: (task: MyWorkTask) => void;
 }) {
+  const { user } = useAuth();
   // An empty bucket is noise, not information — the tiles above already say
   // "zero overdue" for the one case where zero is worth stating.
   if (tasks.length === 0) return null;
@@ -321,7 +324,10 @@ function DueGroup({
               </div>
 
               <div className="work-row__actions">
-                {isInReview(task) ? (
+                {isStepFlow(task) ? (
+                  // A flow: only the live step's person starts or submits, and never by a free status change.
+                  <FlowRowActions task={task} userId={user?.id} busy={busy} onMove={onMove} onSubmit={onSubmit} onOpen={onOpen} />
+                ) : isInReview(task) ? (
                   <span className={isWaitingLong(task.submittedForReviewAt) ? 'muted danger-text' : 'muted'}>
                     Waiting on {userLabel(task.approver, 'an approver')} · {formatWaiting(task.submittedForReviewAt)}
                   </span>
@@ -349,5 +355,46 @@ function DueGroup({
         </ul>
       </div>
     </Card>
+  );
+}
+
+/** My work's row actions on a task that runs as a flow of steps: the same rules as the task page. */
+function FlowRowActions({
+  task,
+  userId,
+  busy,
+  onMove,
+  onSubmit,
+  onOpen,
+}: {
+  task: MyWorkTask;
+  userId?: string;
+  busy: boolean;
+  onMove: (task: MyWorkTask, status: TaskStatus) => void;
+  onSubmit: (task: MyWorkTask) => void;
+  onOpen: (task: MyWorkTask) => void;
+}) {
+  const live = liveStep(task);
+  const actions = stepActions(task, userId);
+  if (live?.status === 'IN_REVIEW') {
+    return (
+      <span className={isWaitingLong(live.submittedAt) ? 'muted danger-text' : 'muted'}>
+        Waiting on {userLabel(live.approver ?? task.approver, 'an approver')} · {formatWaiting(live.submittedAt ?? task.submittedForReviewAt)}
+      </span>
+    );
+  }
+  if (!actions.canStart && !actions.canSubmit) {
+    // Their step is done, or somebody else's turn: nothing to press here.
+    return <Button size="sm" variant="ghost" onClick={() => onOpen(task)}>Open</Button>;
+  }
+  return (
+    <>
+      {actions.canStart ? (
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => onMove(task, TaskStatus.IN_PROGRESS)}>Start</Button>
+      ) : null}
+      <Button size="sm" disabled={busy} onClick={() => onSubmit(task)}>
+        {live?.approverId ? 'Submit for review' : 'Mark step done'}
+      </Button>
+    </>
   );
 }

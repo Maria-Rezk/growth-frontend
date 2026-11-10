@@ -17,7 +17,7 @@ import { EditEmployeeModal } from '@/components/admin/employees/EditEmployeeModa
 import { PlatformRoleModal } from '@/components/admin/employees/PlatformRoleModal';
 import { AssignClientModal } from '@/components/admin/employees/AssignClientModal';
 import { EmployeeStatusAction } from '@/components/admin/employees/EmployeeStatusAction';
-import { deactivationBlockReason } from '@/components/admin/employees/employeeStatus';
+import { deactivationBlockReason, hidesStatusAction } from '@/components/admin/employees/employeeStatus';
 import { useAuth } from '@/context/AuthContext';
 
 export function EmployeesPage() {
@@ -97,14 +97,17 @@ function EmployeesInner() {
           {superAdmin ? (
             <Button variant="ghost" size="sm" onClick={() => setRoleTarget(employee)}>Platform role</Button>
           ) : null}
-          <EmployeeStatusAction
-            employee={employee}
-            blockedReason={deactivationBlockReason(employee, {
-              viewerId,
-              viewerIsSuperAdmin: superAdmin,
-              employees: allEmployees ?? [],
-            })}
-          />
+          {/* Not offered on your own row, nor to an Agency Admin on a Super Admin's row (guide 1.5). */}
+          {hidesStatusAction(employee, { viewerId, viewerIsSuperAdmin: superAdmin }) ? null : (
+            <EmployeeStatusAction
+              employee={employee}
+              blockedReason={deactivationBlockReason(employee, {
+                viewerId,
+                viewerIsSuperAdmin: superAdmin,
+                employees: allEmployees ?? [],
+              })}
+            />
+          )}
         </div>
       ),
     },

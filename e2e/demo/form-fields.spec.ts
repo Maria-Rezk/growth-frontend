@@ -71,7 +71,7 @@ test.describe('required and optional fields', () => {
     const dialog = await openDialog(page, '/tasks', 'New task', 'Create task');
     await expectMarks(dialog, ['Title', 'Priority'], ['Description', 'Responsibility area', 'Due date']);
     await expect(dialog.locator('legend', { hasText: 'Type' })).toContainText('(optional)');
-    await expect(dialog.locator('legend', { hasText: 'People on this task' })).toContainText('(optional)');
+    await expect(dialog.locator('legend', { hasText: 'Steps' })).toContainText('(optional)');
     // The old wording, "Optional." inside the hint, is gone.
     await expect(dialog.getByText(/^Optional\./)).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Create task' }).click();

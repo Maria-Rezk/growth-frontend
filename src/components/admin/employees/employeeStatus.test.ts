@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PlatformRole, type Employee } from '@/types/domain';
-import { deactivationBlockReason, employeeStatus } from './employeeStatus';
+import { deactivationBlockReason, employeeStatus, hidesStatusAction } from './employeeStatus';
 
 const person = (id: string, platformRole: PlatformRole, status = 'ACTIVE'): Employee => ({
   id,
@@ -45,5 +45,20 @@ describe('deactivationBlockReason', () => {
 describe('employeeStatus', () => {
   it('defaults a missing status to ACTIVE', () => {
     expect(employeeStatus({ status: undefined })).toBe('ACTIVE');
+  });
+});
+
+describe('hidesStatusAction (guide 1.5: hide, not disable)', () => {
+  it('hides the action on your own row', () => {
+    expect(hidesStatusAction(staff, { viewerId: 'staff', viewerIsSuperAdmin: true })).toBe(true);
+  });
+
+  it('hides it on a Super Admin row for an Agency Admin, but not for a Super Admin', () => {
+    expect(hidesStatusAction(superA, { viewerId: 'admin', viewerIsSuperAdmin: false })).toBe(true);
+    expect(hidesStatusAction(superA, { viewerId: 'super-b', viewerIsSuperAdmin: true })).toBe(false);
+  });
+
+  it('offers it on an ordinary employee row', () => {
+    expect(hidesStatusAction(staff, { viewerId: 'admin', viewerIsSuperAdmin: false })).toBe(false);
   });
 });

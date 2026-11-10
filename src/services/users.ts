@@ -3,19 +3,32 @@ import { apiRoutes } from '@/config/apiRoutes';
 import { http, isRouteMissing, notShippedError, unwrap } from '@/lib/http';
 import { getAllItems } from '@/lib/paging';
 import { demoDelay, demoEmployees, makeId } from '@/services/demoStore';
-import type { CreateEmployeePayload, Employee, PlatformRole, UpdateEmployeePayload } from '@/types/domain';
+import type { CreateEmployeePayload, Employee, PlatformRole, UpdateEmployeePayload, UserType } from '@/types/domain';
+
+/** Which people `GET /users` returns. `all` is the unfiltered list: staff and client contacts together. */
+export type UserListType = 'employees' | 'clients' | 'all';
+
+const TYPE_FOR: Record<Exclude<UserListType, 'all'>, UserType> = { employees: 'EMPLOYEE', clients: 'CLIENT' };
 import { sortByName } from '@/utils/sort';
 
 export const usersService = {
   /**
-   * Employees A→Z by the name the UI shows them under — full name when there is
+   * People A→Z by the name the UI shows them under — full name when there is
    * one, email otherwise, so a person without a name still lands in order
    * rather than at the end of the list.
+   *
+   * Staff only by default (`?type=employees`): without it the API also returns
+   * every invited client contact, who do not belong on the Employees page or
+   * in an employee picker.
    */
-  async list(): Promise<Employee[]> {
+  async list(type: UserListType = 'employees'): Promise<Employee[]> {
     const order = (employee: Employee) => employee.fullName ?? employee.email;
-    if (env.demoMode) return demoDelay(sortByName(demoEmployees, order));
-    return sortByName(await getAllItems<Employee>(apiRoutes.users.list), order);
+    if (env.demoMode) {
+      // A demo user without `userType` is staff, like every seeded employee.
+      const rows = type === 'all' ? demoEmployees : demoEmployees.filter((employee) => (employee.userType ?? 'EMPLOYEE') === TYPE_FOR[type]);
+      return demoDelay(sortByName(rows, order));
+    }
+    return sortByName(await getAllItems<Employee>(apiRoutes.users.list, type === 'all' ? undefined : { type }), order);
   },
   async create(payload: CreateEmployeePayload): Promise<Employee> {
     if (env.demoMode) {
@@ -25,6 +38,7 @@ export const usersService = {
         fullName: payload.fullName,
         platformRole: payload.platformRole ?? 'USER',
         status: 'ACTIVE',
+        userType: 'EMPLOYEE',
         createdAt: new Date().toISOString(),
         clients: [],
       };

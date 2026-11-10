@@ -27,11 +27,12 @@ import {
   TaskAssigneeRole,
   type Membership,
   type Task,
-  type TaskAssigneeInput,
+  TaskStepStatus,
 } from '@/types/domain';
 import { fromInputDateTime, humanize, toInputDateTime } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
-import { duplicateAssigneeIndexes, newPersonRow, sameAssignees, sortAssignees, suggestTaskRole, type TaskPersonRow } from '@/utils/taskAssignees';
+import { duplicateAssigneeIndexes, type TaskPersonRow } from '@/utils/taskAssignees';
+import { isStepFlow, sameSteps, stepInputs, stepRowsFor } from '@/utils/taskSteps';
 
 const taskSchema = z.object({
   title: z.string().trim().min(3, 'Task title is required.').max(180, 'Up to 180 characters.'),
@@ -40,9 +41,16 @@ const taskSchema = z.object({
   taskTypes: z.array(z.nativeEnum(TaskType)),
   customTaskType: z.string().optional(),
   priority: z.nativeEnum(TaskPriority),
-  /** The people on the task, each in a role. Sent as `assignees`. */
-  assignees: z.array(z.object({ key: z.string(), userId: z.string(), role: z.union([z.nativeEnum(TaskAssigneeRole), z.literal('')]) })).max(MAX_TASK_ASSIGNEES, `Up to ${MAX_TASK_ASSIGNEES} people per task.`),
-  /** The lead. Blank: the first person on the list leads. */
+  /** The flow's steps, in order. Sent as `assignees`. Empty: one assignee and one approver. */
+  assignees: z.array(z.object({
+    key: z.string(),
+    userId: z.string(),
+    role: z.union([z.nativeEnum(TaskAssigneeRole), z.literal('')]),
+    approverId: z.string().optional(),
+    locked: z.boolean().optional(),
+    stepStatus: z.nativeEnum(TaskStepStatus).optional(),
+  })).max(MAX_TASK_ASSIGNEES, `Up to ${MAX_TASK_ASSIGNEES} steps per task.`),
+  /** The single assignee of a task without steps. */
   assignedToId: z.string().optional(),
   approverId: z.string().optional(),
   dueDate: z.string().optional(),
@@ -59,6 +67,9 @@ const taskSchema = z.object({
   values.assignees.forEach((row, index) => {
     if (!row.userId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'userId'], message: 'Choose a person, or remove the row.' });
     if (!row.role) context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'role'], message: 'Choose the role they play on this task.' });
+    if (row.approverId && row.approverId === row.userId) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'approverId'], message: 'Choose somebody else to approve this step.' });
+    }
   });
   // Mirrors the API's 400 DUPLICATE_ASSIGNEE. The role picker already disables a taken role; this catches a person changed afterwards.
   duplicateAssigneeIndexes(values.assignees).forEach((index) => {
@@ -82,11 +93,6 @@ export interface TaskLink {
   sequence?: number;
 }
 
-/** The rows as the API takes them. Only complete rows; validation has already refused incomplete ones. */
-function assigneeInputs(rows: TaskForm['assignees']): TaskAssigneeInput[] {
-  return rows.flatMap((row) => (row.userId && row.role ? [{ userId: row.userId, role: row.role }] : []));
-}
-
 /** What the form holds for an existing task: every saved field, nothing defaulted over it. */
 function formValuesFor(task: Task): TaskForm {
   return {
@@ -95,9 +101,10 @@ function formValuesFor(task: Task): TaskForm {
     taskTypes: task.taskTypes ?? [],
     customTaskType: task.customTaskType ?? '',
     priority: task.priority,
-    assignees: sortAssignees(task.assignees ?? [], task.assignedToId).map((row) => newPersonRow(row.userId, row.role)),
-    assignedToId: task.assignedToId ?? '',
-    approverId: task.approverId ?? '',
+    assignees: stepRowsFor(task),
+    // On a flow these describe the live step and are not editable here.
+    assignedToId: isStepFlow(task) ? '' : task.assignedToId ?? '',
+    approverId: isStepFlow(task) ? '' : task.approverId ?? '',
     dueDate: toInputDateTime(task.dueDate),
     sequence: task.sequence ? String(task.sequence) : '',
   };
@@ -192,17 +199,17 @@ export function TaskModal({
   const watchedPeople = form.watch('assignees');
   const setPeople = (next: TaskPersonRow[]) =>
     form.setValue('assignees', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
+  // With steps, people and approvers are per step; without, one assignee and one approver.
+  const hasSteps = watchedPeople.length > 0;
 
   const chooseArea = (nextAreaId: string) => {
     setAreaId(nextAreaId);
     const suggested = routingForArea(matrix.data, nextAreaId).executor;
     // Only prefill someone the person picker actually offers: an active member of this client.
     const member = suggested ? members.find((item) => item.userId === suggested.userId && item.status === 'ACTIVE') : undefined;
-    if (!member) return;
-    const rows = form.getValues('assignees');
-    if (rows.some((row) => row.userId === member.userId)) return;
-    // First on the list, so they lead unless somebody picks otherwise.
-    setPeople([newPersonRow(member.userId, suggestTaskRole(member) ?? ''), ...rows.filter((row) => row.userId || row.role)]);
+    // A flow names its own people; the area only fills the single assignee, and never over a choice already made.
+    if (!member || form.getValues('assignees').length || form.getValues('assignedToId')) return;
+    form.setValue('assignedToId', member.userId, { shouldDirty: true });
   };
 
   const onMutationError = (error: unknown) => {
@@ -216,14 +223,26 @@ export function TaskModal({
         return;
       }
       if (code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER || code === TaskReviewErrorCode.DUPLICATE_ASSIGNEE) {
-        // Point at the row the API named; fall back to the list as a whole.
+        // Point at the row the API named — as the step's person or its approver; fall back to the list as a whole.
         const { userId, role } = error as { userId?: string; role?: string };
-        const index = form.getValues('assignees').findIndex((row) => row.userId === userId && (!role || row.role === role));
+        const rows = form.getValues('assignees');
         const message = code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER
           ? 'Not an active member of this client any more. Choose somebody else.'
           : 'This person is already on the task in this role.';
-        if (index === -1) form.setError('assignees', { message });
-        else form.setError(code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? `assignees.${index}.userId` : `assignees.${index}.role`, { message });
+        const asPerson = rows.findIndex((row) => row.userId === userId && (!role || row.role === role));
+        const asApprover = code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? rows.findIndex((row) => row.approverId === userId) : -1;
+        if (asPerson !== -1) {
+          form.setError(code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? `assignees.${asPerson}.userId` : `assignees.${asPerson}.role`, { message });
+        } else if (asApprover !== -1) {
+          form.setError(`assignees.${asApprover}.approverId`, { message });
+        } else {
+          form.setError('assignees', { message });
+        }
+        return;
+      }
+      if (code === TaskReviewErrorCode.STEP_FLOW_STARTED) {
+        // Somebody started a step while this form was open. The locked rows here are stale.
+        form.setError('assignees', { message: 'A step has started since you opened this. Close and reopen the task to edit the steps that are left.' });
         return;
       }
       applyServerFieldErrors(form, error);
@@ -259,25 +278,26 @@ export function TaskModal({
       form.setError('taskTypes', { message: 'Keep at least one type.' });
       return null;
     }
-    const people = assigneeInputs(values.assignees);
-    const peopleChanged = !sameAssignees(people, existing.assignees ?? []);
-    const leadChanged = (values.assignedToId || '') !== (existing.assignedToId ?? '');
+    const steps = stepInputs(values.assignees);
+    const stepsChanged = !sameSteps(steps, existing.assignees ?? []);
+    const assigneeChanged = (values.assignedToId || '') !== (existing.assignedToId ?? '');
     return update.mutate(companyId, existing.id, {
       title: values.title.trim(),
       description: values.description ?? '',
       taskTypes: values.taskTypes,
       customTaskType: values.customTaskType,
       priority: values.priority,
-      // The WHOLE list, and only when it changed: left out, the API keeps it as it is.
-      ...(peopleChanged ? { assignees: people } : {}),
+      // The WHOLE flow, in order, and only when it changed: left out, the API keeps it as it is.
+      ...(stepsChanged ? { assignees: steps } : {}),
       /*
-        The lead only when somebody picked one. "First person" picked on
-        purpose names that person; with nobody on the list it clears the lead.
-        Left out, the API keeps the lead while they are still on the list and
-        otherwise promotes the first person.
+        A flow takes its people and approvers per step: `assignedToId` on a
+        flow is a 400, and `approverId` would re-route the live step (that is
+        the review card's "Change approver", not this form).
       */
-      ...(leadChanged ? { assignedToId: values.assignedToId || people[0]?.userId || null } : {}),
-      approverId: values.approverId || null,
+      ...(steps.length ? {} : {
+        ...(assigneeChanged || stepsChanged ? { assignedToId: values.assignedToId || null } : {}),
+        approverId: values.approverId || null,
+      }),
       dueDate: fromInputDateTime(values.dueDate ?? '') ?? null,
       ...(onPost ? { sequence: values.sequence ? Number(values.sequence) : null } : {}),
     });
@@ -312,10 +332,9 @@ export function TaskModal({
       customTaskType: values.customTaskType,
       isDraft: asDraft,
       priority: values.priority,
-      assignees: assigneeInputs(values.assignees),
-      // Left out unless the user picked a lead: the API makes the first person the lead.
+      assignees: stepInputs(values.assignees),
+      // Without steps: one assignee, and an approver — empty means "let the matrix decide".
       assignedToId: values.assignedToId || undefined,
-      // Empty means "let the matrix decide" — the backend resolves it again on create.
       approverId: values.approverId || undefined,
       dueDate: fromInputDateTime(values.dueDate ?? ''),
       relatedEntityType: link?.relatedEntityType,
@@ -399,36 +418,43 @@ export function TaskModal({
           disabled={busy}
         />
 
-        <div className="grid-2">
-          <LeadField
-            people={watchedPeople}
-            members={members}
-            value={form.watch('assignedToId') ?? ''}
-            savedLead={task?.assignedToId ?? null}
-            savedLeadName={task?.assignedTo?.fullName || task?.assignedTo?.email}
-            onChange={(next) => form.setValue('assignedToId', next, { shouldDirty: true })}
-          />
+        {hasSteps ? (
           <Field label="Due date" htmlFor="due" optional error={form.formState.errors.dueDate?.message}>
             <Input id="due" type="datetime-local" {...form.register('dueDate')} />
           </Field>
-        </div>
-        {/*
-          Pre-filled from `resolve-approver` for the chosen type, and refilled
-          when the type changes. Whoever is picked here is who the task waits
-          on at "Submit for review"; the matrix is read once, at creation.
-        */}
-        {open ? (
-          <ApproverPicker
-            companyId={companyId}
-            taskTypes={watchedTypes}
-            members={members}
-            value={form.watch('approverId') ?? ''}
-            onChange={setApprover}
-            error={form.formState.errors.approverId?.message}
-            // Suggest an approver only for new work: editing must never replace the saved one on open.
-            autoResolve={!editing}
-          />
-        ) : null}
+        ) : (
+          <>
+            <div className="grid-2">
+              <AssigneeField
+                members={members}
+                value={form.watch('assignedToId') ?? ''}
+                savedName={task?.assignedTo?.fullName || task?.assignedTo?.email}
+                onChange={(next) => form.setValue('assignedToId', next, { shouldDirty: true })}
+              />
+              <Field label="Due date" htmlFor="due" optional error={form.formState.errors.dueDate?.message}>
+                <Input id="due" type="datetime-local" {...form.register('dueDate')} />
+              </Field>
+            </div>
+            {/*
+              Pre-filled from `resolve-approver` for the chosen types, and
+              refilled when they change. Whoever is picked here is who the task
+              waits on at "Submit for review". A flow has per-step approvers
+              instead, so this field is only for a task without steps.
+            */}
+            {open ? (
+              <ApproverPicker
+                companyId={companyId}
+                taskTypes={watchedTypes}
+                members={members}
+                value={form.watch('approverId') ?? ''}
+                onChange={setApprover}
+                error={form.formState.errors.approverId?.message}
+                // Suggest an approver only for new work: editing must never replace the saved one on open.
+                autoResolve={!editing}
+              />
+            ) : null}
+          </>
+        )}
         {onPost ? (
           <Field
             label="Stage on this post"
@@ -462,52 +488,39 @@ function rowErrors(errors: unknown): Array<TaskPersonRowError | undefined> | und
   if (!Array.isArray(errors)) return undefined;
   return errors.map((entry) => {
     if (!entry) return undefined;
-    const row = entry as { userId?: { message?: string }; role?: { message?: string } };
-    return { userId: row.userId?.message, role: row.role?.message };
+    const row = entry as { userId?: { message?: string }; role?: { message?: string }; approverId?: { message?: string } };
+    return { userId: row.userId?.message, role: row.role?.message, approverId: row.approverId?.message };
   });
 }
 
 /**
- * Who leads: the person dashboards count the work against. Blank lets the
- * first person on the list lead, which is what the API does without
- * `assignedToId`. A saved lead who is not on the list (a task from before
- * task people) stays selectable so editing does not silently drop them.
+ * The one person working on a task without steps. A saved assignee who is no
+ * longer an active member stays selectable, so editing does not silently drop
+ * them.
  */
-function LeadField({
-  people,
+function AssigneeField({
   members,
   value,
-  savedLead,
-  savedLeadName,
+  savedName,
   onChange,
 }: {
-  people: TaskPersonRow[];
   members: Membership[];
   value: string;
-  savedLead: string | null;
-  savedLeadName?: string;
+  savedName?: string;
   onChange: (userId: string) => void;
 }) {
-  const nameOf = (userId: string) => {
-    const member = members.find((item) => item.userId === userId);
-    return member?.user?.fullName ?? member?.user?.email ?? (userId === savedLead ? savedLeadName : undefined) ?? userId;
-  };
-  const listed = [...new Set(people.map((row) => row.userId).filter(Boolean))];
-  const options = value && !listed.includes(value) ? [value, ...listed] : listed;
-  const first = listed[0];
-  const offList = Boolean(value) && !listed.includes(value) && listed.length > 0;
+  const active = members
+    .filter((member) => member.status === 'ACTIVE')
+    .map((member) => ({ userId: member.userId, name: member.user?.fullName ?? member.user?.email ?? member.userId }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const missing = Boolean(value) && !active.some((member) => member.userId === value);
 
   return (
-    <Field
-      label="Lead"
-      htmlFor="task-lead" optional
-      hint={offList
-        ? `${nameOf(value)} is not on the list above but stays the lead.`
-        : 'Who the work is counted against on dashboards.'}
-    >
-      <Select id="task-lead" value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">{first ? `First person (${nameOf(first)})` : 'First person on the list'}</option>
-        {options.map((userId) => <option key={userId} value={userId}>{nameOf(userId)}</option>)}
+    <Field label="Assignee" htmlFor="task-assignee" optional hint="Who does the work. Add steps above when it passes between people.">
+      <Select id="task-assignee" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Unassigned</option>
+        {missing ? <option value={value}>{savedName ?? value}</option> : null}
+        {active.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}
       </Select>
     </Field>
   );

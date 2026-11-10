@@ -13,6 +13,7 @@ import { useStorageSync } from '@/hooks/useStorageSync';
 import { MY_MEMBERSHIPS_KEY, queryClient } from '@/lib/queryClient';
 import { demoUser as DEMO_USER } from '@/services/demoStore';
 import type { AuthResponse, LoginRequest, User } from '@/types/domain';
+import { loginErrorMessage } from '@/utils/loginError';
 import { AuthContext, type AcceptResult, type AuthContextValue } from './AuthContext';
 
 /*
@@ -248,7 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         applyAuth(await authService.login(payload));
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Login failed.');
+        setError(loginErrorMessage(err));
         return false;
       }
     },

@@ -155,7 +155,7 @@ test.describe('tasks', () => {
 
   test('editing a task replaces its types', async ({ page }) => {
     await open(page, '/tasks/task-3');
-    // Exact: the task page also has "Edit people".
+    // Exact: the task page also has "Edit people" / "Edit steps".
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('checkbox', { name: 'Design' }).check();
@@ -172,7 +172,8 @@ test.describe('approvals', () => {
     const row = page.locator('main').getByText('Revise launch carousel CTA');
     await expect(row).toBeVisible();
     await page.getByRole('button', { name: 'Approve' }).first().click();
-    await expect(page.getByText('Approved "Revise launch carousel CTA".')).toBeVisible();
+    // task-1 is a two-step flow: approving step 1 hands it to the next person.
+    await expect(page.getByText('Step approved. Demo User has been told it is their turn.')).toBeVisible();
     await expect(row).toBeHidden();
   });
 

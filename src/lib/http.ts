@@ -225,6 +225,7 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
         stages?: ApiErrorShape['stages'];
         userId?: unknown;
         role?: unknown;
+        stepOrder?: unknown;
       }
     | undefined;
 
@@ -272,6 +273,7 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
     stages: data?.stages && typeof data.stages === 'object' ? data.stages : undefined,
     userId: typeof data?.userId === 'string' ? data.userId : undefined,
     role: typeof data?.role === 'string' ? data.role : undefined,
+    stepOrder: typeof data?.stepOrder === 'number' ? data.stepOrder : undefined,
   };
 }
 

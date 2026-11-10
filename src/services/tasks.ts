@@ -16,25 +16,37 @@ import {
   demoNotFound,
 } from '@/services/demoStore';
 import { addAllDemoAttachments, attachmentFieldsForWire, type AttachmentCreateFields } from '@/services/attachments';
+import {
+  demoFlowApprove,
+  demoFlowRequestChanges,
+  demoFlowStatus,
+  demoFlowSubmit,
+  demoNewSteps,
+  demoReplaceSteps,
+  demoSetLiveApprover,
+  demoStartFlow,
+} from '@/services/demoTaskFlow';
 import type {
   ApproverResolution,
   ListParams,
   Paginated,
   Task,
   TaskActivityLog,
-  TaskAssignee,
   TaskAssigneeInput,
   TaskComment,
   TaskStatus,
   TaskType,
 } from '@/types/domain';
 import { TaskReviewErrorCode, TaskType as TaskTypeValue } from '@/types/domain';
-import { isOnTask } from '@/utils/taskAssignees';
 import { readTaskTypes } from '@/utils/taskTypes';
+import { isStepFlow, liveStep, sortSteps } from '@/utils/taskSteps';
 
 /**
  * A PATCH: any subset of the editable fields, with `null` to clear one.
- * `assignees` is the WHOLE list and replaces the old one; leave it out to keep it, `[]` clears it.
+ * `assignees` is the WHOLE flow, in order, and replaces the old one; leave it
+ * out to keep it. Steps that have started must be sent first, unchanged.
+ * On a flow, `approverId` changes the live step's approver and `assignedToId`
+ * must not be sent (400).
  */
 export type TaskUpdatePayload = Partial<Omit<Task, 'dueDate' | 'sequence' | 'assignees'>> & {
   dueDate?: string | null;
@@ -44,7 +56,7 @@ export type TaskUpdatePayload = Partial<Omit<Task, 'dueDate' | 'sequence' | 'ass
 
 /**
  * Files are uploaded on selection and attached in the same transaction as the create. Files, links and notes together: max 20.
- * Without `assignedToId`, the first of `assignees` becomes the lead.
+ * With `assignees`, the task runs as a flow: the list's order is the flow's order, and approvers are per step.
  */
 export type TaskCreatePayload = Partial<Omit<Task, 'assignees'>> & AttachmentCreateFields & {
   relatedEntityType?: string;
@@ -53,9 +65,9 @@ export type TaskCreatePayload = Partial<Omit<Task, 'assignees'>> & AttachmentCre
   assignees?: TaskAssigneeInput[];
 };
 
-/** Only `{ userId, role }` goes on the wire; nothing the UI keeps beside a row. */
+/** Only `{ userId, role, approverId? }` goes on the wire, in flow order; nothing the UI keeps beside a row. */
 function assigneesForWire(assignees: TaskAssigneeInput[] | undefined): TaskAssigneeInput[] | undefined {
-  return assignees?.map(({ userId, role }) => ({ userId, role }));
+  return assignees?.map(({ userId, role, approverId }) => ({ userId, role, ...(approverId ? { approverId } : {}) }));
 }
 
 /**
@@ -111,13 +123,13 @@ function normalizeTask(raw: WireTask): Task {
     customTaskType: raw.customTaskType ?? null,
     isDraft: raw.isDraft ?? false,
     startedAt: raw.startedAt ?? null,
-    // A backend from before task people sends no list at all.
-    assignees: Array.isArray(raw.assignees) ? raw.assignees : [],
+    // A backend from before task people sends no list at all. Steps arrive sorted, but sort anyway.
+    assignees: Array.isArray(raw.assignees) ? sortSteps(raw.assignees) : [],
   };
 }
 
-/** Demo-only: the rows the API would store for a list of inputs, keeping who was already there. */
-function demoAssignees(inputs: TaskAssigneeInput[], previous: TaskAssignee[] = []): TaskAssignee[] {
+/** Demo-only: the list checks the API makes on create and update. */
+function demoCheckSteps(inputs: TaskAssigneeInput[]) {
   const seen = new Set<string>();
   for (const input of inputs) {
     const key = `${input.userId}:${input.role}`;
@@ -125,26 +137,38 @@ function demoAssignees(inputs: TaskAssigneeInput[], previous: TaskAssignee[] = [
       throw Object.assign(demoReviewError(400, TaskReviewErrorCode.DUPLICATE_ASSIGNEE, 'The same person is listed twice in the same role'), { userId: input.userId, role: input.role });
     }
     seen.add(key);
-    if (!demoMemberUser(input.userId)) {
-      throw Object.assign(demoReviewError(422, TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER, 'Everybody on a task must be an active member of this client'), { userId: input.userId });
+    for (const userId of [input.userId, input.approverId]) {
+      if (userId && !demoMemberUser(userId)) {
+        throw Object.assign(demoReviewError(422, TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER, 'Everybody on a task must be an active member of this client'), { userId });
+      }
     }
   }
-  return inputs.map((input) => previous.find((row) => row.userId === input.userId && row.role === input.role) ?? {
-    id: makeId('task-assignee'),
-    userId: input.userId,
-    role: input.role,
-    assignedById: demoUser.id,
-    createdAt: new Date().toISOString(),
-    user: demoMemberUser(input.userId),
+}
+
+/** Demo-only: `TASK_ASSIGNED` to whoever's turn it is, naming the step on a flow. */
+function demoNotifyAssigned(task: Task) {
+  const step = liveStep(task);
+  const message = step
+    ? `"${task.title}" is ready for you — step ${step.stepOrder} of ${task.assignees.length}`
+    : task.title;
+  pushNotification({
+    type: 'TASK_ASSIGNED',
+    title: step ? 'Your turn on a task' : 'Task created',
+    message,
+    readAt: null,
+    relatedEntityType: 'TASK',
+    relatedEntityId: task.id,
+    metadata: step ? { stepOrder: step.stepOrder, stepCount: task.assignees.length, role: step.role } : undefined,
   });
 }
 
-/** Demo-only: the lead the API settles on — the one sent, else kept while still on the list, else the first person. */
-function demoLead(explicit: string | null | undefined, current: string | null | undefined, assignees: TaskAssignee[]): string | null | undefined {
-  if (explicit !== undefined) return explicit;
-  if (!assignees.length) return current;
-  if (current && assignees.some((row) => row.userId === current)) return current;
-  return assignees[0].userId;
+/** Demo-only: after a step finishes, tell the next person, or the creator when the whole flow is done. */
+function demoAfterStep(task: Task) {
+  if (task.status === 'DONE') {
+    pushNotification({ type: 'TASK_STATUS_CHANGED', title: 'Task finished', message: `Every step of "${task.title}" is done`, readAt: null, relatedEntityType: 'TASK', relatedEntityId: task.id });
+    return;
+  }
+  demoNotifyAssigned(task);
 }
 
 function demoDraftError(): Error & { statusCode: number; code: string } {
@@ -228,8 +252,10 @@ export const tasksService = {
   async create(companyId: string, payload: TaskCreatePayload): Promise<Task> {
     if (env.demoMode) {
       demoCheckSequence(companyId, null, payload.relatedEntityType, payload.relatedEntityId, payload.sequence);
-      const assignees = demoAssignees(payload.assignees ?? []);
-      const leadId = demoLead(payload.assignedToId, undefined, assignees);
+      demoCheckSteps(payload.assignees ?? []);
+      const assignees = demoNewSteps(payload.assignees ?? [], payload.isDraft ?? false);
+      // A flow names its people per step; a task without one has a single assignee.
+      const leadId = assignees.length ? assignees[0].userId : payload.assignedToId;
       const task: Task = {
         id: makeId('task'),
         companyId,
@@ -245,8 +271,8 @@ export const tasksService = {
         assignedToId: leadId,
         assignedTo: leadId ? demoMemberUser(leadId) : payload.assignedTo,
         assignees,
-        approverId: payload.approverId ?? null,
-        approver: payload.approverId ? demoMemberUser(payload.approverId) : null,
+        approverId: assignees.length ? assignees[0].approverId ?? null : payload.approverId ?? null,
+        approver: null,
         submittedForReviewAt: null,
         reviewedAt: null,
         reviewNote: null,
@@ -260,11 +286,13 @@ export const tasksService = {
       if (payload.taskTypes?.includes(TaskTypeValue.OTHER) && !task.customTaskType) {
         throw demoReviewError(422, TaskReviewErrorCode.CUSTOM_TASK_TYPE_REQUIRED, 'Say what the other type of work is: customTaskType is required with OTHER');
       }
+      task.approver = task.approverId ? demoMemberUser(task.approverId) : null;
+      demoStartFlow(task);
       demoTasks.unshift(task);
       await addAllDemoAttachments(companyId, { entityType: 'TASK', entityId: task.id }, payload);
       demoTaskLogs.unshift({ id: makeId('task-log'), taskId: task.id, action: 'TASK_CREATED', createdAt: new Date().toISOString() });
       // A draft tells nobody anything until it is published.
-      if (!task.isDraft) pushNotification({ type: 'TASK_ASSIGNED', title: 'Task created', message: task.title, readAt: null, relatedEntityType: 'TASK', relatedEntityId: task.id });
+      if (!task.isDraft) demoNotifyAssigned(task);
       return demoDelay(task);
     }
     const body = {
@@ -275,12 +303,15 @@ export const tasksService = {
       isDraft: payload.isDraft ? true : undefined,
       priority: payload.priority,
       dueDate: payload.dueDate,
-      // Left out unless somebody chose a lead: the backend makes the first of `assignees` the lead.
-      assignedToId: payload.assignedToId,
-      assignees: payload.assignees?.length ? assigneesForWire(payload.assignees) : undefined,
-      // Optional. Omitted, the backend reads the responsibility matrix; sent,
-      // it must be an active member of this client (422 APPROVER_REQUIRED).
-      approverId: payload.approverId || undefined,
+      ...(payload.assignees?.length
+        // A flow: people and approvers travel per step, and `assignedToId` is a 400.
+        ? { assignees: assigneesForWire(payload.assignees) }
+        : {
+            assignedToId: payload.assignedToId || undefined,
+            // Optional. Omitted, the backend reads the responsibility matrix; sent,
+            // it must be an active member of this client (422 APPROVER_REQUIRED).
+            approverId: payload.approverId || undefined,
+          }),
       relatedEntityType: payload.relatedEntityType,
       relatedEntityId: payload.relatedEntityId,
       // 422 SEQUENCE_NEEDS_POST without a POST parent, so never send it otherwise.
@@ -299,24 +330,32 @@ export const tasksService = {
       const task = demoTasks.find((item) => item.companyId === companyId && item.id === taskId);
       if (!task) throw demoNotFound('Task not found.');
       if ('sequence' in payload) demoCheckSequence(companyId, taskId, task.relatedEntityType, task.relatedEntityId, payload.sequence);
-      if ('approverId' in payload && payload.approverId !== task.approverId) {
-        demoLog(taskId, 'TASK_APPROVER_CHANGED', { from: task.approverId ?? null, to: payload.approverId ?? null });
-        task.approver = payload.approverId ? demoMemberUser(payload.approverId) : null;
-      }
       const { assignees: nextAssignees, ...fields } = payload;
-      if (nextAssignees) {
-        const before = task.assignees ?? [];
-        const after = demoAssignees(nextAssignees, before);
-        const pair = (row: TaskAssignee) => ({ userId: row.userId, role: row.role });
-        const has = (list: TaskAssignee[], row: TaskAssignee) => list.some((other) => other.userId === row.userId && other.role === row.role);
-        const added = after.filter((row) => !has(before, row)).map(pair);
-        const removed = before.filter((row) => !has(after, row)).map(pair);
-        if (added.length || removed.length) demoLog(taskId, 'ASSIGNEES_CHANGED', { added, removed });
-        task.assignees = after;
-        const leadId = demoLead(payload.assignedToId, task.assignedToId, after);
-        fields.assignedToId = leadId;
-        fields.assignedTo = leadId ? demoMemberUser(leadId) : null;
+      if (isStepFlow(task) && 'assignedToId' in fields) {
+        throw demoReviewError(400, 'BAD_REQUEST', 'assignedToId cannot be set on a task with steps');
       }
+      if (nextAssignees) {
+        demoCheckSteps(nextAssignees);
+        const before = sortSteps(task.assignees ?? []);
+        const pair = (row: { userId: string; role: string }) => ({ userId: row.userId, role: row.role });
+        const has = (list: Array<{ userId: string; role: string }>, row: { userId: string; role: string }) =>
+          list.some((other) => other.userId === row.userId && other.role === row.role);
+        if (before.length || nextAssignees.length) demoReplaceSteps(task, nextAssignees);
+        const added = nextAssignees.filter((row) => !has(before, row)).map(pair);
+        const removed = before.filter((row) => !has(nextAssignees, row)).map(pair);
+        if (added.length || removed.length) demoLog(taskId, 'ASSIGNEES_CHANGED', { added, removed });
+        if (!before.length && task.assignees.length) demoStartFlow(task);
+      }
+      if ('approverId' in fields && fields.approverId !== task.approverId) {
+        demoLog(taskId, 'TASK_APPROVER_CHANGED', { from: task.approverId ?? null, to: fields.approverId ?? null });
+        if (isStepFlow(task)) {
+          demoSetLiveApprover(task, fields.approverId ?? null);
+          delete fields.approverId;
+        } else {
+          task.approver = fields.approverId ? demoMemberUser(fields.approverId) : null;
+        }
+      }
+      if ('assignedToId' in fields) fields.assignedTo = fields.assignedToId ? demoMemberUser(fields.assignedToId) : null;
       Object.assign(task, fields, { updatedAt: new Date().toISOString() });
       if (payload.taskTypes && !payload.taskTypes.includes(TaskTypeValue.OTHER)) task.customTaskType = null;
       return demoDelay(task);
@@ -334,6 +373,17 @@ export const tasksService = {
     if (env.demoMode) {
       const before = demoTask(companyId, taskId);
       if (before.isDraft) throw demoDraftError();
+      if (isStepFlow(before)) {
+        const firstStart = status === 'IN_PROGRESS' && !before.startedAt;
+        const step = liveStep(before);
+        demoFlowStatus(before, status, demoUser.id);
+        before.updatedAt = new Date().toISOString();
+        demoLog(taskId, status === 'CANCELED' ? 'TASK_STATUS_CHANGED' : 'STEP_STARTED', { toStatus: status, stepOrder: step?.stepOrder });
+        if (firstStart) {
+          pushNotification({ type: 'TASK_STARTED', title: 'Work has started', message: `${demoUser.fullName} started working on "${before.title}"`, readAt: null, relatedEntityType: 'TASK', relatedEntityId: taskId });
+        }
+        return demoDelay(before);
+      }
       if (status === 'IN_REVIEW' || (before.status === 'IN_REVIEW' && status !== 'CANCELED')) {
         throw demoReviewError(409, TaskReviewErrorCode.REVIEW_ACTIONS_ONLY, 'IN_REVIEW is managed by the review actions. Use submit-for-review, approve or request-changes.');
       }
@@ -368,6 +418,25 @@ export const tasksService = {
     if (env.demoMode) {
       const task = demoTask(companyId, taskId);
       if (task.isDraft) throw demoDraftError();
+      if (isStepFlow(task)) {
+        const step = liveStep(task);
+        demoFlowSubmit(task, demoUser.id);
+        demoLog(taskId, 'STEP_SUBMITTED', { stepOrder: step?.stepOrder, approverId: step?.approverId ?? null });
+        if (step?.approverId) {
+          pushNotification({
+            type: 'TASK_SUBMITTED_FOR_REVIEW',
+            title: 'Step waiting for your review',
+            message: `${demoUser.fullName} submitted step ${step.stepOrder} of "${task.title}"`,
+            readAt: null,
+            relatedEntityType: 'TASK',
+            relatedEntityId: taskId,
+            metadata: { stepOrder: step.stepOrder, stepCount: task.assignees.length },
+          });
+        } else {
+          demoAfterStep(task);
+        }
+        return demoDelay(task);
+      }
       if (!task.approverId) throw demoReviewError(422, TaskReviewErrorCode.APPROVER_REQUIRED, 'This task has no approver. Set one before submitting it for review.');
       if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS') {
         throw demoReviewError(409, TaskReviewErrorCode.INVALID_TRANSITION, `A task in ${task.status} cannot take the action submit-for-review`);
@@ -392,6 +461,14 @@ export const tasksService = {
   async approve(companyId: string, taskId: string): Promise<Task> {
     if (env.demoMode) {
       const task = demoTask(companyId, taskId);
+      if (isStepFlow(task)) {
+        const step = liveStep(task);
+        demoFlowApprove(task, demoUser.id);
+        demoLog(taskId, 'STEP_APPROVED', { stepOrder: step?.stepOrder, approverId: step?.approverId ?? null });
+        pushNotification({ type: 'TASK_APPROVED', title: 'Step approved', message: `${demoUser.fullName} approved step ${step?.stepOrder} of "${task.title}"`, readAt: null, relatedEntityType: 'TASK', relatedEntityId: taskId });
+        demoAfterStep(task);
+        return demoDelay(task);
+      }
       if (task.status !== 'IN_REVIEW') throw demoReviewError(409, TaskReviewErrorCode.INVALID_TRANSITION, `A task in ${task.status} cannot take the action approve`);
       moveTaskStatus(taskId, 'DONE');
       const now = new Date().toISOString();
@@ -408,6 +485,13 @@ export const tasksService = {
     if (env.demoMode) {
       const task = demoTask(companyId, taskId);
       if (!trimmed) throw demoReviewError(422, TaskReviewErrorCode.REVIEW_NOTE_REQUIRED, 'Say what needs changing: a note is required.');
+      if (isStepFlow(task)) {
+        const step = liveStep(task);
+        demoFlowRequestChanges(task, demoUser.id, trimmed);
+        demoLog(taskId, 'STEP_CHANGES_REQUESTED', { stepOrder: step?.stepOrder, note: trimmed });
+        pushNotification({ type: 'TASK_CHANGES_REQUESTED', title: 'Changes requested', message: `${demoUser.fullName} requested changes on step ${step?.stepOrder} of "${task.title}": ${trimmed}`, readAt: null, relatedEntityType: 'TASK', relatedEntityId: taskId });
+        return demoDelay(task);
+      }
       if (task.status !== 'IN_REVIEW') throw demoReviewError(409, TaskReviewErrorCode.INVALID_TRANSITION, `A task in ${task.status} cannot take the action request-changes`);
       moveTaskStatus(taskId, 'IN_PROGRESS');
       Object.assign(task, { submittedForReviewAt: null, reviewedAt: new Date().toISOString(), reviewNote: trimmed });
@@ -465,7 +549,8 @@ export const tasksService = {
       const task = demoTask(companyId, taskId);
       if (!task.isDraft) throw demoReviewError(409, TaskReviewErrorCode.NOT_A_DRAFT, 'This task has already been published');
       task.isDraft = false;
-      pushNotification({ type: 'TASK_ASSIGNED', title: 'Task created', message: task.title, readAt: null, relatedEntityType: 'TASK', relatedEntityId: taskId });
+      demoStartFlow(task);
+      demoNotifyAssigned(task);
       return demoDelay(task);
     }
     const response = await http.post(apiRoutes.tasks.publishDraft(companyId, taskId));
@@ -504,7 +589,10 @@ export const tasksService = {
   },
   async listMine(companyId: string, params?: ListParams): Promise<Task[]> {
     if (env.demoMode) {
-      return demoDelay(filterList(demoTasks.filter((t) => t.companyId === companyId && !t.isDraft && isOnTask(t, demoUser.id)), params));
+      // Tasks you lead, plus flows whose step has reached you (a step still PENDING does not count).
+      const mine = (task: Task) => task.assignedToId === demoUser.id
+        || task.assignees.some((step) => step.userId === demoUser.id && step.status !== 'PENDING');
+      return demoDelay(filterList(demoTasks.filter((t) => t.companyId === companyId && !t.isDraft && mine(t)), params));
     }
     const response = await http.get(apiRoutes.tasks.myTasks(companyId), { params: wireParams(params) });
     return unwrap<WireTask[]>(response.data).map(normalizeTask);

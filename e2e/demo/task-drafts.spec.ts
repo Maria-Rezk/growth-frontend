@@ -22,13 +22,18 @@ function dialog(page: Page): Locator {
   return page.getByRole('dialog');
 }
 
-/** The person picker on row `n` of "People on this task". Exact, so it never matches "Role of person n". */
+/** The person picker on step `n`. Exact, so it never matches the role or approver picker. */
 function person(form: Locator, n: number): Locator {
-  return form.getByLabel(`Person ${n}`, { exact: true });
+  return form.getByLabel(`Person for step ${n}`, { exact: true });
 }
 
 function personRole(form: Locator, n: number): Locator {
-  return form.getByLabel(`Role of person ${n}`, { exact: true });
+  return form.getByLabel(`Role for step ${n}`, { exact: true });
+}
+
+/** Who signs off step `n`. A flow has per-step approvers instead of one for the task. */
+function stepApprover(form: Locator, n: number): Locator {
+  return form.getByLabel(`Approver for step ${n}`, { exact: true });
 }
 
 async function openMyDrafts(page: Page) {
@@ -43,13 +48,13 @@ async function createDraft(page: Page) {
   await form.locator('#task-description').fill(DRAFT.description);
   await form.getByRole('checkbox', { name: 'Reels' }).check();
   await form.locator('#task-priority').selectOption('HIGH');
-  // People are rows of person + role. Picking a person pre-picks the task
-  // role matching their company role: a Designer starts as Designer.
-  await form.getByRole('button', { name: 'Add person' }).click();
+  // Steps are rows of person + role + optional approver. Picking a person
+  // pre-picks the task role matching their company role: a Designer starts as Designer.
+  await form.getByRole('button', { name: 'Add steps' }).click();
   await person(form, 1).selectOption('demo-designer');
   await expect(personRole(form, 1)).toHaveValue('DESIGNER');
+  await stepApprover(form, 1).selectOption('demo-user');
   await form.locator('#due').fill(DRAFT.due);
-  await form.locator('#task-approver').selectOption('demo-designer');
   await form.getByRole('button', { name: 'Save draft' }).click();
   await expect(form).toBeHidden();
   await expect(page.getByText('Draft saved. Find it under My drafts.')).toBeVisible();
@@ -76,7 +81,7 @@ test.describe('task drafts', () => {
     await expect(form.locator('#task-priority')).toHaveValue('HIGH');
     await expect(person(form, 1)).toHaveValue('demo-designer');
     await expect(personRole(form, 1)).toHaveValue('DESIGNER');
-    await expect(form.locator('#task-approver')).toHaveValue('demo-designer');
+    await expect(stepApprover(form, 1)).toHaveValue('demo-user');
     await expect(form.locator('#due')).toHaveValue(DRAFT.due);
     await expect(form.locator('#task-area')).toBeVisible();
     await expect(form.getByText('Attachments', { exact: true })).toBeVisible();
@@ -112,7 +117,7 @@ test.describe('task drafts', () => {
     // Saved twice, still the time that was typed (no time-zone drift).
     await expect(form.locator('#due')).toHaveValue(DRAFT.due);
     // Untouched fields kept their saved values.
-    await expect(form.locator('#task-approver')).toHaveValue('demo-designer');
+    await expect(stepApprover(form, 1)).toHaveValue('demo-user');
     await expect(person(form, 1)).toHaveValue('demo-designer');
   });
 

@@ -338,3 +338,33 @@ describe('authentication stays separate from company roles', () => {
     expect(calls.filter((call) => call === 'GET /boom').length).toBe(2);
   });
 });
+
+describe('sign-in of a disabled account (release guide 1.4)', () => {
+  it('names the disabled account from its code, and signs nobody in', async () => {
+    const { AuthProvider, useAuth } = await boot({
+      'POST /auth/refresh': () => [401, { message: 'no cookie' }],
+      'POST /auth/login': () => [401, { statusCode: 401, error: 'Unauthorized', code: 'ACCOUNT_DISABLED', message: 'This account has been disabled. Ask an administrator.' }],
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let ok = true;
+    await act(async () => { ok = await result.current.login({ email: 'gone@b.com', password: 'correct-password' }); });
+
+    expect(ok).toBe(false);
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.error).toBe('This account has been disabled. Ask an administrator to reactivate it.');
+  });
+
+  it('keeps the generic answer for a wrong password (a 401 with no code)', async () => {
+    const { AuthProvider, useAuth } = await boot({
+      'POST /auth/refresh': () => [401, { message: 'no cookie' }],
+      'POST /auth/login': () => [401, { statusCode: 401, error: 'Unauthorized', message: 'Invalid credentials' }],
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.login({ email: 'a@b.com', password: 'wrong-password' }); });
+    expect(result.current.error).toBe('Invalid credentials');
+  });
+});

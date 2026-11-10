@@ -5597,6 +5597,179 @@ fieldset.field > legend {
   }
 }
 
+/* ------------------------------------------------ Task steps (flow) */
+.task-steps-editor,
+.step-timeline {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-step-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--s-2);
+  align-items: start;
+  padding: var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.task-step-row--locked {
+  background: var(--surface-subtle);
+}
+
+.task-step-row__number,
+.step-timeline__marker {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-step-row__body {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+/* Person | role on the first line; approver | move/remove on the second. */
+.task-step-row__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.task-step-row__controls > :nth-child(2) {
+  grid-column: 2 / span 2;
+}
+
+.task-step-row__approver {
+  grid-column: 1 / span 2;
+}
+
+.task-step-row__summary,
+.task-step-row__lock {
+  margin: 0;
+  font-size: 14px;
+}
+
+.task-step-row__lock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.task-step-row__lock svg {
+  vertical-align: -1px;
+}
+
+.task-step-row__tools {
+  display: flex;
+  gap: 2px;
+}
+
+.task-step-row__tools .btn {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.step-timeline__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--s-2);
+  padding-bottom: var(--s-2);
+}
+
+/* The rail joining one step to the next. */
+.step-timeline__item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 13.5px;
+  top: 30px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--line);
+}
+
+.step-timeline__item--done .step-timeline__marker {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.step-timeline__item[aria-current='step'] .step-timeline__marker {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.step-timeline__item--pending .step-timeline__head strong {
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
+.step-timeline__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.step-timeline__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  margin: 0;
+  font-size: 14px;
+}
+
+.step-timeline__head strong {
+  font-weight: 600;
+}
+
+.step-timeline__meta,
+.step-timeline__note {
+  margin: 0;
+  font-size: 13px;
+}
+
+.step-timeline__note {
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--warning-soft);
+  color: var(--ink);
+}
+
+@media (max-width: 560px) {
+  .task-step-row__controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .task-step-row__controls > :nth-child(1),
+  .task-step-row__controls > :nth-child(2),
+  .task-step-row__approver {
+    grid-column: 1 / -1;
+  }
+
+  .task-step-row__tools {
+    grid-column: 2;
+    justify-self: end;
+  }
+}
+
 /* ------------------------------------------- Compact KPIs and stage chips */
 /*
   Phones, on My work, Tasks and Leads (opt-in with .kpi-strip). The KPI tiles

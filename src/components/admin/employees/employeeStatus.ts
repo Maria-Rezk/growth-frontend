@@ -6,6 +6,23 @@ export const employeeStatus = (employee: Pick<Employee, 'status'>): EmployeeStat
   (employee.status as EmployeeStatus | undefined) ?? 'ACTIVE';
 
 /**
+ * True when the status action (Deactivate / Activate) is not offered at all on
+ * this row — the release guide (1.5) says to hide it, not disable it:
+ * - on the signed-in person's own row;
+ * - on a Super Admin's row when the viewer is not a Super Admin (an Agency
+ *   Admin may not change anything on a Super Admin account).
+ *
+ * Hiding is cosmetic: the API answers 403 for both regardless.
+ */
+export function hidesStatusAction(
+  target: Employee,
+  context: { viewerId: string | null | undefined; viewerIsSuperAdmin: boolean },
+): boolean {
+  if (context.viewerId && target.id === context.viewerId) return true;
+  return target.platformRole === PlatformRole.SUPER_ADMIN && !context.viewerIsSuperAdmin;
+}
+
+/**
  * Why the Deactivate action is unavailable for this employee, or `null` when
  * it may be offered.
  *

@@ -110,9 +110,10 @@ test.describe('My work says each count once', () => {
     test(`no repeated summary line at ${viewport.width}px`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await open(page, '/my-work');
-      await expect(page.getByRole('heading', { name: 'This week (3)' })).toBeVisible();
-      await expect(page.locator('main .metric-card', { hasText: 'This week' }).locator('strong')).toHaveText('3');
-      await expect(page.locator('main').getByText('3 this week')).toHaveCount(0);
+      // task-1's second step is the demo user's but not reached yet, so it is not in My work (guide 3.7).
+      await expect(page.getByRole('heading', { name: 'This week (2)' })).toBeVisible();
+      await expect(page.locator('main .metric-card', { hasText: 'This week' }).locator('strong')).toHaveText('2');
+      await expect(page.locator('main').getByText('2 this week')).toHaveCount(0);
     });
   }
 });

@@ -26,7 +26,8 @@ import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
 import { TaskReviewErrorCode, TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
-import { TaskPeopleList } from '@/components/domain/TaskPeople';
+import { TaskStepTimeline } from '@/components/domain/TaskPeople';
+import { isStepFlow, liveStep, stepPosition } from '@/utils/taskSteps';
 import { useLocale } from '@/context/LocaleContext';
 import type { AppLanguage } from '@/i18n/messages';
 import { readAssigneeChanges, taskRoleLabel } from '@/utils/taskAssignees';
@@ -70,6 +71,8 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const current = task.data;
   const overdue = isOverdue(current.dueDate) && current.status !== TaskStatus.DONE && current.status !== TaskStatus.CANCELED;
   const inReview = isInReview(current);
+  const flow = isStepFlow(current);
+  const live = flow ? liveStep(current) : null;
 
   const resolveName = (id?: string | null) => {
     if (!id) return 'Unassigned';
@@ -179,14 +182,27 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <div><span>Priority</span><strong><StatusBadge value={current.priority} /></strong></div>
                 <div><span>Type</span><strong><TaskTypeChips task={current} /></strong></div>
                 {current.sequence ? <div><span>Stage on post</span><strong>{current.sequence}</strong></div> : null}
-                <div><span>Lead</span><strong>{current.assignedToId ? userLabel(current.assignedTo, resolveName(current.assignedToId)) : 'No lead'}</strong></div>
-                <div>
-                  <span>Approver</span>
-                  <strong>
-                    {current.approverId ? userLabel(current.approver, resolveName(current.approverId)) : <Badge tone="warning">Needs an approver</Badge>}
-                    {approverIsInactive(current) ? <> <Badge tone="danger">Deactivated</Badge></> : null}
-                  </strong>
-                </div>
+                {flow ? (
+                  <div>
+                    <span>Now with</span>
+                    <strong>
+                      {live
+                        ? <>{userLabel(live.user ?? current.assignedTo, resolveName(live.userId))} <span className="muted">· step {stepPosition(current, live).index} of {current.assignees.length}</span></>
+                        : current.status === TaskStatus.DONE ? 'Every step is done' : 'Nobody'}
+                    </strong>
+                  </div>
+                ) : (
+                  <>
+                    <div><span>Assignee</span><strong>{current.assignedToId ? userLabel(current.assignedTo, resolveName(current.assignedToId)) : 'Unassigned'}</strong></div>
+                    <div>
+                      <span>Approver</span>
+                      <strong>
+                        {current.approverId ? userLabel(current.approver, resolveName(current.approverId)) : <Badge tone="warning">Needs an approver</Badge>}
+                        {approverIsInactive(current) ? <> <Badge tone="danger">Deactivated</Badge></> : null}
+                      </strong>
+                    </div>
+                  </>
+                )}
                 {current.startedAt ? <div><span>Started</span><strong>{formatDateTime(current.startedAt)}</strong></div> : null}
                 <div>
                   <span>{overdue ? 'Overdue' : 'Due'}</span>
@@ -246,11 +262,18 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                   review the status is read-only and the review card above owns
                   the verdict; the one status still allowed from here is Cancel.
                 */}
-                {inReview ? (
+                {flow || inReview ? (
                   <div className="stack-list">
                     <p className="muted">
-                      In review — waiting on {userLabel(current.approver, 'an approver')}. Approve or request changes from the review card.
+                      {flow
+                        ? current.status === TaskStatus.DONE
+                          ? 'Every step is done. This task is closed.'
+                          : current.status === TaskStatus.CANCELED
+                            ? 'This task was cancelled.'
+                            : 'This task moves step by step: each person starts and submits their own step from the Current step card. Only cancelling is done from here.'
+                        : <>In review — waiting on {userLabel(current.approver, 'an approver')}. Approve or request changes from the review card.</>}
                     </p>
+                    {current.status === TaskStatus.CANCELED || current.status === TaskStatus.DONE ? null : (
                     <Button
                       variant="danger"
                       size="sm"
@@ -258,7 +281,9 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                       onClick={async () => {
                         const ok = await confirm({
                           title: 'Cancel this task?',
-                          message: `It leaves ${userLabel(current.approver, 'the approver')}'s queue and the waiting clock is cleared. The task is kept, marked Canceled.`,
+                          message: flow
+                            ? 'Every remaining step stops and nobody else is told it is their turn. The task and its history are kept, marked Canceled.'
+                            : `It leaves ${userLabel(current.approver, 'the approver')}'s queue and the waiting clock is cleared. The task is kept, marked Canceled.`,
                           confirmLabel: 'Cancel task',
                           cancelLabel: 'Keep it',
                           tone: 'danger',
@@ -268,6 +293,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                     >
                       Cancel task
                     </Button>
+                    )}
                   </div>
                 ) : (
                   <Field label="Status" htmlFor="task-status" hint="Review is entered with “Submit for review”, not from here.">
@@ -289,15 +315,15 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
 
           <Card>
             <CardHeader
-              title="People"
+              title={flow ? 'Steps' : 'People'}
               action={(
                 <RoleGate permission="tasks:edit">
-                  <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit people</Button>
+                  <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>{flow ? 'Edit steps' : 'Edit people'}</Button>
                 </RoleGate>
               )}
             />
             <div className="content-card__body">
-              <TaskPeopleList task={current} resolveName={resolveName} />
+              <TaskStepTimeline task={current} resolveName={resolveName} />
             </div>
           </Card>
 

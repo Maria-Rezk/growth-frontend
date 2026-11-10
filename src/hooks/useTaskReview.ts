@@ -7,6 +7,23 @@ import { MY_WORK_KEY, queryKeys } from '@/lib/queryClient';
 import { tasksService } from '@/services/tasks';
 import { TaskReviewErrorCode, type Task } from '@/types/domain';
 import { userLabel } from '@/utils/taskReview';
+import { isStepFlow, liveStep } from '@/utils/taskSteps';
+
+/** What a submit did, in words: on a flow it may have finished the step, or the whole task. */
+export function submittedMessage(task: Task): string {
+  if (!isStepFlow(task)) return `Sent to ${userLabel(task.approver, 'the approver')} for review.`;
+  if (task.status === 'DONE') return 'Your step is done, and so is the task.';
+  const live = liveStep(task);
+  if (live?.status === 'IN_REVIEW') return `Sent to ${userLabel(live.approver ?? task.approver, 'the approver')} for review.`;
+  return `Your step is done. ${userLabel(live?.user ?? task.assignedTo, 'The next person')} has been told it is their turn.`;
+}
+
+/** What an approval did: on a flow it hands the task to the next step, or finishes it. */
+export function approvedMessage(task: Task): string {
+  if (!isStepFlow(task)) return `Approved "${task.title}".`;
+  if (task.status === 'DONE') return 'Step approved. Every step is done.';
+  return `Step approved. ${userLabel(liveStep(task)?.user ?? task.assignedTo, 'The next person')} has been told it is their turn.`;
+}
 
 export type ReviewAction = 'submit' | 'approve' | 'changes';
 
@@ -58,6 +75,13 @@ export function useTaskReview(options: Options = {}) {
         options.onConflict?.(companyId, taskId);
         return;
       }
+      // Not this person's step any more: somebody moved the flow on. Same cure as a race.
+      if (code === TaskReviewErrorCode.NOT_YOUR_STEP) {
+        toast.error('This step is no longer yours to act on. Refreshing…');
+        invalidate(companyId);
+        options.onConflict?.(companyId, taskId);
+        return;
+      }
       if (code === TaskReviewErrorCode.APPROVER_REQUIRED) {
         setLastError(errorMessage(error));
         options.onApproverRequired?.(companyId, taskId);
@@ -75,7 +99,7 @@ export function useTaskReview(options: Options = {}) {
   const submitMutation = useMutation(tasksService.submitForReview, {
     onSuccess: (task, [companyId]) => {
       invalidate(companyId);
-      toast.success(`Sent to ${userLabel(task.approver, 'the approver')} for review.`);
+      toast.success(submittedMessage(task));
       options.onTask?.(task, 'submit');
     },
     onError: (error, [companyId, taskId]) => handleError(error, companyId, taskId),
@@ -84,7 +108,7 @@ export function useTaskReview(options: Options = {}) {
   const approveMutation = useMutation(tasksService.approve, {
     onSuccess: (task, [companyId]) => {
       invalidate(companyId);
-      toast.success(`Approved "${task.title}".`);
+      toast.success(approvedMessage(task));
       options.onTask?.(task, 'approve');
     },
     onError: (error, [companyId, taskId]) => handleError(error, companyId, taskId),
