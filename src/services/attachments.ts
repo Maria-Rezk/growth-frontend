@@ -1,11 +1,29 @@
 import { env } from '@/config/env';
 import { apiRoutes, type AttachmentParent } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
-import { demoAttachments, demoDelay, demoFiles, demoUser, makeId } from '@/services/demoStore';
+import { demoAttachments, demoDelay, demoFiles, demoTaskLogs, demoUser, makeId } from '@/services/demoStore';
 import { filesService } from '@/services/files';
 import { ATTACHMENTS_PER_RECORD, AttachmentErrorCode, type Attachment, type AttachmentInput, type PendingLink, type PendingText } from '@/types/domain';
 
 export type { AttachmentParent } from '@/config/apiRoutes';
+
+/**
+ * Demo-only: the task activity row the API writes when an attachment is added
+ * to, or removed from, an existing task — with exactly the API's metadata
+ * (`attachmentId`, `kind`, `fileId`, `url`; no name, no label). Attachments
+ * sent with a create are not logged, as on the API.
+ */
+let demoLogAttachments = true;
+function demoLogAttachment(parent: AttachmentParent, action: 'ATTACHMENT_ADDED' | 'ATTACHMENT_REMOVED', attachment: Attachment) {
+  if (!demoLogAttachments || parent.entityType !== 'TASK' || !parent.entityId) return;
+  demoTaskLogs.unshift({
+    id: makeId('task-log'),
+    taskId: parent.entityId,
+    action,
+    metadata: { attachmentId: attachment.id, kind: attachment.kind, fileId: attachment.file?.id ?? null, url: attachment.url },
+    createdAt: new Date().toISOString(),
+  });
+}
 
 /** The three lists a create form can send beside the record's own fields. Together: at most 20. */
 export interface AttachmentCreateFields {
@@ -105,6 +123,7 @@ export const attachmentsService = {
         file: 'fileId' in body ? { id: body.fileId, originalName: file?.originalName, mimeType: file?.mimeType, size: file?.size } : null,
       };
       demoAttachments.unshift(attachment);
+      demoLogAttachment(parent, 'ATTACHMENT_ADDED', attachment);
       return demoDelay(attachment);
     }
     const response = await http.post(apiRoutes.attachments.list(companyId, parent), { ...body, label: cleanLabel });
@@ -114,7 +133,7 @@ export const attachmentsService = {
   async remove(companyId: string, parent: AttachmentParent, attachmentId: string): Promise<void> {
     if (env.demoMode) {
       const index = demoAttachments.findIndex((item) => item.id === attachmentId);
-      if (index >= 0) demoAttachments.splice(index, 1);
+      if (index >= 0) demoLogAttachment(parent, 'ATTACHMENT_REMOVED', demoAttachments.splice(index, 1)[0]);
       return demoDelay(undefined);
     }
     await http.delete(apiRoutes.attachments.detail(companyId, parent, attachmentId));
@@ -132,7 +151,12 @@ export const attachmentsService = {
  * branch, drops it (F-06).
  */
 export async function addAllDemoAttachments(companyId: string, parent: AttachmentParent, fields: AttachmentCreateFields): Promise<void> {
-  for (const fileId of fields.attachmentFileIds ?? []) await attachmentsService.add(companyId, parent, { fileId });
-  for (const link of fields.attachmentLinks ?? []) await attachmentsService.add(companyId, parent, link);
-  for (const note of fields.attachmentTexts ?? []) await attachmentsService.add(companyId, parent, note);
+  demoLogAttachments = false;
+  try {
+    for (const fileId of fields.attachmentFileIds ?? []) await attachmentsService.add(companyId, parent, { fileId });
+    for (const link of fields.attachmentLinks ?? []) await attachmentsService.add(companyId, parent, link);
+    for (const note of fields.attachmentTexts ?? []) await attachmentsService.add(companyId, parent, note);
+  } finally {
+    demoLogAttachments = true;
+  }
 }

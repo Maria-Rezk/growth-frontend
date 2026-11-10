@@ -242,6 +242,12 @@ export const demoTaskComments: TaskComment[] = [
 export let demoTaskLogs: TaskActivityLog[] = [
   { id: 'task-log-1', taskId: 'task-1', action: 'TASK_CREATED', createdAt: iso(-2) },
   { id: 'task-log-2', taskId: 'task-1', action: 'STATUS_CHANGED_TO_IN_PROGRESS', createdAt: iso(-1) },
+  // Attachment rows as the API writes them: the kind and ids, no name.
+  { id: 'task-log-3', taskId: 'task-1', action: 'ATTACHMENT_ADDED', metadata: { attachmentId: 'attachment-2', kind: 'FILE', fileId: 'file-2', url: null }, createdAt: iso(-1) },
+  // A link since deleted: it is no longer in the list, so only its kind is known.
+  { id: 'task-log-4', taskId: 'task-1', action: 'ATTACHMENT_ADDED', metadata: { attachmentId: 'attachment-removed', kind: 'LINK', fileId: null, url: 'https://drive.example.com/private' }, createdAt: iso(-1) },
+  // A row from before metadata was recorded.
+  { id: 'task-log-5', taskId: 'task-1', action: 'ATTACHMENT_ADDED', createdAt: iso(-1) },
 ];
 
 export const demoReports: Report[] = [

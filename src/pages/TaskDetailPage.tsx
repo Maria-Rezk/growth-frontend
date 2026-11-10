@@ -32,6 +32,9 @@ import { useLocale } from '@/context/LocaleContext';
 import type { AppLanguage } from '@/i18n/messages';
 import { readAssigneeChanges, taskRoleLabel } from '@/utils/taskAssignees';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
+import { attachmentsService } from '@/services/attachments';
+import { attachmentActivityTitle } from '@/utils/attachmentActivity';
+import type { Attachment } from '@/types/domain';
 
 export function TaskDetailPage() {
   const { taskId = '' } = useParams();
@@ -44,6 +47,12 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const task = useAsync(() => tasksService.get(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.task(companyId, taskId) });
   const comments = useAsync(() => tasksService.comments(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.taskComments(companyId, taskId) });
   const logs = useAsync(() => tasksService.activityLogs(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.taskLogs(companyId, taskId) });
+  // The attachment rows name what was added from this list. Same key as the Attachments card, so it is one request, shared.
+  const attachments = useAsync(
+    () => attachmentsService.list(companyId, { entityType: 'TASK', entityId: taskId }),
+    [companyId, taskId],
+    { queryKey: queryKeys.attachments(companyId, 'TASK', taskId) },
+  );
   const members = useAssignableMembers(companyId);
 
   const setStatus = useMutation(tasksService.setStatus, { invalidateKeys: tasksPrefix });
@@ -341,7 +350,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <ErrorState message={logs.error} onRetry={logs.refetch} />
               ) : (
                 <Timeline
-                  items={(logs.data ?? []).map((item) => ({ id: item.id, ...describeActivity(item, resolveName, lang), createdAt: item.createdAt }))}
+                  items={(logs.data ?? []).map((item) => ({ id: item.id, ...describeActivity(item, resolveName, lang, attachments.data ?? []), createdAt: item.createdAt }))}
                   empty={logs.loading ? 'Loading activity…' : 'No activity yet.'}
                 />
               )}
@@ -358,7 +367,12 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
  * said, which is the whole point of recording them — "Approved by Omar" as a
  * row, not a comment somebody has to scroll for.
  */
-function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null) => string, lang: AppLanguage): { title: string; body?: string } {
+function describeActivity(
+  log: TaskActivityLog,
+  resolveName: (id?: string | null) => string,
+  lang: AppLanguage,
+  attachments: readonly Attachment[],
+): { title: string; body?: string } {
   const meta = (log.metadata ?? {}) as Record<string, unknown>;
   const approver = typeof meta.approverId === 'string' ? resolveName(meta.approverId) : null;
   switch (log.action) {
@@ -380,9 +394,9 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
       return { title: 'People changed', body: parts.length ? parts.join(' · ') : undefined };
     }
     case 'ATTACHMENT_ADDED':
-      return { title: 'Attachment added', body: attachmentSummary(meta) };
     case 'ATTACHMENT_REMOVED':
-      return { title: 'Attachment removed', body: attachmentSummary(meta) };
+      // Named from the task's attachment list; never the URL or a note's text.
+      return { title: attachmentActivityTitle(log.action, meta, attachments) };
     case 'CREATED':
     case 'TASK_CREATED':
       return {
@@ -392,14 +406,6 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
     default:
       return { title: humanize(log.action) };
   }
-}
-
-/** A file's name, else a link's label or address: whichever the log row carries. */
-function attachmentSummary(meta: Record<string, unknown>): string | undefined {
-  for (const key of ['originalName', 'label', 'url']) {
-    if (typeof meta[key] === 'string' && meta[key]) return meta[key] as string;
-  }
-  return undefined;
 }
 
 /** Previously `comments.data?.map()` with no empty and no error branch. */
