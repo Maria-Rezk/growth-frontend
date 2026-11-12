@@ -12,7 +12,7 @@ import { useOpenNotification } from './useOpenNotification';
 
 export function NotificationsDropdown() {
   const navigate = useNavigate();
-  const { unreadCount, refreshUnreadCount } = useNotifications();
+  const { unreadCount, refreshUnreadCount, refreshNotifications } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
@@ -95,7 +95,11 @@ export function NotificationsDropdown() {
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          // Opening always shows the latest: the cached list is shown at once and replaced when the refetch lands.
+          if (!open) void refreshNotifications();
+          setOpen((value) => !value);
+        }}
       >
         <BellIcon size={18} />
         {unreadCount > 0 ? <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
@@ -113,7 +117,8 @@ export function NotificationsDropdown() {
 
           <div className="notifications-panel__body">
             {list.loading ? <p className="muted">Loading notifications…</p> : null}
-            {list.error ? <p className="error-text">{list.error}</p> : null}
+            {/* A failed background refresh keeps the last list on screen; the error only shows when there is nothing to show. */}
+            {list.error && !list.data ? <p className="error-text">{list.error}</p> : null}
             {!list.loading && !list.error && recentItems.length === 0 ? <p className="muted">No notifications yet.</p> : null}
             {recentItems.map((notification) => (
               <NotificationItem key={notification.id} notification={notification} compact onSelect={handleSelect} />

@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { errorMessage } from '@/lib/http';
 import { queryKeys } from '@/lib/queryClient';
 import type { NotificationPreferences, NotificationType } from '@/types/domain';
+import { useNotificationSync } from '@/hooks/useNotificationSync';
 import { NotificationsContext, type NotificationsContextValue } from './NotificationsContext';
 
 const NOTHING_MUTED: ReadonlySet<NotificationType> = new Set();
@@ -16,12 +17,19 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const queryClient = useQueryClient();
   const signedIn = Boolean(user?.id);
 
+  /*
+    The count used to poll on its own (every 60s, even in a hidden tab) while
+    the list in the bell never polled, so the badge and the dropdown drifted
+    apart until a page reload. Both are now refreshed together by
+    useNotificationSync below; the query's own focus/reconnect refetch is off
+    so those moments do not fire twice.
+  */
   const { data: serverCount } = useQuery({
     queryKey: queryKeys.unreadNotifications,
     queryFn: () => notificationsService.unreadCount(),
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: true,
     enabled: signedIn,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const preferencesQuery = useQuery({
@@ -50,10 +58,22 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     },
   });
 
-  // The list and the count — not the preferences, which share the key prefix.
-  const refreshUnreadCount = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.notifications, predicate: isFeedQuery });
+  /*
+    The feed: the list (with or without muted types) and the unread count —
+    not the preferences, which share the key prefix. One invalidation marks
+    them all stale and refetches the ones on screen together; a request
+    already in flight is reused rather than cancelled and sent again.
+  */
+  const refreshFeed = useCallback(async () => {
+    await queryClient.invalidateQueries(
+      { queryKey: queryKeys.notifications, predicate: isFeedQuery, refetchType: 'active' },
+      { cancelRefetch: false },
+    );
   }, [queryClient]);
+
+  // Every 30s while the app is in use, on return to the tab and on reconnect; nothing when signed out.
+  const refreshNotifications = useNotificationSync(signedIn, refreshFeed);
+  const refreshUnreadCount = refreshFeed;
 
   const { mutateAsync } = saveMutation;
   const savePreferences = useCallback(async (next: NotificationPreferences) => {
@@ -80,6 +100,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     () => ({
       unreadCount: serverCount ?? 0,
       refreshUnreadCount,
+      refreshNotifications,
       muted,
       setMuted,
       preferences,
@@ -89,7 +110,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       saving: saveMutation.isPending,
       saveError: saveMutation.error ? errorMessage(saveMutation.error) : null,
     }),
-    [muted, preferences, preferencesQuery.error, preferencesQuery.isLoading, refreshUnreadCount, saveMutation.error, saveMutation.isPending, savePreferences, serverCount, setMuted],
+    [muted, preferences, preferencesQuery.error, preferencesQuery.isLoading, refreshNotifications, refreshUnreadCount, saveMutation.error, saveMutation.isPending, savePreferences, serverCount, setMuted],
   );
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }
