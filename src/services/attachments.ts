@@ -9,18 +9,23 @@ export type { AttachmentParent } from '@/config/apiRoutes';
 
 /**
  * Demo-only: the task activity row the API writes when an attachment is added
- * to, or removed from, an existing task — with exactly the API's metadata
- * (`attachmentId`, `kind`, `fileId`, `url`; no name, no label). Attachments
- * sent with a create are not logged, as on the API.
+ * to, or removed from, a task — including those sent with the create — with
+ * the API's metadata (parallel-steps guide 3): `attachmentId`, `kind`,
+ * `fileId`, `originalName` (files) and `label` (when set). Never the link
+ * address or the note's text.
  */
-let demoLogAttachments = true;
 function demoLogAttachment(parent: AttachmentParent, action: 'ATTACHMENT_ADDED' | 'ATTACHMENT_REMOVED', attachment: Attachment) {
-  if (!demoLogAttachments || parent.entityType !== 'TASK' || !parent.entityId) return;
+  if (parent.entityType !== 'TASK' || !parent.entityId) return;
   demoTaskLogs.unshift({
     id: makeId('task-log'),
     taskId: parent.entityId,
     action,
-    metadata: { attachmentId: attachment.id, kind: attachment.kind, fileId: attachment.file?.id ?? null, url: attachment.url },
+    metadata: {
+      attachmentId: attachment.id,
+      kind: attachment.kind,
+      ...(attachment.file ? { fileId: attachment.file.id, originalName: attachment.file.originalName } : {}),
+      ...(attachment.label ? { label: attachment.label } : {}),
+    },
     createdAt: new Date().toISOString(),
   });
 }
@@ -151,12 +156,8 @@ export const attachmentsService = {
  * branch, drops it (F-06).
  */
 export async function addAllDemoAttachments(companyId: string, parent: AttachmentParent, fields: AttachmentCreateFields): Promise<void> {
-  demoLogAttachments = false;
-  try {
-    for (const fileId of fields.attachmentFileIds ?? []) await attachmentsService.add(companyId, parent, { fileId });
-    for (const link of fields.attachmentLinks ?? []) await attachmentsService.add(companyId, parent, link);
-    for (const note of fields.attachmentTexts ?? []) await attachmentsService.add(companyId, parent, note);
-  } finally {
-    demoLogAttachments = true;
-  }
+  // Each is logged, as the API now does; re-sending the same file or link returns the existing row and logs nothing.
+  for (const fileId of fields.attachmentFileIds ?? []) await attachmentsService.add(companyId, parent, { fileId });
+  for (const link of fields.attachmentLinks ?? []) await attachmentsService.add(companyId, parent, link);
+  for (const note of fields.attachmentTexts ?? []) await attachmentsService.add(companyId, parent, note);
 }

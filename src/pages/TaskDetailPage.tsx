@@ -27,14 +27,14 @@ import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
 import { TaskReviewErrorCode, TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
 import { TaskStepTimeline } from '@/components/domain/TaskPeople';
-import { isStepFlow, liveStep, stepPosition } from '@/utils/taskSteps';
+import { formatDuration, isStepFlow, liveStep, stepPosition } from '@/utils/taskSteps';
 import { useLocale } from '@/context/LocaleContext';
 import type { AppLanguage } from '@/i18n/messages';
 import { readAssigneeChanges, taskRoleLabel } from '@/utils/taskAssignees';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 import { attachmentsService } from '@/services/attachments';
 import { attachmentActivityTitle } from '@/utils/attachmentActivity';
-import type { Attachment } from '@/types/domain';
+import type { Attachment, TaskAssignee } from '@/types/domain';
 
 export function TaskDetailPage() {
   const { taskId = '' } = useParams();
@@ -196,7 +196,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                     <span>Now with</span>
                     <strong>
                       {live
-                        ? <>{userLabel(live.user ?? current.assignedTo, resolveName(live.userId))} <span className="muted">· step {stepPosition(current, live).index} of {current.assignees.length}</span></>
+                        ? <>{withNow(live.assignees).map((person) => userLabel(person.user, resolveName(person.userId))).join(', ')} <span className="muted">· step {stepPosition(current, live).index} of {stepPosition(current, live).count}</span></>
                         : current.status === TaskStatus.DONE ? 'Every step is done' : 'Nobody'}
                     </strong>
                   </div>
@@ -362,6 +362,12 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   );
 }
 
+/** Who the task is with now: the people on the live step still working; everybody on it once all have handed in. */
+function withNow(people: readonly TaskAssignee[]): readonly TaskAssignee[] {
+  const working = people.filter((person) => person.status === 'TODO' || person.status === 'IN_PROGRESS');
+  return working.length ? working : people;
+}
+
 /**
  * The audit trail in words. The review rows carry who approved and what they
  * said, which is the whole point of recording them — "Approved by Omar" as a
@@ -375,13 +381,34 @@ function describeActivity(
 ): { title: string; body?: string } {
   const meta = (log.metadata ?? {}) as Record<string, unknown>;
   const approver = typeof meta.approverId === 'string' ? resolveName(meta.approverId) : null;
+  const stepUser = typeof meta.stepUserId === 'string' ? resolveName(meta.stepUserId) : null;
+  const stepNo = typeof meta.stepOrder === 'number' ? meta.stepOrder : null;
+  const onStep = stepNo ? ` on step ${stepNo}` : '';
   switch (log.action) {
+    // One person on a shared step handed in their part (parallel-steps guide 1.7).
+    case 'STEP_WORK_SUBMITTED': {
+      const count = typeof meta.submittedCount === 'number' && typeof meta.assigneeCount === 'number' ? `${meta.submittedCount} of ${meta.assigneeCount} submitted` : undefined;
+      const worked = typeof meta.workSeconds === 'number' && meta.workSeconds >= 60 ? `worked ${formatDuration(meta.workSeconds * 1000)}` : undefined;
+      return { title: `${stepUser ?? 'Somebody'} handed in their part${onStep}`, body: [count, worked].filter(Boolean).join(' · ') || undefined };
+    }
+    case 'STEP_COMPLETED':
+      return { title: stepNo ? `Step ${stepNo} finished` : 'Step finished' };
+    case 'STATUS_CHANGED':
+      if (stepUser && meta.toStatus === 'IN_PROGRESS') return { title: `${stepUser} started their part${onStep}` };
+      return { title: typeof meta.toStatus === 'string' ? `Moved to ${humanize(meta.toStatus)}` : 'Status changed' };
     case 'TASK_SUBMITTED_FOR_REVIEW':
-      return { title: 'Submitted for review', body: approver ? `Waiting on ${approver}` : undefined };
+      return { title: stepNo ? `Step ${stepNo} submitted for review` : 'Submitted for review', body: approver ? `Waiting on ${approver}` : undefined };
     case 'TASK_APPROVED':
       return { title: approver ? `Approved by ${approver}` : 'Approved' };
-    case 'TASK_CHANGES_REQUESTED':
-      return { title: approver ? `Changes requested by ${approver}` : 'Changes requested', body: typeof meta.note === 'string' ? meta.note : undefined };
+    case 'TASK_CHANGES_REQUESTED': {
+      // `reopenedUserIds`: who was sent back on a shared step.
+      const reopened = Array.isArray(meta.reopenedUserIds) ? meta.reopenedUserIds.filter((id): id is string => typeof id === 'string').map((id) => resolveName(id)) : [];
+      const sentBack = reopened.length ? `Sent back to ${reopened.join(', ')}` : undefined;
+      return {
+        title: approver ? `Changes requested by ${approver}` : 'Changes requested',
+        body: [sentBack, typeof meta.note === 'string' ? meta.note : undefined].filter(Boolean).join(' — ') || undefined,
+      };
+    }
     case 'TASK_APPROVER_CHANGED':
       return {
         title: 'Approver changed',

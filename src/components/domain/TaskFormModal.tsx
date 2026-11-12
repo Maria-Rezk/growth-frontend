@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { ApproverPicker } from '@/components/domain/ApproverPicker';
-import { TaskPeopleField, type TaskPersonRowError } from '@/components/domain/TaskPeople';
+import { TaskPeopleField, type TaskStepFieldErrors } from '@/components/domain/TaskPeople';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { PendingAttachmentsField } from '@/components/domain/PendingAttachmentsField';
 import { NO_PENDING_ATTACHMENTS, pendingPayload, type PendingAttachments } from '@/utils/pendingAttachments';
@@ -31,8 +31,7 @@ import {
 } from '@/types/domain';
 import { fromInputDateTime, humanize, toInputDateTime } from '@/utils/format';
 import { memberLabel, routingForArea, type AreaRouting } from '@/utils/responsibilityRouting';
-import { duplicateAssigneeIndexes, type TaskPersonRow } from '@/utils/taskAssignees';
-import { isStepFlow, sameSteps, stepInputs, stepRowsFor } from '@/utils/taskSteps';
+import { duplicatePeople, formStepsFor, isStepFlow, peopleCount, sameSteps, stepInputs, type FormStep } from '@/utils/taskSteps';
 
 const taskSchema = z.object({
   title: z.string().trim().min(3, 'Task title is required.').max(180, 'Up to 180 characters.'),
@@ -41,15 +40,22 @@ const taskSchema = z.object({
   taskTypes: z.array(z.nativeEnum(TaskType)),
   customTaskType: z.string().optional(),
   priority: z.nativeEnum(TaskPriority),
-  /** The flow's steps, in order. Sent as `assignees`. Empty: one assignee and one approver. */
-  assignees: z.array(z.object({
+  /**
+   * The flow's steps, in order; the people inside a step work side by side.
+   * Sent as `assignees`. Empty: one assignee and one approver.
+   */
+  steps: z.array(z.object({
     key: z.string(),
-    userId: z.string(),
-    role: z.union([z.nativeEnum(TaskAssigneeRole), z.literal('')]),
-    approverId: z.string().optional(),
-    locked: z.boolean().optional(),
-    stepStatus: z.nativeEnum(TaskStepStatus).optional(),
-  })).max(MAX_TASK_ASSIGNEES, `Up to ${MAX_TASK_ASSIGNEES} steps per task.`),
+    approverId: z.string(),
+    status: z.nativeEnum(TaskStepStatus).optional(),
+    people: z.array(z.object({
+      key: z.string(),
+      userId: z.string(),
+      role: z.union([z.nativeEnum(TaskAssigneeRole), z.literal('')]),
+      locked: z.boolean().optional(),
+      status: z.nativeEnum(TaskStepStatus).optional(),
+    })),
+  })).refine((steps) => peopleCount(steps as FormStep[]) <= MAX_TASK_ASSIGNEES, `Up to ${MAX_TASK_ASSIGNEES} people per task.`),
   /** The single assignee of a task without steps. */
   assignedToId: z.string().optional(),
   approverId: z.string().optional(),
@@ -64,16 +70,23 @@ const taskSchema = z.object({
   if (values.taskTypes.includes(TaskType.OTHER) && !values.customTaskType?.trim()) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['customTaskType'], message: 'Say what the other type of work is.' });
   }
-  values.assignees.forEach((row, index) => {
-    if (!row.userId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'userId'], message: 'Choose a person, or remove the row.' });
-    if (!row.role) context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'role'], message: 'Choose the role they play on this task.' });
-    if (row.approverId && row.approverId === row.userId) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'approverId'], message: 'Choose somebody else to approve this step.' });
+  values.steps.forEach((step, stepIndex) => {
+    step.people.forEach((person, personIndex) => {
+      const path = ['steps', stepIndex, 'people', personIndex];
+      if (!person.userId) context.addIssue({ code: z.ZodIssueCode.custom, path: [...path, 'userId'], message: 'Choose a person, or remove the row.' });
+      if (!person.role) context.addIssue({ code: z.ZodIssueCode.custom, path: [...path, 'role'], message: 'Choose the role they play on this task.' });
+    });
+    if (step.approverId && step.people.some((person) => person.userId === step.approverId)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['steps', stepIndex, 'approverId'], message: 'Choose somebody who is not working on this step.' });
     }
   });
-  // Mirrors the API's 400 DUPLICATE_ASSIGNEE. The role picker already disables a taken role; this catches a person changed afterwards.
-  duplicateAssigneeIndexes(values.assignees).forEach((index) => {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['assignees', index, 'role'], message: 'This person is already on the task in this role.' });
+  // Mirrors the API's 400 DUPLICATE_ASSIGNEE: twice on one step, or the same person in the same role anywhere.
+  duplicatePeople(values.steps as FormStep[]).forEach(({ step, person, reason }) => {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['steps', step, 'people', person, reason === 'SAME_STEP' ? 'userId' : 'role'],
+      message: reason === 'SAME_STEP' ? 'This person is already on this step.' : 'This person is already on the task in this role.',
+    });
   });
 });
 
@@ -101,7 +114,7 @@ function formValuesFor(task: Task): TaskForm {
     taskTypes: task.taskTypes ?? [],
     customTaskType: task.customTaskType ?? '',
     priority: task.priority,
-    assignees: stepRowsFor(task),
+    steps: formStepsFor(task),
     // On a flow these describe the live step and are not editable here.
     assignedToId: isStepFlow(task) ? '' : task.assignedToId ?? '',
     approverId: isStepFlow(task) ? '' : task.approverId ?? '',
@@ -152,7 +165,7 @@ export function TaskModal({
       taskTypes: link?.taskTypes ?? [],
       customTaskType: link?.customTaskType ?? '',
       priority: TaskPriority.MEDIUM,
-      assignees: [],
+      steps: [],
       assignedToId: '',
       approverId: '',
       dueDate: '',
@@ -196,11 +209,11 @@ export function TaskModal({
   );
   const routing = useMemo(() => routingForArea(matrix.data, areaId), [areaId, matrix.data]);
 
-  const watchedPeople = form.watch('assignees');
-  const setPeople = (next: TaskPersonRow[]) =>
-    form.setValue('assignees', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
+  const watchedSteps = form.watch('steps') as FormStep[];
+  const setSteps = (next: FormStep[]) =>
+    form.setValue('steps', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
   // With steps, people and approvers are per step; without, one assignee and one approver.
-  const hasSteps = watchedPeople.length > 0;
+  const hasSteps = watchedSteps.length > 0;
 
   const chooseArea = (nextAreaId: string) => {
     setAreaId(nextAreaId);
@@ -208,7 +221,7 @@ export function TaskModal({
     // Only prefill someone the person picker actually offers: an active member of this client.
     const member = suggested ? members.find((item) => item.userId === suggested.userId && item.status === 'ACTIVE') : undefined;
     // A flow names its own people; the area only fills the single assignee, and never over a choice already made.
-    if (!member || form.getValues('assignees').length || form.getValues('assignedToId')) return;
+    if (!member || form.getValues('steps').length || form.getValues('assignedToId')) return;
     form.setValue('assignedToId', member.userId, { shouldDirty: true });
   };
 
@@ -225,24 +238,30 @@ export function TaskModal({
       if (code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER || code === TaskReviewErrorCode.DUPLICATE_ASSIGNEE) {
         // Point at the row the API named — as the step's person or its approver; fall back to the list as a whole.
         const { userId, role } = error as { userId?: string; role?: string };
-        const rows = form.getValues('assignees');
+        const steps = form.getValues('steps');
         const message = code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER
           ? 'Not an active member of this client any more. Choose somebody else.'
-          : 'This person is already on the task in this role.';
-        const asPerson = rows.findIndex((row) => row.userId === userId && (!role || row.role === role));
-        const asApprover = code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? rows.findIndex((row) => row.approverId === userId) : -1;
-        if (asPerson !== -1) {
-          form.setError(code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? `assignees.${asPerson}.userId` : `assignees.${asPerson}.role`, { message });
+          : 'This person is already on the task here.';
+        const stepIndex = steps.findIndex((step) => step.people.some((person) => person.userId === userId && (!role || person.role === role)));
+        const personIndex = stepIndex === -1 ? -1 : steps[stepIndex].people.findIndex((person) => person.userId === userId && (!role || person.role === role));
+        const asApprover = code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? steps.findIndex((step) => step.approverId === userId) : -1;
+        if (personIndex !== -1) {
+          form.setError(`steps.${stepIndex}.people.${personIndex}.${code === TaskReviewErrorCode.ASSIGNEE_NOT_A_MEMBER ? 'userId' : 'role'}`, { message });
         } else if (asApprover !== -1) {
-          form.setError(`assignees.${asApprover}.approverId`, { message });
+          form.setError(`steps.${asApprover}.approverId`, { message });
         } else {
-          form.setError('assignees', { message });
+          form.setError('steps', { message });
         }
+        return;
+      }
+      if (code === TaskReviewErrorCode.STEP_APPROVER_CONFLICT || code === TaskReviewErrorCode.STEP_ORDER_REQUIRED) {
+        // The form sends one approver per step and stepOrder on everybody, so this means the saved flow changed underneath.
+        form.setError('steps', { message: errorMessage(error) });
         return;
       }
       if (code === TaskReviewErrorCode.STEP_FLOW_STARTED) {
         // Somebody started a step while this form was open. The locked rows here are stale.
-        form.setError('assignees', { message: 'A step has started since you opened this. Close and reopen the task to edit the steps that are left.' });
+        form.setError('steps', { message: 'Somebody started work since you opened this. Close and reopen the task to edit what is left.' });
         return;
       }
       applyServerFieldErrors(form, error);
@@ -278,8 +297,8 @@ export function TaskModal({
       form.setError('taskTypes', { message: 'Keep at least one type.' });
       return null;
     }
-    const steps = stepInputs(values.assignees);
-    const stepsChanged = !sameSteps(steps, existing.assignees ?? []);
+    const steps = stepInputs(values.steps as FormStep[]);
+    const stepsChanged = !sameSteps(steps, existing);
     const assigneeChanged = (values.assignedToId || '') !== (existing.assignedToId ?? '');
     return update.mutate(companyId, existing.id, {
       title: values.title.trim(),
@@ -332,7 +351,7 @@ export function TaskModal({
       customTaskType: values.customTaskType,
       isDraft: asDraft,
       priority: values.priority,
-      assignees: stepInputs(values.assignees),
+      assignees: stepInputs(values.steps as FormStep[]),
       // Without steps: one assignee, and an approver — empty means "let the matrix decide".
       assignedToId: values.assignedToId || undefined,
       approverId: values.approverId || undefined,
@@ -410,11 +429,11 @@ export function TaskModal({
         ) : null}
 
         <TaskPeopleField
-          value={watchedPeople}
-          onChange={setPeople}
+          value={watchedSteps}
+          onChange={setSteps}
           members={members}
-          errors={rowErrors(form.formState.errors.assignees)}
-          error={form.formState.errors.assignees?.message ?? form.formState.errors.assignees?.root?.message}
+          errors={stepErrors(form.formState.errors.steps)}
+          error={form.formState.errors.steps?.message ?? form.formState.errors.steps?.root?.message}
           disabled={busy}
         />
 
@@ -483,13 +502,19 @@ export function TaskModal({
   );
 }
 
-/** react-hook-form's per-row errors, flattened to what the people field shows. */
-function rowErrors(errors: unknown): Array<TaskPersonRowError | undefined> | undefined {
+/** react-hook-form's per-step errors, flattened to what the steps field shows. */
+function stepErrors(errors: unknown): Array<TaskStepFieldErrors | undefined> | undefined {
   if (!Array.isArray(errors)) return undefined;
+  const message = (value: unknown) => (value as { message?: string } | undefined)?.message;
   return errors.map((entry) => {
     if (!entry) return undefined;
-    const row = entry as { userId?: { message?: string }; role?: { message?: string }; approverId?: { message?: string } };
-    return { userId: row.userId?.message, role: row.role?.message, approverId: row.approverId?.message };
+    const step = entry as { approverId?: unknown; people?: unknown };
+    return {
+      approverId: message(step.approverId),
+      people: Array.isArray(step.people)
+        ? step.people.map((person) => (person ? { userId: message((person as { userId?: unknown }).userId), role: message((person as { role?: unknown }).role) } : undefined))
+        : undefined,
+    };
   });
 }
 

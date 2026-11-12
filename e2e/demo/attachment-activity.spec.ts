@@ -2,20 +2,22 @@ import type { Page } from '@playwright/test';
 import { expect, open, test } from './fixtures';
 
 /*
-  Task activity names the attachment it is about. The API's activity row
-  carries the attachment's id and kind but no name, so the name comes from the
-  task's attachment list; a URL or a note's text is never shown.
+  Task activity names the attachment it is about. The API now captures the
+  name in the row when it happens (`originalName`, `label`; parallel-steps
+  guide 3), so it survives the attachment's removal. Older rows carry no name
+  and fall back to the kind. A URL or a note's text is never shown.
 
-  Demo seed for task-1: a file row for attachment-2 (approval-flow-wireframe.pdf),
-  a row for a link since deleted, and a row with no metadata at all. Demo data
-  lives in memory, so the test stays in-app after it changes anything.
+  Demo seed for task-1: a file row for attachment-2 with its name, an older
+  row for a link since deleted (no name, only an address), and a row with no
+  metadata at all. Demo data lives in memory, so the test stays in-app after
+  it changes anything.
 */
 
 const activity = (page: Page) => page.locator('.card', { has: page.getByRole('heading', { name: 'Activity' }) }).locator('.timeline__title');
 const linkForm = (page: Page) => page.getByRole('group', { name: 'Add a link or a note' });
 
 test.describe('task activity names attachments', () => {
-  test('seeded rows: a file by name, a deleted link by kind, an old row as "Attachment added"', async ({ page }) => {
+  test('seeded rows: a file by name, an older deleted link by kind, an old row as "Attachment added"', async ({ page }) => {
     await open(page, '/tasks/task-1');
     const titles = activity(page);
     await expect(titles.filter({ hasText: 'Attachment added: approval-flow-wireframe.pdf' })).toHaveCount(1);
@@ -50,10 +52,11 @@ test.describe('task activity names attachments', () => {
     await form.getByRole('button', { name: 'Add link' }).click();
     await expect(activity(page).filter({ hasText: /^Link added$/ })).toHaveCount(2);
 
-    // Removed: the attachment is gone, so its rows fall back to the kind.
+    // Removed: the name was captured when it happened, so both rows still say which link.
     await page.getByRole('button', { name: 'Remove Design References' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
-    await expect(activity(page).filter({ hasText: /^Link removed$/ })).toHaveCount(1);
-    await expect(activity(page).filter({ hasText: 'Link added: Design References' })).toHaveCount(0);
+    await expect(activity(page).filter({ hasText: 'Link removed: Design References' })).toHaveCount(1);
+    await expect(activity(page).filter({ hasText: 'Link added: Design References' })).toHaveCount(1);
+    await expect(page.locator('.timeline')).not.toContainText('token=abc');
   });
 });

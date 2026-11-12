@@ -22,13 +22,13 @@ function dialog(page: Page): Locator {
   return page.getByRole('dialog');
 }
 
-/** The person picker on step `n`. Exact, so it never matches the role or approver picker. */
+/** The first person on step `n`. Exact, so it never matches the role or approver picker. */
 function person(form: Locator, n: number): Locator {
-  return form.getByLabel(`Person for step ${n}`, { exact: true });
+  return form.getByLabel(`Person 1 on step ${n}`, { exact: true });
 }
 
 function personRole(form: Locator, n: number): Locator {
-  return form.getByLabel(`Role for step ${n}`, { exact: true });
+  return form.getByLabel(`Role of person 1 on step ${n}`, { exact: true });
 }
 
 /** Who signs off step `n`. A flow has per-step approvers instead of one for the task. */

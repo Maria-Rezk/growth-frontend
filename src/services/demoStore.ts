@@ -52,6 +52,8 @@ const DEMO_COMPANY_ID = 'demo-company';
 const DEMO_COMPANY_NAME = 'Solu1ions Demo Workspace';
 const demoDesignerUser = { id: 'demo-designer', email: 'designer@solu1ions.com', fullName: 'Demo Designer' };
 const demoClientUser = { id: 'demo-client', email: 'client@example.com', fullName: 'Client Reviewer' };
+/** A second member of staff, so a step can have two people working side by side. */
+const demoCopywriterUser = { id: 'demo-copywriter', email: 'copy@solu1ions.com', fullName: 'Demo Copywriter', status: 'ACTIVE' };
 
 export const demoUser: User = {
   id: DEMO_USER_ID,
@@ -87,6 +89,16 @@ export const demoMemberships: Membership[] = [
     role: 'DESIGNER',
     status: 'ACTIVE',
     user: demoDesignerUser,
+    company: demoCompany,
+  },
+  {
+    id: 'demo-membership-4',
+    companyId: DEMO_COMPANY_ID,
+    userId: 'demo-copywriter',
+    roles: ['COPYWRITER'],
+    role: 'COPYWRITER',
+    status: 'ACTIVE',
+    user: demoCopywriterUser,
     company: demoCompany,
   },
   {
@@ -233,6 +245,18 @@ export const demoTasks: Task[] = [
   { id: 'task-1', companyId: DEMO_COMPANY_ID, title: 'Revise launch carousel CTA', description: 'Update the final slide CTA and prepare the asset for client approval.', status: 'IN_REVIEW', priority: 'HIGH', taskTypes: ['DESIGN'], customTaskType: null, isDraft: false, startedAt: iso(-2), assignedToId: 'demo-designer', assignedTo: demoDesignerUser, assignees: [{ id: 'task-assignee-1', stepOrder: 1, status: 'IN_REVIEW', userId: 'demo-designer', role: 'DESIGNER', user: demoDesignerUser, approverId: DEMO_USER_ID, approver: demoUser, reachedAt: iso(-2), startedAt: iso(-2), submittedAt: iso(-1), reviewedAt: null, completedAt: null, reviewNote: null, assignedById: DEMO_USER_ID, createdAt: iso(-2) }, { id: 'task-assignee-2', stepOrder: 2, status: 'PENDING', userId: DEMO_USER_ID, role: 'ACCOUNT_MANAGER', user: demoUser, approverId: null, approver: null, reachedAt: null, startedAt: null, submittedAt: null, reviewedAt: null, completedAt: null, reviewNote: null, assignedById: DEMO_USER_ID, createdAt: iso(-2) }], approverId: DEMO_USER_ID, approver: demoUser, submittedForReviewAt: iso(-1), reviewedAt: null, reviewNote: null, relatedEntityType: 'POST', relatedEntityId: 'post-1', sequence: 1, dueDate: iso(1), createdAt: iso(-2), updatedAt: iso(-1) },
   { id: 'task-2', companyId: DEMO_COMPANY_ID, title: 'Follow up with Nour Clinic', description: 'Send proposal summary and confirm decision timeline.', status: 'IN_PROGRESS', priority: 'URGENT', taskTypes: ['OTHER'], customTaskType: 'Follow up', isDraft: false, startedAt: iso(-1), assignedToId: 'demo-user', assignedTo: demoUser, assignees: [], approverId: 'demo-designer', approver: demoDesignerUser, submittedForReviewAt: null, reviewedAt: iso(-1), reviewNote: 'Add the pricing table before it goes out.', relatedEntityType: 'LEAD', relatedEntityId: 'lead-1', dueDate: iso(2), createdAt: iso(-1), updatedAt: iso(-1) },
   { id: 'task-3', companyId: DEMO_COMPANY_ID, title: 'Prepare monthly report notes', description: 'Write recommendations based on content and lead conversion performance.', status: 'TODO', priority: 'MEDIUM', taskTypes: ['OTHER'], customTaskType: 'Reporting', isDraft: false, startedAt: null, assignedToId: 'demo-user', assignedTo: demoUser, assignees: [], approverId: null, approver: null, submittedForReviewAt: null, reviewedAt: null, reviewNote: null, dueDate: iso(4), createdAt: iso(-3), updatedAt: iso(-3) },
+  // A step with two people side by side (parallel-steps guide 1): the designer has handed in, the copywriter is still working.
+  {
+    id: 'task-4', companyId: DEMO_COMPANY_ID, title: 'Launch reel: script and edit', description: 'Write the voice-over and cut the 30-second reel together, then hand it to the account manager.',
+    status: 'IN_PROGRESS', priority: 'MEDIUM', taskTypes: ['REELS'], customTaskType: null, isDraft: false, startedAt: iso(-1),
+    assignedToId: 'demo-copywriter', assignedTo: demoCopywriterUser, approverId: DEMO_USER_ID, approver: demoUser,
+    assignees: [
+      { id: 'task4-step-1a', stepOrder: 1, status: 'SUBMITTED', userId: 'demo-designer', role: 'DESIGNER', user: demoDesignerUser, approverId: DEMO_USER_ID, approver: demoUser, reachedAt: iso(-2), startedAt: iso(-2), submittedAt: iso(-1), reviewedAt: null, completedAt: null, reviewNote: null, assignedById: DEMO_USER_ID, createdAt: iso(-2) },
+      { id: 'task4-step-1b', stepOrder: 1, status: 'IN_PROGRESS', userId: 'demo-copywriter', role: 'COPYWRITER', user: demoCopywriterUser, approverId: DEMO_USER_ID, approver: demoUser, reachedAt: iso(-2), startedAt: iso(-1), submittedAt: null, reviewedAt: null, completedAt: null, reviewNote: null, assignedById: DEMO_USER_ID, createdAt: iso(-2) },
+      { id: 'task4-step-2', stepOrder: 2, status: 'PENDING', userId: DEMO_USER_ID, role: 'ACCOUNT_MANAGER', user: demoUser, approverId: null, approver: null, reachedAt: null, startedAt: null, submittedAt: null, reviewedAt: null, completedAt: null, reviewNote: null, assignedById: DEMO_USER_ID, createdAt: iso(-2) },
+    ],
+    submittedForReviewAt: null, reviewedAt: null, reviewNote: null, createdById: DEMO_USER_ID, dueDate: iso(5), createdAt: iso(-2), updatedAt: iso(-1),
+  },
 ];
 
 export const demoTaskComments: TaskComment[] = [
@@ -242,9 +266,9 @@ export const demoTaskComments: TaskComment[] = [
 export let demoTaskLogs: TaskActivityLog[] = [
   { id: 'task-log-1', taskId: 'task-1', action: 'TASK_CREATED', createdAt: iso(-2) },
   { id: 'task-log-2', taskId: 'task-1', action: 'STATUS_CHANGED_TO_IN_PROGRESS', createdAt: iso(-1) },
-  // Attachment rows as the API writes them: the kind and ids, no name.
-  { id: 'task-log-3', taskId: 'task-1', action: 'ATTACHMENT_ADDED', metadata: { attachmentId: 'attachment-2', kind: 'FILE', fileId: 'file-2', url: null }, createdAt: iso(-1) },
-  // A link since deleted: it is no longer in the list, so only its kind is known.
+  // Attachment rows as the API writes them now: the name captured when it happened.
+  { id: 'task-log-3', taskId: 'task-1', action: 'ATTACHMENT_ADDED', metadata: { attachmentId: 'attachment-2', kind: 'FILE', fileId: 'file-2', originalName: 'approval-flow-wireframe.pdf', label: 'Wireframe' }, createdAt: iso(-1) },
+  // An older row for a link since deleted: no name was recorded, only its kind and address.
   { id: 'task-log-4', taskId: 'task-1', action: 'ATTACHMENT_ADDED', metadata: { attachmentId: 'attachment-removed', kind: 'LINK', fileId: null, url: 'https://drive.example.com/private' }, createdAt: iso(-1) },
   // A row from before metadata was recorded.
   { id: 'task-log-5', taskId: 'task-1', action: 'ATTACHMENT_ADDED', createdAt: iso(-1) },
@@ -302,6 +326,17 @@ export const demoEmployees: Employee[] = [
     status: 'ACTIVE',
     createdAt: iso(-20),
     clients: [{ membershipId: 'demo-membership-2', companyId: DEMO_COMPANY_ID, companyName: DEMO_COMPANY_NAME, roles: ['DESIGNER', 'COPYWRITER'], role: 'DESIGNER' }],
+  },
+  // Written out rather than spread from demoCopywriterUser: a spread is a statement the
+  // bundler keeps, which would carry demo data into the production build (F-06).
+  {
+    id: 'demo-copywriter',
+    email: 'copy@solu1ions.com',
+    fullName: 'Demo Copywriter',
+    platformRole: 'USER',
+    status: 'ACTIVE',
+    createdAt: iso(-20),
+    clients: [{ membershipId: 'demo-membership-4', companyId: DEMO_COMPANY_ID, companyName: DEMO_COMPANY_NAME, roles: ['COPYWRITER'], role: 'COPYWRITER' }],
   },
 ];
 

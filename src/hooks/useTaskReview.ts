@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useMutation } from '@/hooks/useAsync';
@@ -9,20 +9,36 @@ import { TaskReviewErrorCode, type Task } from '@/types/domain';
 import { userLabel } from '@/utils/taskReview';
 import { isStepFlow, liveStep } from '@/utils/taskSteps';
 
-/** What a submit did, in words: on a flow it may have finished the step, or the whole task. */
-export function submittedMessage(task: Task): string {
+/** Who a step now waits on, in words: "Yasin", "Yasin and Amr", "3 people". */
+function peopleLabel(names: string[]): string {
+  if (names.length <= 2) return names.join(' and ');
+  return `${names.length} people`;
+}
+
+/**
+ * What a submit did, in words. On a flow it may have left the step waiting
+ * for teammates, sent it to its approver, finished it, or finished the task.
+ * `before` is the step number the part was handed in on.
+ */
+export function submittedMessage(task: Task, before?: number | null): string {
   if (!isStepFlow(task)) return `Sent to ${userLabel(task.approver, 'the approver')} for review.`;
-  if (task.status === 'DONE') return 'Your step is done, and so is the task.';
+  if (task.status === 'DONE') return 'Your part is in, and every step is done.';
   const live = liveStep(task);
-  if (live?.status === 'IN_REVIEW') return `Sent to ${userLabel(live.approver ?? task.approver, 'the approver')} for review.`;
-  return `Your step is done. ${userLabel(live?.user ?? task.assignedTo, 'The next person')} has been told it is their turn.`;
+  if (live && live.stepOrder === before) {
+    if (live.status === 'IN_REVIEW') return `Everybody is in: sent to ${userLabel(live.approver ?? task.approver, 'the approver')} for review.`;
+    const waiting = live.assignees.filter((person) => person.status === 'TODO' || person.status === 'IN_PROGRESS').map((person) => userLabel(person.user, 'a teammate'));
+    return `Your part is in. Waiting for ${peopleLabel(waiting)} before it goes on.`;
+  }
+  const next = live?.assignees.map((person) => userLabel(person.user, 'the next person')) ?? [];
+  return `Your step is done. ${next.length ? peopleLabel(next) : 'The next person'} ${next.length > 1 ? 'have' : 'has'} been told it is their turn.`;
 }
 
 /** What an approval did: on a flow it hands the task to the next step, or finishes it. */
 export function approvedMessage(task: Task): string {
   if (!isStepFlow(task)) return `Approved "${task.title}".`;
   if (task.status === 'DONE') return 'Step approved. Every step is done.';
-  return `Step approved. ${userLabel(liveStep(task)?.user ?? task.assignedTo, 'The next person')} has been told it is their turn.`;
+  const next = liveStep(task)?.assignees.map((person) => userLabel(person.user, 'the next person')) ?? [];
+  return `Step approved. ${next.length ? peopleLabel(next) : 'The next person'} ${next.length > 1 ? 'have' : 'has'} been told it is their turn.`;
 }
 
 export type ReviewAction = 'submit' | 'approve' | 'changes';
@@ -37,6 +53,8 @@ interface Options {
   onConflict?: (companyId: string, taskId: string) => void;
   /** A 422 APPROVER_REQUIRED on submit: open the approver picker. */
   onApproverRequired?: (companyId: string, taskId: string) => void;
+  /** A 409 STEP_ASSIGNEE_REQUIRED: an admin acted on a shared step; ask for whom (`userIds`) and resend. */
+  onAssigneeRequired?: (userIds: string[], action: 'submit') => void;
 }
 
 /**
@@ -50,6 +68,8 @@ export function useTaskReview(options: Options = {}) {
   const queryClient = useQueryClient();
   const [noteError, setNoteError] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  // The step a part was handed in on, so the toast can say what happened to it.
+  const submittedStep = useRef<number | null>(null);
 
   const invalidate = useCallback(
     (companyId: string) => {
@@ -73,6 +93,16 @@ export function useTaskReview(options: Options = {}) {
         toast.error('Somebody already acted on this task. Refreshing…');
         invalidate(companyId);
         options.onConflict?.(companyId, taskId);
+        return;
+      }
+      // An admin pressed it on a shared step: say whose part, then send again.
+      if (code === TaskReviewErrorCode.STEP_ASSIGNEE_REQUIRED) {
+        options.onAssigneeRequired?.((error as { userIds?: string[] }).userIds ?? [], 'submit');
+        return;
+      }
+      if (code === TaskReviewErrorCode.NOT_IN_STEP) {
+        setLastError('Somebody named is no longer on this step. Refresh and choose again.');
+        invalidate(companyId);
         return;
       }
       // Not this person's step any more: somebody moved the flow on. Same cure as a race.
@@ -99,7 +129,7 @@ export function useTaskReview(options: Options = {}) {
   const submitMutation = useMutation(tasksService.submitForReview, {
     onSuccess: (task, [companyId]) => {
       invalidate(companyId);
-      toast.success(submittedMessage(task));
+      toast.success(submittedMessage(task, submittedStep.current));
       options.onTask?.(task, 'submit');
     },
     onError: (error, [companyId, taskId]) => handleError(error, companyId, taskId),
@@ -131,10 +161,12 @@ export function useTaskReview(options: Options = {}) {
     changesMutation.reset();
   }, [approveMutation, changesMutation, submitMutation]);
 
+  /** `onBehalfOfUserId`: an admin handing in somebody else's part. `stepOrder`: the step it is on, for the message. */
   const submit = useCallback(
-    (companyId: string, taskId: string) => {
+    (companyId: string, taskId: string, onBehalfOfUserId?: string, stepOrder?: number | null) => {
       setLastError(null);
-      return submitMutation.mutate(companyId, taskId);
+      submittedStep.current = stepOrder ?? null;
+      return submitMutation.mutate(companyId, taskId, onBehalfOfUserId);
     },
     [submitMutation],
   );
@@ -147,8 +179,9 @@ export function useTaskReview(options: Options = {}) {
     [approveMutation],
   );
 
+  /** `userIds`: on a shared step, only these people go back; left out, everybody on it. */
   const requestChanges = useCallback(
-    (companyId: string, taskId: string, note: string) => {
+    (companyId: string, taskId: string, note: string, userIds?: string[]) => {
       setNoteError(null);
       setLastError(null);
       // Mirror the API's rule before the round trip: whitespace is not a note.
@@ -156,7 +189,7 @@ export function useTaskReview(options: Options = {}) {
         setNoteError('Say what needs changing: a note is required.');
         return Promise.resolve(null);
       }
-      return changesMutation.mutate(companyId, taskId, note);
+      return changesMutation.mutate(companyId, taskId, note, userIds);
     },
     [changesMutation],
   );

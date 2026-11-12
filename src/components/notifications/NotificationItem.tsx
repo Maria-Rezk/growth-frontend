@@ -2,7 +2,9 @@ import clsx from 'clsx';
 import type { ReactNode } from 'react';
 import type { AppNotification } from '@/types/domain';
 import { formatDateTime } from '@/utils/format';
+import { StatusBadge } from '@/components/domain/StatusBadges';
 import {
+  notificationContext,
   notificationIcon,
   notificationMessage,
   notificationTitle,
@@ -33,6 +35,12 @@ export function NotificationItem({ notification, compact = false, onSelect, acti
   const unread = !notification.readAt;
   const tone = notificationTone(notification.type);
   const title = notificationTitle(notification);
+  const context = notificationContext(notification);
+  const people = [
+    context.actor ? `By ${context.actor}` : null,
+    context.withNames.length ? `Now with ${context.withNames.join(', ')}` : null,
+    context.createdBy ? `Created by ${context.createdBy}` : null,
+  ].filter(Boolean);
 
   return (
     <article
@@ -56,6 +64,18 @@ export function NotificationItem({ notification, compact = false, onSelect, acti
           <strong>{title}</strong>
         )}
         <p>{notificationMessage(notification)}</p>
+        {/*
+          "Now vs then" (guide 2): the message says what happened when it was
+          written; the task line beside it is how the task stands today.
+        */}
+        {context.task ? (
+          <div className="notification-item__task">
+            <span className="notification-item__task-title">{context.task.title}</span>
+            <StatusBadge value={context.task.status} />
+          </div>
+        ) : null}
+        {/* Not a <p>: the message stays the item's one paragraph. */}
+        {people.length ? <div className="notification-item__people">{people.join(' · ')}</div> : null}
         <time dateTime={notification.createdAt}>{formatDateTime(notification.createdAt)}</time>
       </div>
 

@@ -140,7 +140,7 @@ function MyWorkInner() {
     if (result) toast.success(`${task.title} → ${humanize(status)}`);
   };
 
-  const submit = (task: MyWorkTask) => review.submit(task.clientId, task.id);
+  const submit = (task: MyWorkTask) => review.submit(task.clientId, task.id, undefined, liveStep(task)?.stepOrder);
 
   if (work.loading) return <><PageHeader title="My work" subtitle={MY_WORK_SUBTITLE} /><ListSkeleton rows={6} /></>;
   if (work.error) return <ErrorState message={work.error} onRetry={work.refetch} />;
@@ -378,10 +378,14 @@ function FlowRowActions({
   const actions = stepActions(task, userId);
   if (live?.status === 'IN_REVIEW') {
     return (
-      <span className={isWaitingLong(live.submittedAt) ? 'muted danger-text' : 'muted'}>
-        Waiting on {userLabel(live.approver ?? task.approver, 'an approver')} · {formatWaiting(live.submittedAt ?? task.submittedForReviewAt)}
+      <span className={isWaitingLong(task.submittedForReviewAt) ? 'muted danger-text' : 'muted'}>
+        Waiting on {userLabel(live.approver ?? task.approver, 'an approver')} · {formatWaiting(task.submittedForReviewAt)}
       </span>
     );
+  }
+  if (actions.waitingForTeammates) {
+    // Your part is in; the step waits for the others before it moves on.
+    return <span className="muted">Your part is in · waiting for teammates</span>;
   }
   if (!actions.canStart && !actions.canSubmit) {
     // Their step is done, or somebody else's turn: nothing to press here.
@@ -393,7 +397,7 @@ function FlowRowActions({
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => onMove(task, TaskStatus.IN_PROGRESS)}>Start</Button>
       ) : null}
       <Button size="sm" disabled={busy} onClick={() => onSubmit(task)}>
-        {live?.approverId ? 'Submit for review' : 'Mark step done'}
+        {(live?.assignees.length ?? 0) > 1 ? 'Hand in my part' : live?.approverId ? 'Submit for review' : 'Mark step done'}
       </Button>
     </>
   );

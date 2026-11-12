@@ -121,3 +121,35 @@ export function notificationLink(notification: AppNotification): string | null {
       return null;
   }
 }
+
+/** The people around a notification, in words (parallel-steps guide 2). Every part is optional. */
+export interface NotificationContext {
+  /** The task as it is now: its title and live status. */
+  task?: { title: string; status: string };
+  /** Who did it. Absent for reminders and older notifications. */
+  actor?: string;
+  /** Who has the task now: everybody on the live step still working, else the assignee. */
+  withNames: string[];
+  /** Who created the task, when it is somebody other than the actor. */
+  createdBy?: string;
+}
+
+const personName = (person?: { fullName?: string | null } | null) => person?.fullName?.trim() || undefined;
+
+export function notificationContext(notification: AppNotification): NotificationContext {
+  const actor = personName(notification.actionBy);
+  const creator = personName(notification.createdBy);
+  const closed = notification.task?.status === 'DONE' || notification.task?.status === 'CANCELED';
+  // "Now with" names people still working. Somebody who handed in, or a step with its
+  // approver, is not "with" them — the task's status badge already says "In review".
+  const isWorking = (status?: string | null) => !status || status === 'TODO' || status === 'IN_PROGRESS' || status === 'BLOCKED';
+  const current = notification.currentAssignees ?? [];
+  const people = current.length ? current.filter((person) => isWorking(person.status)) : notification.assignedTo ? [notification.assignedTo] : [];
+  const withNames = closed ? [] : people.map(personName).filter((name): name is string => Boolean(name));
+  return {
+    task: notification.task ? { title: notification.task.title, status: notification.task.status } : undefined,
+    actor,
+    withNames,
+    createdBy: creator && creator !== actor ? creator : undefined,
+  };
+}

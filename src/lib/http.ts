@@ -226,6 +226,7 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
         userId?: unknown;
         role?: unknown;
         stepOrder?: unknown;
+        userIds?: unknown;
       }
     | undefined;
 
@@ -274,6 +275,7 @@ export function normalizeApiError(error: unknown): ApiErrorShape {
     userId: typeof data?.userId === 'string' ? data.userId : undefined,
     role: typeof data?.role === 'string' ? data.role : undefined,
     stepOrder: typeof data?.stepOrder === 'number' ? data.stepOrder : undefined,
+    userIds: Array.isArray(data?.userIds) ? data.userIds.filter((id): id is string => typeof id === 'string') : undefined,
   };
 }
 
