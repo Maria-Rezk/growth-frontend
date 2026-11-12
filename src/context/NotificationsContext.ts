@@ -10,7 +10,10 @@ import type { NotificationPreferences, NotificationType } from '@/types/domain';
 export interface NotificationsContextValue {
   /** From the server, which already leaves muted types out. */
   unreadCount: number;
+  /** Refetch the list and the count now (after marking read, say). */
   refreshUnreadCount: () => Promise<void>;
+  /** The same, coalesced with the background sync: what opening the bell calls. */
+  refreshNotifications: () => Promise<void>;
   /** Types switched off on the account. */
   muted: ReadonlySet<NotificationType>;
   setMuted: (type: NotificationType, muted: boolean) => void;

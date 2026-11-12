@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -7,8 +7,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import type { AppNotification } from '@/types/domain';
 
+const refreshNotifications = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock('@/context/NotificationsContext', () => ({
-  useNotifications: () => ({ unreadCount: 1, refreshUnreadCount: async () => {} }),
+  useNotifications: () => ({ unreadCount: 1, refreshUnreadCount: async () => {}, refreshNotifications }),
 }));
 vi.mock('./useOpenNotification', () => ({ useOpenNotification: () => async () => {} }));
 
@@ -20,8 +21,9 @@ const notification = {
   readAt: null,
   createdAt: '2026-10-27T10:00:00.000Z',
 } as unknown as AppNotification;
+const list = vi.hoisted(() => vi.fn());
 vi.mock('@/services/notifications', () => ({
-  notificationsService: { list: async () => [notification], markAllRead: async () => {} },
+  notificationsService: { list: (...args: unknown[]) => list(...args), markAllRead: async () => {} },
 }));
 
 import { NotificationsDropdown } from './NotificationsDropdown';
@@ -40,6 +42,10 @@ function setup() {
 
 const bell = () => screen.getByRole('button', { name: 'Notifications, 1 unread' });
 
+beforeEach(() => {
+  refreshNotifications.mockClear();
+  list.mockReset().mockResolvedValue([notification]);
+});
 afterEach(cleanup);
 
 describe('NotificationsDropdown', () => {
@@ -91,5 +97,26 @@ describe('NotificationsDropdown', () => {
     await user.tab();
     await user.tab();
     expect(screen.getByRole('region', { name: 'Recent notifications' })).toBeInTheDocument();
+  });
+
+  it('opening the bell asks for the latest notifications; closing it does not', async () => {
+    const user = setup();
+    await user.click(bell());
+    expect(refreshNotifications).toHaveBeenCalledTimes(1);
+    await user.click(bell());
+    expect(refreshNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed refresh keeps the last list on screen instead of an error', async () => {
+    const user = setup();
+    await user.click(bell());
+    await screen.findByRole('button', { name: /New task for you/ });
+    // Mark all read refetches the list; this time the request fails.
+    list.mockRejectedValue({ message: 'Network Error' });
+    await user.click(screen.getByRole('button', { name: 'Mark all read' }));
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText('Network Error')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /New task for you/ })).toBeInTheDocument();
   });
 });
