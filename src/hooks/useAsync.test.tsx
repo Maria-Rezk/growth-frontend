@@ -145,3 +145,142 @@ describe('useAsync — stable callbacks', () => {
     await waitFor(() => expect(result.current.data).toBe('edited b'));
   });
 });
+
+/** A promise the test resolves or rejects when it chooses. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+describe('useAsync — automatic sync stays out of the way', () => {
+  it('a background refresh is not "refreshing"; a refetch the screen asked for is', async () => {
+    const client = newClient();
+    let next = deferred<string>();
+    let calls = 0;
+    const fetcher = vi.fn(() => { calls += 1; return calls === 1 ? Promise.resolve('v1') : next.promise; });
+    const key = queryKeys.task('c1', 't1');
+    const { result } = renderHook(() => useAsync(fetcher, [], { queryKey: key }), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.data).toBe('v1'));
+
+    // What a poll, focus or reconnect does: a refetch nobody on this screen started.
+    act(() => { void client.refetchQueries({ queryKey: key }); });
+    await waitFor(() => expect(client.isFetching({ queryKey: key })).toBe(1));
+    expect(result.current.refreshing).toBe(false);
+    expect(result.current.data).toBe('v1');
+    await act(async () => { next.resolve('v2'); await next.promise; });
+    await waitFor(() => expect(result.current.data).toBe('v2'));
+
+    next = deferred<string>();
+    let manual!: Promise<void>;
+    act(() => { manual = result.current.refetch(); });
+    await waitFor(() => expect(result.current.refreshing).toBe(true));
+    await act(async () => { next.resolve('v3'); await manual; });
+    expect(result.current.refreshing).toBe(false);
+    expect(result.current.data).toBe('v3');
+  });
+
+  it('keeps the loaded data, not an error screen, when a background refresh fails', async () => {
+    const client = newClient();
+    let fail = false;
+    const fetcher = vi.fn(async () => {
+      if (fail) throw Object.assign(new Error('Network down'), { statusCode: 503 });
+      return 'v1';
+    });
+    const key = queryKeys.tasks('c1', {});
+    const { result } = renderHook(() => useAsync(fetcher, [], { queryKey: key }), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.data).toBe('v1'));
+
+    fail = true;
+    await act(async () => { await client.refetchQueries({ queryKey: key }); });
+    await waitFor(() => expect(result.current.staleError).not.toBeNull());
+    expect(result.current.error).toBeNull();
+    expect(result.current.errorStatus).toBeNull();
+    expect(result.current.data).toBe('v1');
+
+    fail = false;
+    await act(async () => { await client.refetchQueries({ queryKey: key }); });
+    await waitFor(() => expect(result.current.staleError).toBeNull());
+  });
+
+  it('still reports a record that is gone (404) even with older data on screen', async () => {
+    const client = newClient();
+    let gone = false;
+    const fetcher = vi.fn(async () => {
+      if (gone) throw Object.assign(new Error('Not found'), { statusCode: 404 });
+      return 'task';
+    });
+    const key = queryKeys.task('c1', 't1');
+    const { result } = renderHook(() => useAsync(fetcher, [], { queryKey: key }), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.data).toBe('task'));
+    gone = true;
+    await act(async () => { await client.refetchQueries({ queryKey: key }); });
+    await waitFor(() => expect(result.current.errorStatus).toBe(404));
+    expect(result.current.error).not.toBeNull();
+  });
+
+  it('a first-load failure is still an error', async () => {
+    const client = newClient();
+    const fetcher = vi.fn(async () => { throw Object.assign(new Error('Down'), { statusCode: 503 }); });
+    const { result } = renderHook(() => useAsync(fetcher, [], { queryKey: queryKeys.tasks('c1', {}) }), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.error).toBe('Down'));
+    expect(result.current.staleError).toBeNull();
+  });
+
+  it('a read sent before a mutation cannot put the old record back after setData', async () => {
+    const client = newClient();
+    const stale = deferred<string>();
+    let calls = 0;
+    const fetcher = vi.fn(() => { calls += 1; return calls === 1 ? Promise.resolve('before') : stale.promise; });
+    const key = queryKeys.task('c1', 't1');
+    const { result } = renderHook(() => useAsync(fetcher, [], { queryKey: key }), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.data).toBe('before'));
+
+    act(() => { void client.refetchQueries({ queryKey: key }); });
+    await waitFor(() => expect(client.isFetching({ queryKey: key })).toBe(1));
+    act(() => { result.current.setData('after-mutation'); });
+    await act(async () => { stale.resolve('before'); await stale.promise.catch(() => undefined); });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(result.current.data).toBe('after-mutation');
+  });
+
+  it('a mutation drops reads of its keys already in flight, then re-reads once it succeeds', async () => {
+    const client = newClient();
+    const stale = deferred<string>();
+    let calls = 0;
+    const fetcher = vi.fn(() => {
+      calls += 1;
+      if (calls === 1) return Promise.resolve('v1');
+      if (calls === 2) return stale.promise; // the poll sent before the change
+      return Promise.resolve('after-change');
+    });
+    const key = queryKeys.task('c1', 't1');
+    const { result } = renderHook(
+      () => ({
+        read: useAsync(fetcher, [], { queryKey: key }),
+        write: useMutation(async () => 'ok', { invalidateKeys: [['companies', 'c1', 'tasks']] }),
+      }),
+      { wrapper: wrapperFor(client) },
+    );
+    await waitFor(() => expect(result.current.read.data).toBe('v1'));
+    act(() => { void client.refetchQueries({ queryKey: key }); });
+    await waitFor(() => expect(client.isFetching({ queryKey: key })).toBe(1));
+
+    await act(async () => { await result.current.write.mutate(); });
+    await waitFor(() => expect(result.current.read.data).toBe('after-change'));
+    // The poll answers late with the old record; it was dropped, so nothing changes.
+    await act(async () => { stale.resolve('v1-late'); await stale.promise; });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(result.current.read.data).toBe('after-change');
+  });
+
+  it('passes no interval of its own unless asked, so the shared policy applies', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchInterval: () => 12_345 } } });
+    const { result } = renderHook(() => useAsync(async () => 'x', [], { queryKey: queryKeys.task('c1', 't1') }), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.data).toBe('x'));
+    const observerOptions = client.getQueryCache().find({ queryKey: queryKeys.task('c1', 't1') })!.observers[0].options;
+    expect(typeof observerOptions.refetchInterval).toBe('function');
+  });
+});

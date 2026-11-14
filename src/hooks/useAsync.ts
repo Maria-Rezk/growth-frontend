@@ -1,13 +1,38 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { keepPreviousData, useMutation as useReactQueryMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/http';
 import type { ApiErrorShape } from '@/types/domain';
 
+/*
+  A failed background refresh (a poll, a focus or reconnect refetch, a
+  mutation's invalidation) leaves the data that is already on screen in place
+  instead of swapping the page for an error: a dropped connection or a 5xx for
+  one tick is not worth blanking a board somebody is reading. These statuses
+  are answers about the record itself, not about the connection, so they still
+  replace it — a task deleted elsewhere is gone, and access that was revoked is
+  revoked.
+*/
+const AUTHORITATIVE_STATUSES = new Set([401, 403, 404, 410]);
+
 type AsyncResult<T> = {
   data: T | null;
   loading: boolean;
+  /**
+   * A fetch the person is waiting on, with earlier data still shown: a
+   * `refetch()` they started (Retry, Refresh, after their own change), or a
+   * new key loading behind `keepPreviousData` (Show more, a new page). Never
+   * a background refresh: automatic sync, focus and reconnect stay silent, so
+   * "Updating…" does not flicker and is not announced every half minute.
+   */
   refreshing: boolean;
+  /**
+   * The first load failed, or a refresh failed with an authoritative status
+   * (see above). A transient background failure with data on screen is
+   * `staleError` instead.
+   */
   error: string | null;
+  /** A background refresh failed and the data shown is from the last success. Null otherwise. */
+  staleError: string | null;
   /** HTTP status of the failure, when the API sent one. */
   errorStatus: number | null;
   refetch: () => Promise<void>;
@@ -28,12 +53,13 @@ type AsyncOptions = {
   queryKey: readonly unknown[];
   enabled?: boolean;
   /**
-   * Poll every N ms. React Query pauses the interval while the window is not
-   * focused (`refetchIntervalInBackground` stays false), which is exactly the
-   * "refresh every 60 s while the tab is visible" the admin dashboard wants —
-   * a background tab must not keep hammering twelve endpoints.
+   * Poll every N ms, overriding the shared sync policy (src/lib/syncPolicy.ts),
+   * which decides from the key alone and is what every other screen uses. Only
+   * the admin dashboard widgets pass this. React Query pauses the interval
+   * while the window is not focused (`refetchIntervalInBackground` stays false).
+   * `false` opts one reader out of a key the policy syncs (see WaitingBanner).
    */
-  refetchInterval?: number;
+  refetchInterval?: number | false;
   /** Keep showing the previous key's data while a new key loads (paging, "show more"). */
   keepPreviousData?: boolean;
 };
@@ -55,7 +81,8 @@ export function useAsync<T>(
     queryKey,
     queryFn: factory,
     enabled: options.enabled ?? true,
-    refetchInterval: options.refetchInterval,
+    // Only when given: an explicit `undefined` would replace the sync policy's default with "never".
+    ...(options.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
     placeholderData: options.keepPreviousData ? keepPreviousData : undefined,
   });
 
@@ -69,14 +96,29 @@ export function useAsync<T>(
     latest key is read through a ref when setData runs.
   */
   const { refetch: refetchQuery } = query;
+  // How many refetches this screen started itself are still running: those, and only those, show as refreshing.
+  const [manualFetches, setManualFetches] = useState(0);
   const refetch = useCallback(async () => {
-    await refetchQuery();
+    setManualFetches((count) => count + 1);
+    try {
+      await refetchQuery();
+    } finally {
+      setManualFetches((count) => count - 1);
+    }
   }, [refetchQuery]);
 
   const latestKey = useRef(queryKey);
   latestKey.current = queryKey;
   const setData = useCallback(
     (value: T | ((current: T | null) => T | null)) => {
+      /*
+        A mutation's own result is newer than any read already in flight for
+        this key — a poll or focus refetch sent before the change. Left alone,
+        that read lands after this write and puts the old record back on
+        screen. Cancelling reverts synchronously to the state before it, so
+        the write below is the last word until the next fetch starts.
+      */
+      void queryClient.cancelQueries({ queryKey: latestKey.current, exact: true });
       queryClient.setQueryData<T | null>(latestKey.current, (current) => {
         if (typeof value === 'function') return (value as (current: T | null) => T | null)(current ?? null);
         return value;
@@ -85,13 +127,19 @@ export function useAsync<T>(
     [queryClient],
   );
 
+  const status = (query.error as ApiErrorShape | null)?.statusCode ?? null;
+  const message = query.error ? errorMessage(query.error) : null;
+  // React Query's isRefetchError: a refresh failed while earlier data is still held.
+  const keepShowingData = query.isRefetchError && !(status !== null && AUTHORITATIVE_STATUSES.has(status));
+
   return {
     data: (query.data ?? null) as T | null,
     // First load only — background refetches keep showing data instead of blanking.
     loading: query.isLoading,
-    refreshing: query.isFetching && !query.isLoading,
-    error: query.error ? errorMessage(query.error) : null,
-    errorStatus: (query.error as ApiErrorShape | null)?.statusCode ?? null,
+    refreshing: query.isFetching && !query.isLoading && (query.isPlaceholderData || manualFetches > 0),
+    error: keepShowingData ? null : message,
+    staleError: keepShowingData ? message : null,
+    errorStatus: keepShowingData ? null : status,
     refetch,
     setData,
   };
@@ -136,6 +184,11 @@ export function useMutation<Args extends unknown[], Result>(
   const mutation = useReactQueryMutation<Result, unknown, Args>({
     mutationFn: (args: Args) => mutationFn(...args),
     onSuccess: (result, args) => {
+      /*
+        Invalidation also cancels any read of these keys still in flight — a
+        poll sent before this change — and reads again, so a late answer from
+        before the change cannot land over it (pinned in useAsync.test.tsx).
+      */
       options?.invalidateKeys?.forEach((key) => {
         void queryClient.invalidateQueries({ queryKey: key });
       });

@@ -1,13 +1,17 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryCache, QueryClient } from '@tanstack/react-query';
 import type { ApiErrorShape, DashboardFilters } from '@/types/domain';
+import { noteQueryError, syncRefetchInterval } from '@/lib/syncPolicy';
 
 function shouldRetry(failureCount: number, error: unknown) {
   const statusCode = (error as ApiErrorShape | undefined)?.statusCode;
+  // 4xx, 429 included, is never retried: a retry on a rate limit only spends more of it.
   if (statusCode && statusCode >= 400 && statusCode < 500) return false;
   return failureCount < 2;
 }
 
 export const queryClient = new QueryClient({
+  // A 429 from any query backs every synced query off (syncPolicy.ts).
+  queryCache: new QueryCache({ onError: (error) => noteQueryError(error) }),
   defaultOptions: {
     queries: {
       staleTime: 45_000,
@@ -23,6 +27,12 @@ export const queryClient = new QueryClient({
       */
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
+      /*
+        Automatic sync, phase 1: the few screens listed in syncPolicy.ts
+        re-fetch on a timer while the tab is in front; every other key gets
+        `false`. Foreground only is React Query's default and is kept.
+      */
+      refetchInterval: (query) => syncRefetchInterval(query),
       retry: shouldRetry,
     },
     mutations: {

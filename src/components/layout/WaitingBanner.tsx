@@ -78,11 +78,17 @@ export function WaitingBanner() {
 function StaffBanner() {
   const { companies } = useCompany();
   const location = useLocation();
-  // Same key as the queue page's first page, so one request serves both.
+  /*
+    Same key as the queue page's first page, so one request serves both.
+    The banner is on every page, so it does not take part in automatic sync
+    itself: the sync policy refreshes this key every 30 s, and without
+    `false` here every screen in the app would poll it. On the Approval queue
+    page the page's own reader keeps it fresh and the banner shares the data.
+  */
   const reviews = useAsync(
     () => myReviewsService.list({ limit: BANNER_PAGE, offset: 0 }),
     [],
-    { queryKey: queryKeys.meApprovalQueue({ limit: BANNER_PAGE }), enabled: companies.length > 0 },
+    { queryKey: queryKeys.meApprovalQueue({ limit: BANNER_PAGE }), enabled: companies.length > 0, refetchInterval: false },
   );
 
   const items = reviews.data?.items ?? [];

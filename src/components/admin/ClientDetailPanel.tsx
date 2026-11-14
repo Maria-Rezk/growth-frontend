@@ -57,9 +57,17 @@ function PanelBody({ client, onRequestDelete }: { client: Company; onRequestDele
   const { refreshCompanies } = useCompany();
   const archived = client.status === 'ARCHIVED';
 
+  /*
+    `values` follows the client as the list re-reads it (focus, reconnect, an
+    admin action elsewhere). Without keepDirtyValues, any change to the name
+    on the server — somebody else renaming it, or a read that left before this
+    admin's own rename landing after it — replaced what was being typed. Now a
+    field the admin has touched is theirs until they save or close the panel.
+  */
   const renameForm = useForm<RenameForm>({
     resolver: zodResolver(renameSchema),
     values: { name: client.name },
+    resetOptions: { keepDirtyValues: true },
     mode: 'onBlur',
   });
 
@@ -72,7 +80,11 @@ function PanelBody({ client, onRequestDelete }: { client: Company; onRequestDele
   const rename = renameForm.handleSubmit(async (values) => {
     // Only `name` — any extra key in the body is a 400, not an ignored field.
     const updated = await update.mutate(client.id, { name: values.name.trim() });
-    if (updated) toast.success('Client renamed.');
+    if (updated) {
+      // Saved: the field is clean again, so the next server value can replace it.
+      renameForm.reset({ name: updated.name ?? values.name.trim() });
+      toast.success('Client renamed.');
+    }
   });
 
   const setStatus = async (status: CompanyStatus) => {

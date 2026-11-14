@@ -16,7 +16,8 @@
     "check:demo-free": "node scripts/check-demo-free-build.mjs",
     "e2e:a11y": "playwright test --project=demo e2e/demo/a11y.spec.ts",
     "e2e:evidence": "playwright test --project=demo e2e/demo/evidence.spec.ts",
-    "e2e:live": "playwright test --project=live"
+    "e2e:live": "playwright test --project=live",
+    "e2e:sync": "playwright test -c playwright.sync.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "3.10.0",
