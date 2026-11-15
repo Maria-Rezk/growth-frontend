@@ -71,3 +71,41 @@ describe('Modal initial focus', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Open' })).toHaveFocus());
   });
 });
+
+describe('Modal scroll lock', () => {
+  /** Two dialogs, the second over the first, each closed on its own or both at once. */
+  function Stack({ open }: { open: { form: boolean; confirm: boolean } }) {
+    return (
+      <>
+        <Modal open={open.form} title="Form" onClose={() => undefined}><input aria-label="Title" /></Modal>
+        <Modal open={open.confirm} title="Discard?" onClose={() => undefined}>Sure?</Modal>
+      </>
+    );
+  }
+
+  it('locks while any dialog is open and unlocks when both close in one render (Discard)', () => {
+    const { rerender } = render(<Stack open={{ form: true, confirm: false }} />);
+    expect(document.body.style.overflow).toBe('hidden');
+    rerender(<Stack open={{ form: true, confirm: true }} />);
+    expect(document.body.style.overflow).toBe('hidden');
+    rerender(<Stack open={{ form: false, confirm: false }} />);
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('unlocks whichever order the dialogs close in', () => {
+    const { rerender } = render(<Stack open={{ form: true, confirm: true }} />);
+    rerender(<Stack open={{ form: false, confirm: true }} />);
+    expect(document.body.style.overflow).toBe('hidden');
+    rerender(<Stack open={{ form: false, confirm: false }} />);
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('puts back an overflow the page had set itself', () => {
+    document.body.style.overflow = 'clip';
+    const { unmount } = render(<Stack open={{ form: true, confirm: true }} />);
+    expect(document.body.style.overflow).toBe('hidden');
+    unmount();
+    expect(document.body.style.overflow).toBe('clip');
+    document.body.style.overflow = '';
+  });
+});
