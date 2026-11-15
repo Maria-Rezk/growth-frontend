@@ -2654,6 +2654,12 @@ a.list-row:hover strong {
   grid-auto-columns: minmax(272px, 1fr);
   gap: var(--s-3);
   overflow-x: auto;
+  /* Sideways only. With overflow-x set, a visible overflow-y computes to
+     auto, so a card's focus ring or a 1px rounding overflow would make the
+     strip a second, nested vertical scroller that swallows the wheel over the
+     board. The page is the one vertical scroller. */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   padding-bottom: var(--s-2);
 }
 
@@ -4352,31 +4358,88 @@ fieldset.field > legend {
   font-size: 12px;
 }
 
+/*
+  When the columns overflow (KanbanBoard measures it): a bar that stays just
+  under the sticky topbar while the page scrolls down a long board, so the
+  later stages are always one click away, and a fade on whichever edge has
+  more. Its own background so cards pass under it, below the topbar's layer.
+*/
+.kanban-nav {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  margin-bottom: var(--s-1);
+  background: var(--canvas);
+}
+
+.kanban-nav__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kanban-nav__buttons {
+  display: flex;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.kanban-scroller {
+  position: relative;
+}
+
+.kanban-scroller::before,
+.kanban-scroller::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  width: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s ease;
+  z-index: 1;
+}
+
+.kanban-scroller::before {
+  inset-inline-start: 0;
+  background: linear-gradient(to var(--fade-from-start, left), transparent, var(--canvas));
+}
+
+.kanban-scroller::after {
+  inset-inline-end: 0;
+  background: linear-gradient(to var(--fade-from-end, right), transparent, var(--canvas));
+}
+
+[dir='rtl'] .kanban-scroller::before {
+  --fade-from-start: right;
+}
+
+[dir='rtl'] .kanban-scroller::after {
+  --fade-from-end: left;
+}
+
+.kanban-scroller[data-more-start]::before,
+.kanban-scroller[data-more-end]::after {
+  opacity: 1;
+}
+
 @media (max-width: 980px) {
-  .kanban-wrap {
-    position: relative;
-  }
-
-  .kanban-wrap::after {
-    content: '';
-    position: absolute;
-    inset-block: 0;
-    inset-inline-end: 0;
-    width: 40px;
-    pointer-events: none;
-    background: linear-gradient(to var(--fade-direction, right), transparent, var(--canvas));
-  }
-
-  [dir='rtl'] .kanban-wrap::after {
-    --fade-direction: left;
-  }
-
   .kanban {
     grid-auto-columns: min(82vw, 300px);
   }
 
   .board-hint {
     display: block;
+  }
+
+  /* The phone hint above already says "swipe sideways". */
+  .kanban-nav__hint {
+    display: none;
   }
 }
 

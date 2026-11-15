@@ -15,6 +15,33 @@ function isTopDialog(token: symbol): boolean {
   return openDialogs[openDialogs.length - 1] === token;
 }
 
+/*
+  The page behind a dialog does not scroll. The lock belongs to the stack, not
+  to each dialog: each one used to save `body.style.overflow` when it opened
+  and put it back when it closed. With a confirm over a form, the confirm saved
+  "hidden" (the form's lock); "Discard" then closed both in one commit, the
+  form restored "" first and the confirm restored "hidden" after it, so the
+  page stayed locked with no dialog open: no wheel, keyboard or touch scroll
+  until a reload. Now the first dialog in takes the lock and the last one out
+  releases it, whatever order they close in.
+*/
+let overflowBeforeLock = '';
+
+function addDialog(token: symbol): void {
+  if (openDialogs.length === 0) {
+    overflowBeforeLock = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  openDialogs.push(token);
+}
+
+function removeDialog(token: symbol): void {
+  const index = openDialogs.indexOf(token);
+  if (index === -1) return;
+  openDialogs.splice(index, 1);
+  if (openDialogs.length === 0) document.body.style.overflow = overflowBeforeLock;
+}
+
 /** Real fields only: not a visually hidden file input, a hidden or read-only one. */
 const FIELD_SELECTOR = [
   'input:not([type="hidden"]):not([type="file"]):not([disabled]):not([readonly])',
@@ -73,21 +100,16 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const token = Symbol('dialog');
-    openDialogs.push(token);
+    addDialog(token);
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isTopDialog(token)) onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      const index = openDialogs.indexOf(token);
-      if (index !== -1) openDialogs.splice(index, 1);
-      document.body.style.overflow = previousOverflow;
+      removeDialog(token);
     };
   }, [open]);
 
