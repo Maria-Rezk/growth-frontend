@@ -2,6 +2,10 @@
 
 **Prepared:** 4 November 2026 · **Branch:** `release/frontend-production-v1` · **Status:** not deployed.
 
+> **Deploy from `develop` (15 November 2026).** `develop` is the deployment branch. The `release/frontend-production-v1` branch has been retired and deleted from GitHub; every commit on it is in `develop`. The runbook in §7 builds from `develop`. Branch names and commits in §1–§6 record what was verified on 4 November and are kept as history.
+>
+> Before deploying `develop`, read the open items in [`data-sync-phase1.md`](data-sync-phase1.md): `develop` includes Automatic Data Sync, Phase 1, and the production rate-limit question (`trust proxy`) is unresolved.
+
 This release replaces the frontend at `https://solu1ions.tech`. The backend, database, nginx configuration and API contract do not change.
 
 ---
@@ -296,14 +300,16 @@ sh release-server-discovery.sh > discovery.txt 2>&1
 ```bash
 git clone <repository> release-build
 cd release-build
-git checkout release/frontend-production-v1
+git checkout develop
+git rev-parse --short HEAD          # record: this is the commit being released
 npm ci
 VITE_API_BASE_URL=https://api.solu1ions.tech/api VITE_DEMO_MODE=false VITE_APP_NAME="Solu1ions — Business Development" npm run build
+ls dist/assets/index-*.js           # record: the main chunk name, checked in Step 5
 tar -czf frontend-v1.tgz -C dist .
 sha256sum frontend-v1.tgz
 ```
 
-`npm run build` fails if demo content is present. If commits have not been pushed, build from this machine's `release/frontend-production-v1` instead.
+`npm run build` fails if demo content is present. Build from `develop` as it is on GitHub; anything not pushed to `develop` is not part of the release.
 
 ### Step 2: back up (on the server)
 
@@ -341,11 +347,12 @@ sudo mv "$WEB_ROOT/index.html.new" "$WEB_ROOT/index.html"
 ```bash
 curl -s https://solu1ions.tech/ | grep -o 'assets/index-[^"]*'
 curl -sI https://solu1ions.tech/my-work | head -1
-curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://solu1ions.tech/assets/index-Bw0o3365.js
+MAIN_CHUNK=index-XXXXXXXX.js        # the name recorded in Step 1
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://solu1ions.tech/assets/$MAIN_CHUNK
 curl -s -o /dev/null -w '%{http_code}\n' https://api.solu1ions.tech/api/auth/me
 ```
 
-Expect `assets/index-Bw0o3365.js`, 200, `200` with a JavaScript content type, and 401 (the API is unaffected). A `200 text/html` on the asset means the file is not there (F-3).
+Expect the main chunk recorded in Step 1, 200, `200` with a JavaScript content type, and 401 (the API is unaffected). A `200 text/html` on the asset means the file is not there (F-3).
 
 Then in a browser, with a test account: sign in, reload a deep link, open each main section, sign out. Check Chrome, Safari and Firefox, and a phone. Sign in carefully: the API allows 5 attempts a minute.
 
