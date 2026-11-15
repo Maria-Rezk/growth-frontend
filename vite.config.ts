@@ -1,10 +1,14 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { DEMO_BUILD_MODE, demoBuildProblem } from './src/config/buildGuard';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const proxyTarget = env.VITE_DEV_PROXY_TARGET;
+  // Only the dedicated demo target may build demo mode (N-19).
+  const demoProblem = demoBuildProblem(command, mode, env);
+  if (demoProblem) throw new Error(demoProblem);
 
   return {
     plugins: [react()],
@@ -14,6 +18,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
+      // A demo bundle never lands where a real deployment picks up its files.
+      outDir: mode === DEMO_BUILD_MODE ? 'dist-demo' : 'dist',
       rollupOptions: {
         output: {
           /*
@@ -43,7 +49,14 @@ export default defineConfig(({ mode }) => {
       where CORS does not apply. Nothing here affects a production build — Vite
       only serves `server.proxy` in dev.
     */
-    server: proxyTarget
+    server: {
+      /*
+        Test output is not source. Playwright rewrites its report while a dev
+        server is up, and on Windows watching a file that is being written can
+        throw EBUSY and kill the server mid-run.
+      */
+      watch: { ignored: ['**/e2e/.artifacts/**', '**/qa/screenshots/**'] },
+      ...(proxyTarget
       ? {
         proxy: {
           '/api': {
@@ -69,6 +82,7 @@ export default defineConfig(({ mode }) => {
           },
         },
       }
-      : undefined,
+      : {}),
+    },
   };
 });

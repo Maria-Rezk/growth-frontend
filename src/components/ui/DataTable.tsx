@@ -115,6 +115,10 @@ export function DataTable<T>({
                           {sortKey === column.key ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
                         </span>
                       </button>
+                    ) : column.header === '' ? (
+                      // A column of row actions shows no header, but a header cell must still
+                      // name its column for screen readers (A-7). Every empty header here is one.
+                      <span className="sr-only">Actions</span>
                     ) : column.header}
                   </th>
                 );

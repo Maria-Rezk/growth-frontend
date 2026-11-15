@@ -80,3 +80,23 @@ describe('DataTable', () => {
     expect(renderedNames()).toEqual(['Zoe Haddad', 'acme holdings', 'Élan', 'Marco Polo']);
   });
 });
+
+describe('DataTable actions column (A-7)', () => {
+  const WITH_ACTIONS: Column<Person>[] = [
+    ...COLUMNS,
+    { key: 'actions', header: '', className: 'cell-right', render: (row) => <button type="button">Open {row.name}</button> },
+  ];
+
+  it('names an empty header "Actions" for screen readers, and shows nothing', () => {
+    render(<DataTable columns={WITH_ACTIONS} rows={ROWS} rowKey={(row) => row.id} />);
+    const header = screen.getByRole('columnheader', { name: 'Actions' });
+    expect(header.querySelector('.sr-only')?.textContent).toBe('Actions');
+    expect(header.textContent).toBe('Actions');
+  });
+
+  it('keeps phones without a label on the actions cells', () => {
+    const { container } = render(<DataTable columns={WITH_ACTIONS} rows={ROWS} rowKey={(row) => row.id} />);
+    const cells = [...container.querySelectorAll('tbody tr:first-child td')];
+    expect(cells.map((cell) => cell.getAttribute('data-label'))).toEqual(['Name', 'Joined', null]);
+  });
+});

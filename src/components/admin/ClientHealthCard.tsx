@@ -91,7 +91,7 @@ export function ClientHealthCard({ filters, enabled = true }: { filters: Dashboa
                     <th>Leads</th>
                     <th>Campaigns</th>
                     <th>Plan</th>
-                    <th className="cell-right" />
+                    <th className="cell-right"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>

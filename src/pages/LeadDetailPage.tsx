@@ -3,16 +3,17 @@ import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { DetailSkeleton, ListSkeleton } from '@/components/ui/Skeleton';
 import { PlusIcon } from '@/components/ui/icons';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
-import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { AssigneeOptions } from '@/components/domain/AssigneeOptions';
+import { assigneeUserId, assigneeValueFor } from '@/utils/assigneeOptions';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { appRoutes } from '@/config/appRoutes';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -57,8 +58,8 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   const leadsPrefix = [['companies', companyId, 'leads'], queryKeys.lead(companyId, leadId)];
 
   const lead = useAsync(() => leadsService.get(companyId, leadId), [companyId, leadId], { queryKey: queryKeys.lead(companyId, leadId) });
-  const notes = useAsync(() => leadsService.notes(companyId, leadId), [companyId, leadId]);
-  const history = useAsync(() => leadsService.statusHistory(companyId, leadId), [companyId, leadId]);
+  const notes = useAsync(() => leadsService.notes(companyId, leadId), [companyId, leadId], { queryKey: queryKeys.leadNotes(companyId, leadId) });
+  const history = useAsync(() => leadsService.statusHistory(companyId, leadId), [companyId, leadId], { queryKey: queryKeys.leadHistory(companyId, leadId) });
   const members = useAssignableMembers(companyId);
   const tasks = useAsync(() => tasksService.list(companyId), [companyId], { queryKey: queryKeys.tasks(companyId) });
   const { userId } = useTaskActor();
@@ -84,6 +85,7 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
   );
 
   if (lead.loading) return <DetailSkeleton />;
+  if (lead.errorStatus === 404) return <RecordNotFound title="Lead not found" backTo={appRoutes.leads} backLabel="Back to leads" />;
   if (lead.error || !lead.data) return <ErrorState message={lead.error ?? 'Lead not found.'} onRetry={lead.refetch} />;
 
   const current = lead.data;
@@ -173,12 +175,12 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
       <PageHeader
         title={current.name}
         subtitle="Lead detail, status history and sales notes."
+        back={{ to: appRoutes.leads, label: 'Back to leads' }}
         action={(
           <span className="button-row">
             {links.whatsapp ? <a className="btn btn--secondary btn--sm" href={links.whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp</a> : null}
             {links.phone ? <a className="btn btn--secondary btn--sm" href={links.phone}>Call</a> : null}
             {links.email ? <a className="btn btn--secondary btn--sm" href={links.email}>Email</a> : null}
-            <ButtonLink to="/leads" variant="secondary" size="sm">Back to leads</ButtonLink>
           </span>
         )}
       />
@@ -301,8 +303,8 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                   </Select>
                 </Field>
                 {pendingStatus === LeadStatus.LOST ? (
-                  <fieldset className="field">
-                    <legend className="field__label">Why was it lost? <span className="muted">(required)</span></legend>
+                  <fieldset className="field" role="radiogroup" aria-required="true">
+                    <legend className="field__label">Why was it lost?</legend>
                     <div className="choice-chips">
                       {LOST_REASONS.map((item) => (
                         <label key={item} className="choice-chip">
@@ -322,8 +324,9 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                 ) : null}
                 {pendingStatus === LeadStatus.WON ? (
                   <Field
-                    label="Deal value (optional)"
+                    label="Deal value"
                     htmlFor="lead-deal-value"
+                    optional
                     hint="Summed into the monthly report's won value."
                     error={dealValueInvalid ? 'Enter a positive amount.' : undefined}
                   >
@@ -339,8 +342,10 @@ function LeadDetailInner({ companyId, leadId }: { companyId: string; leadId: str
                   </Field>
                 ) : null}
                 <Field
-                  label={noteRequired ? 'Status note (required)' : 'Status note (optional)'}
+                  label="Status note"
                   htmlFor="lead-status-note"
+                  optional={!noteRequired}
+                  required={noteRequired}
                   hint={noteRequired ? 'Say what happened — it stays in the status history.' : 'Recorded with the status change.'}
                 >
                   <Textarea id="lead-status-note" rows={2} value={statusNote} onChange={(e) => setStatusNote(e.target.value)} />

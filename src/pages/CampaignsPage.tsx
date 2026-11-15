@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
-import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
+import { PendingAttachmentsField } from '@/components/domain/PendingAttachmentsField';
+import { NO_PENDING_ATTACHMENTS, pendingPayload, type PendingAttachments } from '@/utils/pendingAttachments';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { usePermission } from '@/hooks/usePermission';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -211,39 +212,39 @@ function CampaignModal({ open, companyId, onClose }: { open: boolean; companyId:
       footer={<><Button variant="secondary" type="button" onClick={cancel}>Cancel</Button><Button type="submit" form="campaign-form" loading={form.formState.isSubmitting || create.loading} disabled={uploading}>Create campaign</Button></>}
     >
       <form id="campaign-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Name" htmlFor="campaign-name" error={form.formState.errors.name?.message}>
+        <Field label="Name" htmlFor="campaign-name" required error={form.formState.errors.name?.message}>
           <Input id="campaign-name" {...form.register('name')} />
         </Field>
         <div className="grid-2">
-          <Field label="Objective" htmlFor="campaign-objective" error={form.formState.errors.objective?.message}>
+          <Field label="Objective" htmlFor="campaign-objective" required error={form.formState.errors.objective?.message}>
             <Select id="campaign-objective" {...form.register('objective')}>
               {Object.values(CampaignObjective).map((o) => <option key={o} value={o}>{humanize(o)}</option>)}
             </Select>
           </Field>
-          <Field label="Currency" htmlFor="campaign-currency">
+          <Field label="Currency" htmlFor="campaign-currency" optional>
             <Input id="campaign-currency" {...form.register('currency')} />
           </Field>
         </div>
-        <Field label="Description" htmlFor="campaign-description">
+        <Field label="Description" htmlFor="campaign-description" optional>
           <Textarea id="campaign-description" rows={3} {...form.register('description')} />
         </Field>
         <div className="grid-2">
-          <Field label="Start date" htmlFor="campaign-start">
+          <Field label="Start date" htmlFor="campaign-start" optional>
             <Input id="campaign-start" type="datetime-local" {...form.register('startDate')} />
           </Field>
-          <Field label="End date" htmlFor="campaign-end">
+          <Field label="End date" htmlFor="campaign-end" optional>
             <Input id="campaign-end" type="datetime-local" {...form.register('endDate')} />
           </Field>
         </div>
         <div className="grid-2">
-          <Field label="Budget" htmlFor="campaign-budget" hint="Numbers only, e.g. 750" error={form.formState.errors.budget?.message}>
+          <Field label="Budget" htmlFor="campaign-budget" optional hint="Numbers only, e.g. 750" error={form.formState.errors.budget?.message}>
             <Input id="campaign-budget" inputMode="decimal" {...form.register('budget')} />
           </Field>
-          <Field label="Target audience" htmlFor="campaign-audience">
+          <Field label="Target audience" htmlFor="campaign-audience" optional>
             <Input id="campaign-audience" {...form.register('targetAudience')} />
           </Field>
         </div>
-        <Field label="Notes" htmlFor="campaign-notes">
+        <Field label="Notes" htmlFor="campaign-notes" optional>
           <Textarea id="campaign-notes" rows={2} {...form.register('notes')} />
         </Field>
         <PendingAttachmentsField companyId={companyId} value={pendingFiles} onChange={setPendingFiles} onBusyChange={setUploading} disabled={create.loading} />

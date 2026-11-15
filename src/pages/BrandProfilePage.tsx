@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { z } from 'zod';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { useClientView } from '@/hooks/useClientView';
@@ -19,87 +18,8 @@ import { useAuth } from '@/context/AuthContext';
 import { applyServerFieldErrors } from '@/lib/forms';
 import { brandProfilesService } from '@/services/brandProfiles';
 import { queryKeys } from '@/lib/queryClient';
-import type { BrandProfile, BrandProfileInput } from '@/types/domain';
-
-const HEX = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-
-const brandProfileSchema = z.object({
-  brandName: z.string().trim().min(2, 'Brand name is required.'),
-  industry: z.string().trim().min(2, 'Industry is required.'),
-  description: z.string().trim().min(10, 'Add a short brand description.'),
-  targetAudience: z.string().trim().min(10, 'Describe the target audience.'),
-  toneOfVoice: z.string().trim().min(3, 'Tone of voice is required.'),
-  brandNotes: z.string().optional().default(''),
-  // string-array fields, edited as comma-separated text
-  languages: z.string().optional().default(''),
-  serviceAreas: z.string().optional().default(''),
-  ctaPreferences: z.string().optional().default(''),
-  forbiddenWords: z.string().optional().default(''),
-  // structured arrays, edited as rows
-  colors: z.array(z.object({
-    name: z.string().trim().min(1, 'Colour name is required.'),
-    hex: z.string().trim().regex(HEX, 'Use a hex value such as #C9144B.'),
-  })),
-  services: z.array(z.object({
-    name: z.string().trim().min(1, 'Service name is required.'),
-    description: z.string().optional().default(''),
-    priceRange: z.string().optional().default(''),
-  })),
-  offers: z.array(z.object({
-    title: z.string().trim().min(1, 'Offer title is required.'),
-    description: z.string().optional().default(''),
-    validUntil: z.string().optional().default(''),
-  })),
-});
-
-type BrandProfileForm = z.infer<typeof brandProfileSchema>;
-
-const EMPTY: BrandProfileForm = {
-  brandName: '', industry: '', description: '', targetAudience: '', toneOfVoice: '', brandNotes: '',
-  languages: '', serviceAreas: '', ctaPreferences: '', forbiddenWords: '',
-  colors: [], services: [], offers: [],
-};
-
-const listToText = (value?: string[]) => (Array.isArray(value) ? value.join(', ') : '');
-const textToList = (value?: string) => (value ? value.split(',').map((item) => item.trim()).filter(Boolean) : []);
-
-/** API shape -> form shape. Typed both ends now that BrandProfile is accurate. */
-function toFormValues(profile: BrandProfile): BrandProfileForm {
-  return {
-    brandName: profile.brandName ?? '',
-    industry: profile.industry ?? '',
-    description: profile.description ?? '',
-    targetAudience: profile.targetAudience ?? '',
-    toneOfVoice: profile.toneOfVoice ?? '',
-    brandNotes: profile.brandNotes ?? '',
-    languages: listToText(profile.languages),
-    serviceAreas: listToText(profile.serviceAreas),
-    ctaPreferences: listToText(profile.ctaPreferences),
-    forbiddenWords: listToText(profile.forbiddenWords),
-    colors: (profile.colors ?? []).map((c) => ({ name: c.name ?? '', hex: c.hex ?? '' })),
-    services: (profile.services ?? []).map((s) => ({ name: s.name ?? '', description: s.description ?? '', priceRange: s.priceRange ?? '' })),
-    offers: (profile.offers ?? []).map((o) => ({ title: o.title ?? '', description: o.description ?? '', validUntil: o.validUntil ?? '' })),
-  };
-}
-
-/** Form shape -> API payload. */
-function toPayload(values: BrandProfileForm): BrandProfileInput {
-  return {
-    brandName: values.brandName,
-    industry: values.industry,
-    description: values.description,
-    targetAudience: values.targetAudience,
-    toneOfVoice: values.toneOfVoice,
-    brandNotes: values.brandNotes || undefined,
-    languages: textToList(values.languages),
-    serviceAreas: textToList(values.serviceAreas),
-    ctaPreferences: textToList(values.ctaPreferences),
-    forbiddenWords: textToList(values.forbiddenWords),
-    colors: values.colors.map((c) => ({ name: c.name, hex: c.hex.startsWith('#') ? c.hex : `#${c.hex}` })),
-    services: values.services.map((s) => ({ name: s.name, description: s.description || undefined, priceRange: s.priceRange || undefined })),
-    offers: values.offers.map((o) => ({ title: o.title, description: o.description || undefined, validUntil: o.validUntil || undefined })),
-  };
-}
+import { normalizeHex } from '@/utils/hexColour';
+import { brandProfileSchema, EMPTY_BRAND_PROFILE, toFormValues, toPayload, type BrandProfileForm } from './brandProfileForm';
 
 export function BrandProfilePage() {
   return <RequireCompany>{(companyId) => <BrandProfileInner companyId={companyId} />}</RequireCompany>;
@@ -114,7 +34,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
     { queryKey: queryKeys.brandProfile(companyId) },
   );
 
-  const form = useForm<BrandProfileForm>({ resolver: zodResolver(brandProfileSchema), defaultValues: EMPTY, mode: 'onBlur' });
+  const form = useForm<BrandProfileForm>({ resolver: zodResolver(brandProfileSchema), defaultValues: EMPTY_BRAND_PROFILE, mode: 'onBlur' });
 
   const save = useMutation(brandProfilesService.upsert, {
     invalidateKeys: [queryKeys.brandProfile(companyId)],
@@ -156,7 +76,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
   const canEdit = usePermission('brand:edit');
 
   const submit = form.handleSubmit(async (values) => {
-    const result = await save.mutate(companyId, toPayload(values), Boolean(profile.data));
+    const result = await save.mutate(companyId, toPayload(values, Boolean(profile.data)), Boolean(profile.data));
     if (result) {
       profile.setData(result);
       form.reset(toFormValues(result));
@@ -185,40 +105,40 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
           <CardHeader title="Identity" subtitle="How the brand describes itself." />
           <div className="form-card form-grid">
             <div className="grid-2">
-              <Field label="Brand name" htmlFor="brandName" error={form.formState.errors.brandName?.message}>
+              <Field label="Brand name" htmlFor="brandName" required error={form.formState.errors.brandName?.message}>
                 <Input id="brandName" aria-invalid={Boolean(form.formState.errors.brandName)} {...form.register('brandName')} />
               </Field>
-              <Field label="Industry" htmlFor="industry" error={form.formState.errors.industry?.message}>
+              <Field label="Industry" htmlFor="industry" required error={form.formState.errors.industry?.message}>
                 <Input id="industry" aria-invalid={Boolean(form.formState.errors.industry)} {...form.register('industry')} />
               </Field>
             </div>
 
-            <Field label="Description" htmlFor="description" error={form.formState.errors.description?.message}>
+            <Field label="Description" htmlFor="description" required error={form.formState.errors.description?.message}>
               <Textarea id="description" rows={3} aria-invalid={Boolean(form.formState.errors.description)} {...form.register('description')} />
             </Field>
-            <Field label="Target audience" htmlFor="targetAudience" error={form.formState.errors.targetAudience?.message}>
+            <Field label="Target audience" htmlFor="targetAudience" required error={form.formState.errors.targetAudience?.message}>
               <Textarea id="targetAudience" rows={3} aria-invalid={Boolean(form.formState.errors.targetAudience)} {...form.register('targetAudience')} />
             </Field>
 
             <div className="grid-2">
-              <Field label="Tone of voice" htmlFor="toneOfVoice" error={form.formState.errors.toneOfVoice?.message}>
+              <Field label="Tone of voice" htmlFor="toneOfVoice" required error={form.formState.errors.toneOfVoice?.message}>
                 <Input id="toneOfVoice" placeholder="Premium, calm, reassuring" aria-invalid={Boolean(form.formState.errors.toneOfVoice)} {...form.register('toneOfVoice')} />
               </Field>
-              <Field label="Languages" htmlFor="languages" hint="Comma-separated, e.g. ar, en">
+              <Field label="Languages" htmlFor="languages" optional hint="Comma-separated, e.g. ar, en">
                 <Input id="languages" {...form.register('languages')} />
               </Field>
             </div>
 
             <div className="grid-2">
-              <Field label="Service areas" htmlFor="serviceAreas" hint="Comma-separated">
+              <Field label="Service areas" htmlFor="serviceAreas" optional hint="Comma-separated">
                 <Input id="serviceAreas" {...form.register('serviceAreas')} />
               </Field>
-              <Field label="CTA preferences" htmlFor="ctaPreferences" hint="Comma-separated">
+              <Field label="CTA preferences" htmlFor="ctaPreferences" optional hint="Comma-separated">
                 <Input id="ctaPreferences" {...form.register('ctaPreferences')} />
               </Field>
             </div>
 
-            <Field label="Forbidden words" htmlFor="forbiddenWords" hint="Comma-separated. The AI will avoid these.">
+            <Field label="Forbidden words" htmlFor="forbiddenWords" optional hint="Comma-separated. The AI will avoid these.">
               <Input id="forbiddenWords" {...form.register('forbiddenWords')} />
             </Field>
           </div>
@@ -232,22 +152,21 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
           <div className="form-card stack-list">
             {colors.fields.length === 0 ? <p className="muted">No colours yet.</p> : null}
             {colors.fields.map((fieldItem, index) => (
-              <div key={fieldItem.id} className="repeat-row">
-                <Field label="Name" htmlFor={`color-name-${index}`} error={form.formState.errors.colors?.[index]?.name?.message}>
+              // Every row repeats Name, Hex and Pick; the group says which colour they belong to.
+              <div key={fieldItem.id} className="repeat-row" role="group" aria-label={`Colour ${index + 1}`}>
+                <Field label="Name" htmlFor={`color-name-${index}`} required error={form.formState.errors.colors?.[index]?.name?.message}>
                   <Input id={`color-name-${index}`} {...form.register(`colors.${index}.name`)} />
                 </Field>
-                <Field label="Hex" htmlFor={`color-hex-${index}`} error={form.formState.errors.colors?.[index]?.hex?.message}>
+                <Field label="Hex" htmlFor={`color-hex-${index}`} required error={form.formState.errors.colors?.[index]?.hex?.message}>
                   <Input id={`color-hex-${index}`} placeholder="#C9144B" {...form.register(`colors.${index}.hex`)} />
                 </Field>
                 {/* Native swatch bound to the same field — typing updates the
                     picker and picking updates the text. */}
                 <Field label="Pick" htmlFor={`color-swatch-${index}`}>
-                  <input
+                  <ColourSwatch
                     id={`color-swatch-${index}`}
-                    className="color-swatch"
-                    type="color"
-                    value={HEX.test(form.watch(`colors.${index}.hex`) ?? '') ? form.watch(`colors.${index}.hex`) : '#000000'}
-                    onChange={(e) => form.setValue(`colors.${index}.hex`, e.target.value, { shouldDirty: true })}
+                    hex={form.watch(`colors.${index}.hex`)}
+                    onPick={(hex) => form.setValue(`colors.${index}.hex`, hex, { shouldDirty: true, shouldValidate: true })}
                   />
                 </Field>
                 <Button type="button" variant="secondary" size="sm" onClick={() => colors.remove(index)} aria-label={`Remove colour ${index + 1}`}>Remove</Button>
@@ -270,14 +189,14 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
                   <Button type="button" variant="secondary" size="sm" onClick={() => services.remove(index)} aria-label={`Remove service ${index + 1}`}>Remove</Button>
                 </div>
                 <div className="grid-2">
-                  <Field label="Name" htmlFor={`svc-name-${index}`} error={form.formState.errors.services?.[index]?.name?.message}>
+                  <Field label="Name" htmlFor={`svc-name-${index}`} required error={form.formState.errors.services?.[index]?.name?.message}>
                     <Input id={`svc-name-${index}`} {...form.register(`services.${index}.name`)} />
                   </Field>
-                  <Field label="Price range" htmlFor={`svc-price-${index}`}>
+                  <Field label="Price range" htmlFor={`svc-price-${index}`} optional>
                     <Input id={`svc-price-${index}`} {...form.register(`services.${index}.priceRange`)} />
                   </Field>
                 </div>
-                <Field label="Description" htmlFor={`svc-desc-${index}`}>
+                <Field label="Description" htmlFor={`svc-desc-${index}`} optional>
                   <Textarea id={`svc-desc-${index}`} rows={2} {...form.register(`services.${index}.description`)} />
                 </Field>
               </div>
@@ -299,14 +218,14 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
                   <Button type="button" variant="secondary" size="sm" onClick={() => offers.remove(index)} aria-label={`Remove offer ${index + 1}`}>Remove</Button>
                 </div>
                 <div className="grid-2">
-                  <Field label="Title" htmlFor={`offer-title-${index}`} error={form.formState.errors.offers?.[index]?.title?.message}>
+                  <Field label="Title" htmlFor={`offer-title-${index}`} required error={form.formState.errors.offers?.[index]?.title?.message}>
                     <Input id={`offer-title-${index}`} {...form.register(`offers.${index}.title`)} />
                   </Field>
-                  <Field label="Valid until" htmlFor={`offer-valid-${index}`}>
+                  <Field label="Valid until" htmlFor={`offer-valid-${index}`} optional>
                     <Input id={`offer-valid-${index}`} type="date" {...form.register(`offers.${index}.validUntil`)} />
                   </Field>
                 </div>
-                <Field label="Description" htmlFor={`offer-desc-${index}`}>
+                <Field label="Description" htmlFor={`offer-desc-${index}`} optional>
                   <Textarea id={`offer-desc-${index}`} rows={2} {...form.register(`offers.${index}.description`)} />
                 </Field>
               </div>
@@ -316,7 +235,7 @@ function BrandProfileInner({ companyId }: { companyId: string }) {
 
         <Card>
           <div className="form-card form-grid">
-            <Field label="Brand notes" htmlFor="brandNotes" hint="Internal guidance for the AI, e.g. claims to avoid.">
+            <Field label="Brand notes" htmlFor="brandNotes" optional hint="Internal guidance for the AI, e.g. claims to avoid.">
               <Textarea id="brandNotes" rows={3} {...form.register('brandNotes')} />
             </Field>
 
@@ -375,4 +294,18 @@ function BrandFreshness({ updatedAt }: { updatedAt?: string }) {
       {label}{days >= 90 ? ' · worth a review' : ''}
     </span>
   );
+}
+
+/**
+ * The native picker beside a Hex field. It shows the field's colour however it
+ * was typed ("#abc", "C9144B"), and while the field holds something that is
+ * not a colour yet, it keeps the last colour it showed rather than the
+ * browser's black. Picking writes "#rrggbb" back into the field.
+ */
+function ColourSwatch({ id, hex, onPick }: { id: string; hex: string | undefined; onPick: (hex: string) => void }) {
+  const normalized = normalizeHex(hex);
+  const [lastShown, setLastShown] = useState(normalized ?? '#000000');
+  // Adjusting state while rendering, as React recommends for derived values: no effect, no extra paint.
+  if (normalized && normalized !== lastShown) setLastShown(normalized);
+  return <input id={id} className="color-swatch" type="color" value={normalized ?? lastShown} onChange={(event) => onPick(event.target.value)} />;
 }

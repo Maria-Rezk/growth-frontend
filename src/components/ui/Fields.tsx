@@ -10,17 +10,44 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 
+/*
+  Required and optional fields, one convention everywhere:
+
+  - An optional field says so in its label: "Phone (optional)".
+  - A required field has no visual marker, but tells assistive technology
+    with aria-required. (Not the native `required`: forms validate with
+    their own schema and messages, under noValidate.)
+  - A form whose fields are all required shows no markers at all.
+
+  Which fields are which comes from each form's own validation schema; this
+  changes how that is shown, never what is required.
+*/
+
+/** The "(optional)" suffix for a label or a group's legend. */
+export function OptionalMark() {
+  return <span className="field__optional"> (optional)</span>;
+}
+
 export function Field({
   label,
   htmlFor,
   error,
   hint,
+  optional = false,
+  required = false,
+  className,
   children,
 }: {
   label: string;
   htmlFor?: string;
   error?: string;
   hint?: string;
+  /** Shown as "(optional)" after the label. */
+  optional?: boolean;
+  /** Not shown; exposed as aria-required on the control. */
+  required?: boolean;
+  /** Extra class on the field wrapper, for layout. */
+  className?: string;
   children: ReactNode;
 }) {
   const hintId = useId();
@@ -42,21 +69,69 @@ export function Field({
   */
   const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
   const control =
-    describedBy && isValidElement<{ 'aria-describedby'?: string }>(children)
+    (describedBy || required) && isValidElement<{ 'aria-describedby'?: string; 'aria-required'?: boolean }>(children)
       ? cloneElement(children, {
           'aria-describedby': [children.props['aria-describedby'], describedBy].filter(Boolean).join(' ') || undefined,
+          ...(required ? { 'aria-required': true } : {}),
         })
       : children;
 
   return (
-    <div className="field">
+    <div className={clsx('field', className)}>
       <label className="field__label" htmlFor={htmlFor}>
         {label}
+        {optional ? <OptionalMark /> : null}
       </label>
       {control}
       {hint ? <p className="field__hint" id={hintId}>{hint}</p> : null}
       {error ? <p className="field__error" id={errorId} role="alert">{error}</p> : null}
     </div>
+  );
+}
+
+/**
+ * `Field` for a control made of several inputs: a set of checkboxes, a
+ * checklist, a radio group. A <label for> can only name one input, so the
+ * label becomes the group's legend, and the hint, rule and error describe the
+ * group rather than any one box inside it.
+ *
+ * `rule` is how a required group says what it needs ("Pick at least one
+ * role."). A group has no aria-required, so the rule is shown and read out
+ * on entering the group instead — unlike a single field, where the
+ * requirement is implicit.
+ */
+export function FieldGroup({
+  label,
+  rule,
+  hint,
+  error,
+  optional = false,
+  className,
+  children,
+}: {
+  label: string;
+  rule?: string;
+  hint?: string;
+  error?: string;
+  optional?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ruleId = useId();
+  const hintId = useId();
+  const errorId = useId();
+  const describedBy = [rule ? ruleId : null, hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+  return (
+    <fieldset className={clsx('field', className)} aria-describedby={describedBy}>
+      <legend className="field__label">
+        {label}
+        {optional ? <OptionalMark /> : null}
+      </legend>
+      {rule ? <p className="field__hint" id={ruleId}>{rule}</p> : null}
+      {children}
+      {hint ? <p className="field__hint" id={hintId}>{hint}</p> : null}
+      {error ? <p className="field__error" id={errorId} role="alert">{error}</p> : null}
+    </fieldset>
   );
 }
 
@@ -81,3 +156,29 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
     return <textarea ref={ref} className={clsx('input', 'textarea', className)} {...props} />;
   },
 );
+/**
+ * "Show password" for one or more password fields: a labelled checkbox that
+ * switches them between hidden and plain text. A checkbox rather than an
+ * eye icon so it has a visible label, a real checked state for assistive
+ * technology, and Space to toggle; it does not move focus out of the form,
+ * and Enter in a password field still submits. `controls` names the fields
+ * it reveals (aria-controls).
+ */
+export function ShowPasswordToggle({
+  checked,
+  onChange,
+  controls,
+  label = 'Show password',
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  controls: string;
+  label?: string;
+}) {
+  return (
+    <label className="checkbox-row">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} aria-controls={controls} />
+      <span>{label}</span>
+    </label>
+  );
+}

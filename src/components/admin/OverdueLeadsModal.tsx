@@ -67,7 +67,7 @@ export function OverdueLeadsModal({
                       <th>Status</th>
                       <th>Due</th>
                       <th>Overdue</th>
-                      <th className="cell-right" />
+                      <th className="cell-right"><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>

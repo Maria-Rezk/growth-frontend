@@ -13,8 +13,9 @@ import {
   filterList,
   makeId,
   pushNotification,
+  demoNotFound,
 } from '@/services/demoStore';
-import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
+import { addAllDemoAttachments, attachmentFieldsForWire, type AttachmentCreateFields } from '@/services/attachments';
 import { PostReviewErrorCode } from '@/types/domain';
 import type {
   ContentPlan,
@@ -41,7 +42,7 @@ function demoStages(postId: string): PostStages | undefined {
 
 function setDemoPostStatus(postId: string, status: PostStatus, action: string, note?: string) {
   const post = demoPosts.find((item) => item.id === postId);
-  if (!post) throw new Error('Post not found.');
+  if (!post) throw demoNotFound('Post not found.');
   post.status = status;
   post.updatedAt = new Date().toISOString();
   demoPostLogs.unshift({ id: makeId('approval-log'), postId, action, actorId: demoUser.id, actor: demoUser, note, createdAt: new Date().toISOString() });
@@ -171,7 +172,7 @@ export const contentService = {
   async getPlan(companyId: string, planId: string): Promise<ContentPlan> {
     if (env.demoMode) {
       const plan = demoContentPlans.find((item) => item.companyId === companyId && item.id === planId);
-      if (!plan) throw new Error('Plan not found.');
+      if (!plan) throw demoNotFound('Plan not found.');
       return demoDelay(plan);
     }
     const response = await http.get(apiRoutes.contentPlans.detail(companyId, planId));
@@ -181,7 +182,7 @@ export const contentService = {
   async updatePlan(companyId: string, planId: string, payload: ContentPlanInput): Promise<ContentPlan> {
     if (env.demoMode) {
       const plan = demoContentPlans.find((item) => item.companyId === companyId && item.id === planId);
-      if (!plan) throw new Error('Plan not found.');
+      if (!plan) throw demoNotFound('Plan not found.');
       Object.assign(plan, payload);
       return demoDelay(plan);
     }
@@ -208,7 +209,7 @@ export const contentService = {
   async getPost(companyId: string, postId: string): Promise<ContentPost> {
     if (env.demoMode) {
       const post = demoPosts.find((item) => item.companyId === companyId && item.id === postId);
-      if (!post) throw new Error('Post not found.');
+      if (!post) throw demoNotFound('Post not found.');
       return demoDelay({ ...post, stages: demoStages(postId) });
     }
     const response = await http.get(apiRoutes.posts.detail(companyId, postId));
@@ -231,7 +232,7 @@ export const contentService = {
         updatedAt: new Date().toISOString(),
       };
       demoPosts.unshift(post);
-      await attachmentsService.addAllDemo(companyId, { entityType: 'POST', entityId: post.id }, payload);
+      await addAllDemoAttachments(companyId, { entityType: 'POST', entityId: post.id }, payload);
       return demoDelay(post);
     }
     const { attachmentFileIds, attachmentLinks, attachmentTexts, ...rest } = payload;
@@ -261,7 +262,7 @@ export const contentService = {
 
     if (env.demoMode) {
       const post = demoPosts.find((item) => item.companyId === companyId && item.id === postId);
-      if (!post) throw new Error('Post not found.');
+      if (!post) throw demoNotFound('Post not found.');
       Object.assign(post, content, { updatedAt: new Date().toISOString() });
       return demoDelay(post);
     }

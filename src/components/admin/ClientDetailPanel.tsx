@@ -5,8 +5,9 @@ import toast from 'react-hot-toast';
 import { z } from 'zod';
 import { SuperAdminOnly } from '@/components/layout/RequireAdmin';
 import { Badge } from '@/components/ui/Badge';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
-import { Field, Input, Select } from '@/components/ui/Fields';
+import { Field, FieldGroup, Input, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingState, ErrorState } from '@/components/ui/State';
 import { useCompany } from '@/context/CompanyContext';
@@ -56,9 +57,17 @@ function PanelBody({ client, onRequestDelete }: { client: Company; onRequestDele
   const { refreshCompanies } = useCompany();
   const archived = client.status === 'ARCHIVED';
 
+  /*
+    `values` follows the client as the list re-reads it (focus, reconnect, an
+    admin action elsewhere). Without keepDirtyValues, any change to the name
+    on the server — somebody else renaming it, or a read that left before this
+    admin's own rename landing after it — replaced what was being typed. Now a
+    field the admin has touched is theirs until they save or close the panel.
+  */
   const renameForm = useForm<RenameForm>({
     resolver: zodResolver(renameSchema),
     values: { name: client.name },
+    resetOptions: { keepDirtyValues: true },
     mode: 'onBlur',
   });
 
@@ -71,7 +80,11 @@ function PanelBody({ client, onRequestDelete }: { client: Company; onRequestDele
   const rename = renameForm.handleSubmit(async (values) => {
     // Only `name` — any extra key in the body is a 400, not an ignored field.
     const updated = await update.mutate(client.id, { name: values.name.trim() });
-    if (updated) toast.success('Client renamed.');
+    if (updated) {
+      // Saved: the field is clean again, so the next server value can replace it.
+      renameForm.reset({ name: updated.name ?? values.name.trim() });
+      toast.success('Client renamed.');
+    }
   });
 
   const setStatus = async (status: CompanyStatus) => {
@@ -84,7 +97,7 @@ function PanelBody({ client, onRequestDelete }: { client: Company; onRequestDele
       <section className="panel-section">
         <h3>Name</h3>
         <form className="inline-form" onSubmit={rename} noValidate>
-          <Field label="Client name" htmlFor="client-rename" error={renameForm.formState.errors.name?.message}>
+          <Field label="Client name" htmlFor="client-rename" required error={renameForm.formState.errors.name?.message}>
             <Input
               id="client-rename"
               aria-invalid={Boolean(renameForm.formState.errors.name)}
@@ -213,10 +226,48 @@ function MembersSection({ client }: { client: Company }) {
     invalidateKeys: invalidate,
     onSuccess: syncOwnRoles,
   });
-  const remove = useMutation(companiesService.removeMember, {
-    invalidateKeys: invalidate,
-    onSuccess: syncOwnRoles,
-  });
+  /*
+    `removeMember` resolves `void`, and `mutate()` resolves `null` on failure,
+    so its raw result cannot tell "removed" from "failed" (an `undefined` and
+    a `null` both read as falsy). Resolving `true` makes success explicit: the
+    toast below is shown only when the DELETE actually succeeded.
+  */
+  const remove = useMutation(
+    async (companyId: string, membershipId: string) => {
+      await companiesService.removeMember(companyId, membershipId);
+      return true as const;
+    },
+    { invalidateKeys: invalidate, onSuccess: syncOwnRoles },
+  );
+  const confirm = useConfirm();
+  const memberName = (member: Membership) =>
+    member.user?.fullName ?? employeeName.get(member.userId) ?? member.user?.email ?? 'this person';
+
+  /*
+    Removal cuts somebody's access to this client on the spot, so it always
+    asks first — the same dialog MembersPage uses. Cancelling leaves the
+    membership (and, from the role editor, its current roles) untouched.
+  */
+  const confirmAndRemove = async (member: Membership) => {
+    if (remove.loading) return;
+    const name = memberName(member);
+    const ok = await confirm({
+      title: 'Remove from client',
+      message: (
+        <>
+          Remove <strong>{name}</strong> from <strong>{client.name}</strong>? They lose access to this client
+          immediately. Their history is kept, and they can be assigned again later.
+        </>
+      ),
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setPendingId(member.id);
+    setEditingId(null);
+    const removed = await remove.mutate(client.id, member.id);
+    if (removed) toast.success(`${name} removed from ${client.name}.`);
+  };
 
   const submit = form.handleSubmit(async (values) => {
     const created = await add.mutate(client.id, { userId: values.userId, roles: values.roles });
@@ -234,12 +285,11 @@ function MembersSection({ client }: { client: Company }) {
     thing from "no longer works on this client". It routes to DELETE instead.
   */
   const saveRoles = (member: Membership, roles: CompanyMembershipRole[]) => {
-    setPendingId(member.id);
     if (roles.length === 0) {
-      setEditingId(null);
-      void remove.mutate(client.id, member.id).then(() => toast.success('Removed from client.'));
+      void confirmAndRemove(member);
       return;
     }
+    setPendingId(member.id);
     void changeRole
       .mutate(client.id, member.id, { roles })
       .then((updated) => { if (updated) toast.success('Roles updated.'); });
@@ -262,7 +312,7 @@ function MembersSection({ client }: { client: Company }) {
                 <tr>
                   <th>Employee</th>
                   <th>Roles on this client</th>
-                  <th className="cell-right" />
+                  <th className="cell-right"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -273,6 +323,7 @@ function MembersSection({ client }: { client: Company }) {
                       {editingId === member.id ? (
                         <div className="role-editor">
                           <RoleChecklist
+                            label={`Roles for ${member.user?.fullName ?? employeeName.get(member.userId) ?? 'member'}`}
                             value={membershipRoles(member)}
                             disabled={changeRole.loading && pendingId === member.id}
                             onChange={(roles) => saveRoles(member, roles)}
@@ -300,10 +351,9 @@ function MembersSection({ client }: { client: Company }) {
                         variant="ghost"
                         size="sm"
                         loading={remove.loading && pendingId === member.id}
-                        onClick={() => {
-                          setPendingId(member.id);
-                          void remove.mutate(client.id, member.id).then(() => toast.success('Removed from client.'));
-                        }}
+                        disabled={remove.loading}
+                        aria-label={`Remove ${memberName(member)} from ${client.name}`}
+                        onClick={() => void confirmAndRemove(member)}
                       >
                         Remove
                       </Button>
@@ -317,7 +367,7 @@ function MembersSection({ client }: { client: Company }) {
       ) : null}
 
       <form className="inline-form" onSubmit={submit} noValidate>
-        <Field label="Employee" htmlFor="assign-user" error={form.formState.errors.userId?.message}>
+        <Field label="Employee" htmlFor="assign-user" required error={form.formState.errors.userId?.message}>
           <Select id="assign-user" {...form.register('userId')}>
             <option value="">Select an employee</option>
             {assignable.map((employee) => (
@@ -325,12 +375,13 @@ function MembersSection({ client }: { client: Company }) {
             ))}
           </Select>
         </Field>
-        <Field label="Roles" htmlFor="assign-roles" error={form.formState.errors.roles?.message}>
+        <FieldGroup label="Roles" rule="Pick at least one role." error={form.formState.errors.roles?.message}>
           <RoleChecklist
             value={form.watch('roles')}
+            invalid={Boolean(form.formState.errors.roles)}
             onChange={(roles) => form.setValue('roles', roles, { shouldValidate: true })}
           />
-        </Field>
+        </FieldGroup>
         <Button
           type="submit"
           size="sm"

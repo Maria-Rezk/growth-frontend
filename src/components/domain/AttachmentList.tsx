@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, buttonClass } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
+import { buttonClass } from '@/components/ui/buttonClass';
 import { ErrorState } from '@/components/ui/State';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { ArrowUpRightIcon, CloseIcon } from '@/components/ui/icons';

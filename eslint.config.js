@@ -12,7 +12,7 @@ import tseslint from 'typescript-eslint';
   unused code and a handful of correctness rules from the recommended sets.
 */
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', 'playwright-report', 'test-results', 'e2e/.artifacts'] },
+  { ignores: ['dist', 'dist-demo', 'coverage', 'playwright-report', 'test-results', 'e2e/.artifacts'] },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

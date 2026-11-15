@@ -3,9 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Field, Select, Textarea } from '@/components/ui/Fields';
-import { ErrorState } from '@/components/ui/State';
+import { ErrorState, RecordNotFound } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { StatusBadge } from '@/components/domain/StatusBadges';
 import { Timeline } from '@/components/domain/Timeline';
@@ -26,11 +26,15 @@ import { formatDateTime, humanize } from '@/utils/format';
 import { isOverdue } from '@/utils/workflow';
 import { STATUS_OPTIONS, approverIsInactive, isInReview, userLabel } from '@/utils/taskReview';
 import { TaskReviewErrorCode, TaskStatus, type TaskActivityLog, type TaskComment } from '@/types/domain';
-import { TaskPeopleList } from '@/components/domain/TaskPeople';
+import { TaskStepTimeline } from '@/components/domain/TaskPeople';
+import { formatDuration, isStepFlow, liveStep, stepPosition } from '@/utils/taskSteps';
 import { useLocale } from '@/context/LocaleContext';
 import type { AppLanguage } from '@/i18n/messages';
 import { readAssigneeChanges, taskRoleLabel } from '@/utils/taskAssignees';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
+import { attachmentsService } from '@/services/attachments';
+import { attachmentActivityTitle } from '@/utils/attachmentActivity';
+import type { Attachment, TaskAssignee } from '@/types/domain';
 
 export function TaskDetailPage() {
   const { taskId = '' } = useParams();
@@ -41,8 +45,14 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const tasksPrefix = [['companies', companyId, 'tasks'], queryKeys.task(companyId, taskId)];
 
   const task = useAsync(() => tasksService.get(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.task(companyId, taskId) });
-  const comments = useAsync(() => tasksService.comments(companyId, taskId), [companyId, taskId]);
-  const logs = useAsync(() => tasksService.activityLogs(companyId, taskId), [companyId, taskId]);
+  const comments = useAsync(() => tasksService.comments(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.taskComments(companyId, taskId) });
+  const logs = useAsync(() => tasksService.activityLogs(companyId, taskId), [companyId, taskId], { queryKey: queryKeys.taskLogs(companyId, taskId) });
+  // The attachment rows name what was added from this list. Same key as the Attachments card, so it is one request, shared.
+  const attachments = useAsync(
+    () => attachmentsService.list(companyId, { entityType: 'TASK', entityId: taskId }),
+    [companyId, taskId],
+    { queryKey: queryKeys.attachments(companyId, 'TASK', taskId) },
+  );
   const members = useAssignableMembers(companyId);
 
   const setStatus = useMutation(tasksService.setStatus, { invalidateKeys: tasksPrefix });
@@ -64,11 +74,14 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   const { lang } = useLocale();
 
   if (task.loading) return <DetailSkeleton />;
+  if (task.errorStatus === 404) return <RecordNotFound title="Task not found" backTo={appRoutes.tasks} backLabel="Back to tasks" />;
   if (task.error || !task.data) return <ErrorState message={task.error ?? 'Task not found.'} onRetry={task.refetch} />;
 
   const current = task.data;
   const overdue = isOverdue(current.dueDate) && current.status !== TaskStatus.DONE && current.status !== TaskStatus.CANCELED;
   const inReview = isInReview(current);
+  const flow = isStepFlow(current);
+  const live = flow ? liveStep(current) : null;
 
   const resolveName = (id?: string | null) => {
     if (!id) return 'Unassigned';
@@ -126,7 +139,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
       <PageHeader
         title={current.title}
         subtitle="Task detail, collaboration and activity log."
-        action={<ButtonLink to="/tasks" variant="secondary" size="sm">Back to tasks</ButtonLink>}
+        back={{ to: appRoutes.tasks, label: 'Back to tasks' }}
       />
 
       {editing ? (
@@ -178,14 +191,27 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <div><span>Priority</span><strong><StatusBadge value={current.priority} /></strong></div>
                 <div><span>Type</span><strong><TaskTypeChips task={current} /></strong></div>
                 {current.sequence ? <div><span>Stage on post</span><strong>{current.sequence}</strong></div> : null}
-                <div><span>Lead</span><strong>{current.assignedToId ? userLabel(current.assignedTo, resolveName(current.assignedToId)) : 'No lead'}</strong></div>
-                <div>
-                  <span>Approver</span>
-                  <strong>
-                    {current.approverId ? userLabel(current.approver, resolveName(current.approverId)) : <Badge tone="warning">Needs an approver</Badge>}
-                    {approverIsInactive(current) ? <> <Badge tone="danger">Deactivated</Badge></> : null}
-                  </strong>
-                </div>
+                {flow ? (
+                  <div>
+                    <span>Now with</span>
+                    <strong>
+                      {live
+                        ? <>{withNow(live.assignees).map((person) => userLabel(person.user, resolveName(person.userId))).join(', ')} <span className="muted">· step {stepPosition(current, live).index} of {stepPosition(current, live).count}</span></>
+                        : current.status === TaskStatus.DONE ? 'Every step is done' : 'Nobody'}
+                    </strong>
+                  </div>
+                ) : (
+                  <>
+                    <div><span>Assignee</span><strong>{current.assignedToId ? userLabel(current.assignedTo, resolveName(current.assignedToId)) : 'Unassigned'}</strong></div>
+                    <div>
+                      <span>Approver</span>
+                      <strong>
+                        {current.approverId ? userLabel(current.approver, resolveName(current.approverId)) : <Badge tone="warning">Needs an approver</Badge>}
+                        {approverIsInactive(current) ? <> <Badge tone="danger">Deactivated</Badge></> : null}
+                      </strong>
+                    </div>
+                  </>
+                )}
                 {current.startedAt ? <div><span>Started</span><strong>{formatDateTime(current.startedAt)}</strong></div> : null}
                 <div>
                   <span>{overdue ? 'Overdue' : 'Due'}</span>
@@ -245,11 +271,18 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                   review the status is read-only and the review card above owns
                   the verdict; the one status still allowed from here is Cancel.
                 */}
-                {inReview ? (
+                {flow || inReview ? (
                   <div className="stack-list">
                     <p className="muted">
-                      In review — waiting on {userLabel(current.approver, 'an approver')}. Approve or request changes from the review card.
+                      {flow
+                        ? current.status === TaskStatus.DONE
+                          ? 'Every step is done. This task is closed.'
+                          : current.status === TaskStatus.CANCELED
+                            ? 'This task was cancelled.'
+                            : 'This task moves step by step: each person starts and submits their own step from the Current step card. Only cancelling is done from here.'
+                        : <>In review — waiting on {userLabel(current.approver, 'an approver')}. Approve or request changes from the review card.</>}
                     </p>
+                    {current.status === TaskStatus.CANCELED || current.status === TaskStatus.DONE ? null : (
                     <Button
                       variant="danger"
                       size="sm"
@@ -257,7 +290,9 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                       onClick={async () => {
                         const ok = await confirm({
                           title: 'Cancel this task?',
-                          message: `It leaves ${userLabel(current.approver, 'the approver')}'s queue and the waiting clock is cleared. The task is kept, marked Canceled.`,
+                          message: flow
+                            ? 'Every remaining step stops and nobody else is told it is their turn. The task and its history are kept, marked Canceled.'
+                            : `It leaves ${userLabel(current.approver, 'the approver')}'s queue and the waiting clock is cleared. The task is kept, marked Canceled.`,
                           confirmLabel: 'Cancel task',
                           cancelLabel: 'Keep it',
                           tone: 'danger',
@@ -267,6 +302,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                     >
                       Cancel task
                     </Button>
+                    )}
                   </div>
                 ) : (
                   <Field label="Status" htmlFor="task-status" hint="Review is entered with “Submit for review”, not from here.">
@@ -288,15 +324,15 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
 
           <Card>
             <CardHeader
-              title="People"
+              title={flow ? 'Steps' : 'People'}
               action={(
                 <RoleGate permission="tasks:edit">
-                  <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit people</Button>
+                  <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>{flow ? 'Edit steps' : 'Edit people'}</Button>
                 </RoleGate>
               )}
             />
             <div className="content-card__body">
-              <TaskPeopleList task={current} resolveName={resolveName} />
+              <TaskStepTimeline task={current} resolveName={resolveName} />
             </div>
           </Card>
 
@@ -314,7 +350,7 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
                 <ErrorState message={logs.error} onRetry={logs.refetch} />
               ) : (
                 <Timeline
-                  items={(logs.data ?? []).map((item) => ({ id: item.id, ...describeActivity(item, resolveName, lang), createdAt: item.createdAt }))}
+                  items={(logs.data ?? []).map((item) => ({ id: item.id, ...describeActivity(item, resolveName, lang, attachments.data ?? []), createdAt: item.createdAt }))}
                   empty={logs.loading ? 'Loading activity…' : 'No activity yet.'}
                 />
               )}
@@ -326,21 +362,53 @@ function TaskDetailInner({ companyId, taskId }: { companyId: string; taskId: str
   );
 }
 
+/** Who the task is with now: the people on the live step still working; everybody on it once all have handed in. */
+function withNow(people: readonly TaskAssignee[]): readonly TaskAssignee[] {
+  const working = people.filter((person) => person.status === 'TODO' || person.status === 'IN_PROGRESS');
+  return working.length ? working : people;
+}
+
 /**
  * The audit trail in words. The review rows carry who approved and what they
  * said, which is the whole point of recording them — "Approved by Omar" as a
  * row, not a comment somebody has to scroll for.
  */
-function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null) => string, lang: AppLanguage): { title: string; body?: string } {
+function describeActivity(
+  log: TaskActivityLog,
+  resolveName: (id?: string | null) => string,
+  lang: AppLanguage,
+  attachments: readonly Attachment[],
+): { title: string; body?: string } {
   const meta = (log.metadata ?? {}) as Record<string, unknown>;
   const approver = typeof meta.approverId === 'string' ? resolveName(meta.approverId) : null;
+  const stepUser = typeof meta.stepUserId === 'string' ? resolveName(meta.stepUserId) : null;
+  const stepNo = typeof meta.stepOrder === 'number' ? meta.stepOrder : null;
+  const onStep = stepNo ? ` on step ${stepNo}` : '';
   switch (log.action) {
+    // One person on a shared step handed in their part (parallel-steps guide 1.7).
+    case 'STEP_WORK_SUBMITTED': {
+      const count = typeof meta.submittedCount === 'number' && typeof meta.assigneeCount === 'number' ? `${meta.submittedCount} of ${meta.assigneeCount} submitted` : undefined;
+      const worked = typeof meta.workSeconds === 'number' && meta.workSeconds >= 60 ? `worked ${formatDuration(meta.workSeconds * 1000)}` : undefined;
+      return { title: `${stepUser ?? 'Somebody'} handed in their part${onStep}`, body: [count, worked].filter(Boolean).join(' · ') || undefined };
+    }
+    case 'STEP_COMPLETED':
+      return { title: stepNo ? `Step ${stepNo} finished` : 'Step finished' };
+    case 'STATUS_CHANGED':
+      if (stepUser && meta.toStatus === 'IN_PROGRESS') return { title: `${stepUser} started their part${onStep}` };
+      return { title: typeof meta.toStatus === 'string' ? `Moved to ${humanize(meta.toStatus)}` : 'Status changed' };
     case 'TASK_SUBMITTED_FOR_REVIEW':
-      return { title: 'Submitted for review', body: approver ? `Waiting on ${approver}` : undefined };
+      return { title: stepNo ? `Step ${stepNo} submitted for review` : 'Submitted for review', body: approver ? `Waiting on ${approver}` : undefined };
     case 'TASK_APPROVED':
       return { title: approver ? `Approved by ${approver}` : 'Approved' };
-    case 'TASK_CHANGES_REQUESTED':
-      return { title: approver ? `Changes requested by ${approver}` : 'Changes requested', body: typeof meta.note === 'string' ? meta.note : undefined };
+    case 'TASK_CHANGES_REQUESTED': {
+      // `reopenedUserIds`: who was sent back on a shared step.
+      const reopened = Array.isArray(meta.reopenedUserIds) ? meta.reopenedUserIds.filter((id): id is string => typeof id === 'string').map((id) => resolveName(id)) : [];
+      const sentBack = reopened.length ? `Sent back to ${reopened.join(', ')}` : undefined;
+      return {
+        title: approver ? `Changes requested by ${approver}` : 'Changes requested',
+        body: [sentBack, typeof meta.note === 'string' ? meta.note : undefined].filter(Boolean).join(' — ') || undefined,
+      };
+    }
     case 'TASK_APPROVER_CHANGED':
       return {
         title: 'Approver changed',
@@ -353,9 +421,9 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
       return { title: 'People changed', body: parts.length ? parts.join(' · ') : undefined };
     }
     case 'ATTACHMENT_ADDED':
-      return { title: 'Attachment added', body: attachmentSummary(meta) };
     case 'ATTACHMENT_REMOVED':
-      return { title: 'Attachment removed', body: attachmentSummary(meta) };
+      // Named from the task's attachment list; never the URL or a note's text.
+      return { title: attachmentActivityTitle(log.action, meta, attachments) };
     case 'CREATED':
     case 'TASK_CREATED':
       return {
@@ -365,14 +433,6 @@ function describeActivity(log: TaskActivityLog, resolveName: (id?: string | null
     default:
       return { title: humanize(log.action) };
   }
-}
-
-/** A file's name, else a link's label or address: whichever the log row carries. */
-function attachmentSummary(meta: Record<string, unknown>): string | undefined {
-  for (const key of ['originalName', 'label', 'url']) {
-    if (typeof meta[key] === 'string' && meta[key]) return meta[key] as string;
-  }
-  return undefined;
 }
 
 /** Previously `comments.data?.map()` with no empty and no error branch. */

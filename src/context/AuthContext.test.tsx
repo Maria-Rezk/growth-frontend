@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
@@ -17,7 +17,7 @@ import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
   Same no-mocking-library approach as httpRefresh.test.ts: a fake axios
   adapter stands in for the network, and `vi.resetModules()` + a fresh
-  `import('./AuthContext')` per test isolates the module-level state in
+  `import('./AuthContext')` and `import('./AuthProvider')` per test isolates the module-level state in
   http.ts (the in-memory token, the handler singletons) between tests.
 */
 
@@ -50,9 +50,22 @@ async function boot(routes: Record<string, Route>) {
   const axios = (await import('axios')).default;
   const network = fakeNetwork(routes);
   axios.defaults.adapter = network.adapter;
-  const mod = await import('./AuthContext');
-  return { ...mod, ...network };
+  const { useAuth } = await import('./AuthContext');
+  const { AuthProvider } = await import('./AuthProvider');
+  return { AuthProvider, useAuth, ...network };
 }
+
+/*
+  Warm the module graph once per file. Every test resets modules and imports
+  a fresh copy, and the first import in a worker also pays for transforming
+  the whole graph. Under a full parallel run that one-off cost took the first
+  test from about 0.5 s to past its 5 s timeout, and the timed-out test's
+  retries then landed in the next test's fake network. Done here, the cost
+  falls on the hook (10 s budget) and every test still gets a fresh module.
+*/
+beforeAll(async () => {
+  await Promise.all([import('./AuthContext'), import('./AuthProvider')]);
+});
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -323,5 +336,35 @@ describe('authentication stays separate from company roles', () => {
     expect(queryClient.getQueryState(membershipsKey)?.isInvalidated).toBe(true);
     expect(calls.filter((call) => call === 'POST /auth/refresh').length).toBe(refreshesAtBoot);
     expect(calls.filter((call) => call === 'GET /boom').length).toBe(2);
+  });
+});
+
+describe('sign-in of a disabled account (release guide 1.4)', () => {
+  it('names the disabled account from its code, and signs nobody in', async () => {
+    const { AuthProvider, useAuth } = await boot({
+      'POST /auth/refresh': () => [401, { message: 'no cookie' }],
+      'POST /auth/login': () => [401, { statusCode: 401, error: 'Unauthorized', code: 'ACCOUNT_DISABLED', message: 'This account has been disabled. Ask an administrator.' }],
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let ok = true;
+    await act(async () => { ok = await result.current.login({ email: 'gone@b.com', password: 'correct-password' }); });
+
+    expect(ok).toBe(false);
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.error).toBe('This account has been disabled. Ask an administrator to reactivate it.');
+  });
+
+  it('keeps the generic answer for a wrong password (a 401 with no code)', async () => {
+    const { AuthProvider, useAuth } = await boot({
+      'POST /auth/refresh': () => [401, { message: 'no cookie' }],
+      'POST /auth/login': () => [401, { statusCode: 401, error: 'Unauthorized', message: 'Invalid credentials' }],
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.login({ email: 'a@b.com', password: 'wrong-password' }); });
+    expect(result.current.error).toBe('Invalid credentials');
   });
 });

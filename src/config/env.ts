@@ -1,5 +1,41 @@
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api';
 
+/** The live API. A dev build that reaches it — directly or through the Vite proxy — is flagged on screen. */
+export const PRODUCTION_API_HOST = 'api.solu1ions.tech';
+
+/** True when a `npm run dev` build would read and write production data. */
+export function devTargetsProduction(
+  isDev: boolean,
+  apiBaseUrl: string | undefined,
+  proxyTarget: string | undefined,
+): boolean {
+  if (!isDev) return false;
+  return [apiBaseUrl, proxyTarget].some((value) => Boolean(value && value.includes(PRODUCTION_API_HOST)));
+}
+
+/** ngrok's tunnel domains (current and legacy). */
+const NGROK_HOST = /(^|\.)ngrok(-free)?\.(app|dev|io)$/i;
+
+/** True when `value` (absolute, or relative to this page) is an ngrok tunnel URL. */
+export function isNgrokUrl(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    return NGROK_HOST.test(new URL(value, 'http://localhost').hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Does this build talk to an ngrok tunnel, directly or (dev only) through the
+ * Vite proxy? Only then is `ngrok-skip-browser-warning` sent — ngrok answers a
+ * browser-like request without it with an HTML interstitial instead of the
+ * API. Any other host never sees the header.
+ */
+export function needsNgrokBypass(isDev: boolean, apiBaseUrl: string | undefined, proxyTarget: string | undefined): boolean {
+  return isNgrokUrl(apiBaseUrl) || (isDev && isNgrokUrl(proxyTarget));
+}
+
 export const env = {
   apiBaseUrl: rawApiBaseUrl.replace(/\/$/, ''),
   demoMode: import.meta.env.VITE_DEMO_MODE === 'true',
@@ -12,6 +48,12 @@ export const env = {
   arabicEnabled: import.meta.env.VITE_ENABLE_ARABIC === 'true',
   apiTimeoutMs: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 25000),
   appName: import.meta.env.VITE_APP_NAME ?? 'Solu1ions — Business Development',
+  ngrokBypass: needsNgrokBypass(import.meta.env.DEV, rawApiBaseUrl, import.meta.env.VITE_DEV_PROXY_TARGET),
+  devTargetsProduction: devTargetsProduction(
+    import.meta.env.DEV,
+    import.meta.env.VITE_API_BASE_URL,
+    import.meta.env.VITE_DEV_PROXY_TARGET,
+  ),
 };
 
 export function validateRuntimeEnv() {

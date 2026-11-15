@@ -106,6 +106,7 @@ function MembersInner({ companyId }: { companyId: string }) {
         return (
           <div className="role-editor">
             <RoleChecklist
+              label={`Roles for ${name}`}
               value={membershipRoles(member)}
               disabled={updateMember.loading}
               /*
@@ -351,7 +352,7 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
         </div>
       ) : (
         <form id="invite-form" className="form-grid" onSubmit={submit} noValidate>
-          <Field label="Full name" htmlFor="invite-name" error={form.formState.errors.fullName?.message}>
+          <Field label="Full name" htmlFor="invite-name" required error={form.formState.errors.fullName?.message}>
             <Input
               id="invite-name"
               autoComplete="name"
@@ -359,7 +360,7 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
               {...form.register('fullName')}
             />
           </Field>
-          <Field label="Email" htmlFor="invite-email" error={form.formState.errors.email?.message}>
+          <Field label="Email" htmlFor="invite-email" required error={form.formState.errors.email?.message}>
             <Input
               id="invite-email"
               type="email"
@@ -370,7 +371,7 @@ function InviteModal({ open, companyId, onClose }: { open: boolean; companyId: s
           </Field>
           <Field
             label="Role"
-            htmlFor="invite-role"
+            htmlFor="invite-role" required
             hint="An invitation carries one role. More can be added from the members table once they have joined."
             error={form.formState.errors.role?.message}
           >

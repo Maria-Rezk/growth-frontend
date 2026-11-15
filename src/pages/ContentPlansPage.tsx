@@ -161,20 +161,20 @@ export function PlanFormModal({ open, companyId, onClose, plan }: { open: boolea
       }
     >
       <form id="plan-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Plan title" htmlFor="plan-title" error={form.formState.errors.title?.message}>
+        <Field label="Plan title" htmlFor="plan-title" required error={form.formState.errors.title?.message}>
           <Input id="plan-title" {...form.register('title')} />
         </Field>
         <div className="grid-2">
-          <Field label="Month" htmlFor="plan-month" error={form.formState.errors.month?.message}>
+          <Field label="Month" htmlFor="plan-month" required error={form.formState.errors.month?.message}>
             <Select id="plan-month" {...form.register('month')}>
               {MONTHS.map((label, index) => <option key={label} value={index + 1}>{label}</option>)}
             </Select>
           </Field>
-          <Field label="Year" htmlFor="plan-year" error={form.formState.errors.year?.message}>
+          <Field label="Year" htmlFor="plan-year" required error={form.formState.errors.year?.message}>
             <Input id="plan-year" type="number" {...form.register('year')} />
           </Field>
         </div>
-        <Field label="Goal" htmlFor="plan-goal" hint="What this month's content should achieve." error={form.formState.errors.goal?.message}>
+        <Field label="Goal" htmlFor="plan-goal" required hint="What this month's content should achieve." error={form.formState.errors.goal?.message}>
           <Textarea id="plan-goal" rows={3} {...form.register('goal')} />
         </Field>
         {create.error ? <p className="error-box" role="alert">{create.error}</p> : null}

@@ -23,6 +23,7 @@ const CHIP_TONE: Record<string, string> = {
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 /**
  * The month as the Social Media Manager plans it.
@@ -31,6 +32,15 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
  * posts without a date sit in a tray under the grid so they are not lost.
  * A day with posts in the past that are still Scheduled is flagged — the
  * same "due to publish" the strip above the board catches.
+ *
+ * Semantics (A-1): a table of weeks, not an ARIA grid. Nothing here is
+ * selected or edited in place; the only controls are the month buttons and
+ * the links to posts, which Tab reaches in date order. A grid would promise
+ * arrow-key navigation the calendar does not have. Explicit table roles on
+ * divs rather than <table>: the layout is CSS grid, and some browsers drop
+ * a native table's semantics once its display is changed. Each day is named
+ * in full for screen readers ("Wednesday 5 November, today, 2 posts"); the
+ * visible number alone says neither the month nor the state the colours show.
  */
 export function ContentCalendar({ posts, initialMonth }: { posts: ContentPost[]; initialMonth?: Date }) {
   const [cursor, setCursor] = useState(() => startOfMonth(initialMonth ?? new Date()));
@@ -77,25 +87,36 @@ export function ContentCalendar({ posts, initialMonth }: { posts: ContentPost[];
         <h2 className="calendar__title">{monthLabel} <span className="muted">· {inMonthCount} {inMonthCount === 1 ? 'post' : 'posts'}</span></h2>
       </div>
 
-      <div className="calendar__grid" role="grid" aria-label={`Content calendar, ${monthLabel}`}>
-        {WEEKDAYS.map((name) => <div key={name} className="calendar__weekday" role="columnheader">{name}</div>)}
-        {weeks.flat().map((cell) => {
-          const isToday = cell.date.getTime() === today.getTime();
-          const overdue = cell.date.getTime() < today.getTime() && cell.posts.some((post) => post.status === PostStatus.SCHEDULED);
-          return (
-            <div key={cell.date.toISOString()} className={clsx('calendar__day', !cell.inMonth && 'calendar__day--outside', isToday && 'calendar__day--today', overdue && 'calendar__day--overdue')} role="gridcell">
-              <span className="calendar__date">{cell.date.getDate()}</span>
-              <div className="calendar__chips">
-                {cell.posts.slice(0, 3).map((post) => (
-                  <Link key={post.id} to={appRoutes.post(post.id)} className={`calendar__chip calendar__chip--${CHIP_TONE[post.status] ?? 'neutral'}`} title={`${post.title} · ${humanize(post.status)}${post.platform ? ` · ${humanize(post.platform)}` : ''}`}>
-                    {post.title}
-                  </Link>
-                ))}
-                {cell.posts.length > 3 ? <span className="calendar__more">+{cell.posts.length - 3} more</span> : null}
-              </div>
-            </div>
-          );
-        })}
+      <div className="calendar__grid" role="table" aria-label={`Content calendar, ${monthLabel}`}>
+        <div className="calendar__week" role="row">
+          {WEEKDAYS.map((name, index) => (
+            <div key={name} className="calendar__weekday" role="columnheader" aria-label={WEEKDAY_NAMES[index]}>{name}</div>
+          ))}
+        </div>
+        {weeks.map((week) => (
+          <div key={week[0].date.toISOString()} className="calendar__week" role="row">
+            {week.map((cell) => {
+              const isToday = cell.date.getTime() === today.getTime();
+              const overdue = cell.date.getTime() < today.getTime() && cell.posts.some((post) => post.status === PostStatus.SCHEDULED);
+              return (
+                <div key={cell.date.toISOString()} className={clsx('calendar__day', !cell.inMonth && 'calendar__day--outside', isToday && 'calendar__day--today', overdue && 'calendar__day--overdue')} role="cell">
+                  <span className="calendar__date" aria-hidden="true">{cell.date.getDate()}</span>
+                  <span className="sr-only">{dayLabel(cell.date, { isToday, overdue, count: cell.posts.length })}</span>
+                  <div className="calendar__chips">
+                    {cell.posts.slice(0, 3).map((post) => (
+                      // Named with what the chip shows only as colour and tooltip, title first as on screen. The
+                      // tooltip is the same string, so a reader that skips a description equal to the name says it once.
+                      <Link key={post.id} to={appRoutes.post(post.id)} className={`calendar__chip calendar__chip--${CHIP_TONE[post.status] ?? 'neutral'}`} aria-label={chipLabel(post)} title={chipLabel(post)}>
+                        {post.title}
+                      </Link>
+                    ))}
+                    {cell.posts.length > 3 ? <span className="calendar__more">+{cell.posts.length - 3} more</span> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {unscheduled.length ? (
@@ -112,6 +133,20 @@ export function ContentCalendar({ posts, initialMonth }: { posts: ContentPost[];
       ) : null}
     </Card>
   );
+}
+
+/** "Launch teaser, Approved, Instagram". */
+function chipLabel(post: ContentPost): string {
+  return [post.title, humanize(post.status), post.platform ? humanize(post.platform) : null].filter(Boolean).join(', ');
+}
+
+/** "Wednesday 5 November, today, has a scheduled post past its time, 2 posts". */
+function dayLabel(date: Date, { isToday, overdue, count }: { isToday: boolean; overdue: boolean; count: number }): string {
+  const parts = [date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })];
+  if (isToday) parts.push('today');
+  if (overdue) parts.push('a scheduled post is past its time');
+  parts.push(count === 0 ? 'no posts' : count === 1 ? '1 post' : `${count} posts`);
+  return parts.join(', ');
 }
 
 function startOfDay(date: Date): Date { const d = new Date(date); d.setHours(0, 0, 0, 0); return d; }

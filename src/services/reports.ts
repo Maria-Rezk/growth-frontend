@@ -3,7 +3,7 @@ import { apiRoutes } from '@/config/apiRoutes';
 import { appRoutes } from '@/config/appRoutes';
 import { http, unwrap } from '@/lib/http';
 import { getAllItems } from '@/lib/paging';
-import { buildMetrics, demoCompany, demoDelay, demoReportShares, demoReports, makeId } from '@/services/demoStore';
+import { buildMetrics, buildOverview, demoCompany, demoDelay, demoReportShares, demoReports, makeId, demoNotFound } from '@/services/demoStore';
 import type { PublicReport, Report, ReportOverview, ReportShareResult, ReportShareStatus } from '@/types/domain';
 
 const SHARE_DAYS = 90;
@@ -37,16 +37,11 @@ function normalizeOverview(raw: RawOverview): ReportOverview {
   };
 }
 
-function demoNotFound(): Error {
-  return Object.assign(new Error('This report link is not valid.'), { statusCode: 404 });
-}
-
 export const reportsService = {
   async overview(companyId: string, params?: { month?: number; year?: number }): Promise<ReportOverview> {
-    if (env.demoMode) {
-      const { buildOverview } = await import('@/services/demoStore');
-      return demoDelay(buildOverview());
-    }
+    // A static import, like every other use: a dynamic import() of demoStore made Rollup keep all of its
+    // exports, so the demo fixtures shipped in production even though this branch is removed (F-06).
+    if (env.demoMode) return demoDelay(buildOverview());
     const response = await http.get(apiRoutes.reports.overview(companyId), { params });
     return normalizeOverview(unwrap<RawOverview>(response.data));
   },
@@ -79,7 +74,7 @@ export const reportsService = {
   async get(companyId: string, reportId: string): Promise<Report> {
     if (env.demoMode) {
       const report = demoReports.find((item) => item.companyId === companyId && item.id === reportId);
-      if (!report) throw new Error('Report not found.');
+      if (!report) throw demoNotFound('Report not found.');
       return demoDelay(report);
     }
     const response = await http.get(apiRoutes.reports.detail(companyId, reportId));
@@ -142,9 +137,9 @@ export const reportsService = {
   async getPublic(token: string): Promise<PublicReport> {
     if (env.demoMode) {
       const entry = [...demoReportShares.entries()].find(([, share]) => share.token === token);
-      if (!entry || new Date(entry[1].expiresAt).getTime() < Date.now()) throw demoNotFound();
+      if (!entry || new Date(entry[1].expiresAt).getTime() < Date.now()) throw demoNotFound('This report link is not valid.');
       const report = demoReports.find((item) => item.id === entry[0]);
-      if (!report) throw demoNotFound();
+      if (!report) throw demoNotFound('This report link is not valid.');
       entry[1].viewCount += 1;
       entry[1].lastViewedAt = new Date().toISOString();
       const { notes: _notes, createdById: _createdById, ...publicFields } = report;

@@ -2,19 +2,20 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { RequireCompany } from '@/components/layout/RequireCompany';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { RoleGate } from '@/components/domain/RoleGate';
-import { ReportBody, monthName } from '@/components/domain/ReportBody';
+import { ReportBody } from '@/components/domain/ReportBody';
 import { ReportShareDialog } from '@/components/domain/ReportShareDialog';
 import { appRoutes } from '@/config/appRoutes';
 import { usePermission } from '@/hooks/usePermission';
 import { useCompany } from '@/context/CompanyContext';
 import { useAsync } from '@/hooks/useAsync';
+import { queryKeys } from '@/lib/queryClient';
 import { reportsService } from '@/services/reports';
-import { formatDate } from '@/utils/format';
+import { formatDate, monthName } from '@/utils/format';
 
 /**
  * One monthly report, laid out to be read — by the client as much as the
@@ -44,11 +45,12 @@ export function ReportDetailPage() {
 function ReportDetailInner({ companyId, reportId }: { companyId: string; reportId: string }) {
   const { activeCompany } = useCompany();
   const canShare = usePermission('reports:share');
-  const report = useAsync(() => reportsService.get(companyId, reportId), [companyId, reportId]);
+  const report = useAsync(() => reportsService.get(companyId, reportId), [companyId, reportId], { queryKey: queryKeys.report(companyId, reportId) });
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
 
   if (report.loading) return <DetailSkeleton />;
+  if (report.errorStatus === 404) return <RecordNotFound title="Report not found" backTo={appRoutes.reports} backLabel="Back to reports" />;
   if (report.error || !report.data) return <ErrorState message={report.error ?? 'Report not found.'} onRetry={report.refetch} />;
 
   const current = report.data;
@@ -70,9 +72,9 @@ function ReportDetailInner({ companyId, reportId }: { companyId: string; reportI
       <PageHeader
         title={title}
         subtitle={`${activeCompany?.name ?? ''} · ${monthName(current.month)} ${current.year} · generated ${formatDate(current.createdAt)}`}
+        back={{ to: appRoutes.reports, label: 'Back to reports' }}
         action={(
           <span className="button-row no-print">
-            <ButtonLink to={appRoutes.reports} variant="secondary" size="sm">All reports</ButtonLink>
             <Button variant="secondary" size="sm" onClick={copyLink} title="For people who already sign in to this client">{copied ? 'Copied' : 'Copy app link'}</Button>
             {canShare ? <Button variant="secondary" size="sm" onClick={() => setSharing(true)}>Share publicly</Button> : null}
             <Button size="sm" onClick={() => window.print()}>Print / Save as PDF</Button>

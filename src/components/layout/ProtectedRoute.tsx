@@ -9,7 +9,7 @@ export function ProtectedRoute() {
 
   // Demo mode starts signed in and never restores a session, so there is no
   // loading state, but signing out must still lead to the login screen.
-  if (loading && !env.demoMode) return <main className="auth-shell"><LoadingState label="Restoring session…" /></main>;
+  if (loading && !env.demoMode) return <main id="main-content" className="auth-shell" tabIndex={-1}><LoadingState label="Restoring session…" /></main>;
   if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location }} />;
   return <Outlet />;
 }

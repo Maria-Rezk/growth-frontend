@@ -54,7 +54,8 @@ vi.mock('@/services/companies', () => ({
   },
 }));
 
-import { CompanyProvider, useCompany } from '@/context/CompanyContext';
+import { useCompany } from '@/context/CompanyContext';
+import { CompanyProvider } from '@/context/CompanyProvider';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { useCan } from '@/hooks/usePermission';

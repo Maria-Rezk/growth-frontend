@@ -1,19 +1,28 @@
-import { TaskAssigneeRole, type CompanyMembershipRole, type Membership, type Task, type TaskAssignee, type TaskAssigneeInput } from '@/types/domain';
+import { TaskAssigneeRole, type CompanyMembershipRole, type Membership, type Task, type TaskAssignee, type TaskAssigneeInput, type TaskStepStatus } from '@/types/domain';
 import type { AppLanguage } from '@/i18n/messages';
 import { membershipRoles } from '@/utils/roles';
 import { compareNames } from '@/utils/sort';
 
-/** One row of the people field. `key` keeps React's identity stable while rows are added and removed. */
+/**
+ * One step of the flow, as the form edits it. `key` keeps React's identity
+ * stable while rows are added, removed and reordered.
+ */
 export interface TaskPersonRow {
   key: string;
   userId: string;
   role: TaskAssigneeRole | '';
+  /** This step's approver. Blank: the step is done when its person submits. */
+  approverId?: string;
+  /** A step that has started is history: shown, never edited, moved or removed. */
+  locked?: boolean;
+  /** The saved step's status, for the locked rows' badge. */
+  stepStatus?: TaskStepStatus;
 }
 
 let rowSeed = 0;
 export function newPersonRow(userId = '', role: TaskAssigneeRole | '' = ''): TaskPersonRow {
   rowSeed += 1;
-  return { key: `person-${rowSeed}`, userId, role };
+  return { key: `person-${rowSeed}`, userId, role, approverId: '' };
 }
 
 /** The seven task roles, in the order pickers and lists show them. */
@@ -97,7 +106,7 @@ export function sameAssignees(left: readonly TaskAssigneeInput[], right: readonl
   return right.every((row) => keys.has(key(row)));
 }
 
-/** The lead or anybody on the list, in any role — who may submit the task for review and whose "My tasks" it is in. */
+/** The assignee or anybody on the flow, in any role. */
 export function isOnTask(task: Pick<Task, 'assignedToId'> & { assignees?: readonly Pick<TaskAssignee, 'userId'>[] }, userId: string | null | undefined): boolean {
   if (!userId) return false;
   return task.assignedToId === userId || (task.assignees ?? []).some((row) => row.userId === userId);

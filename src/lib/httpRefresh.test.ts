@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 /*
@@ -49,6 +49,18 @@ async function boot(routes: Record<string, Route>) {
   const mod = await import('./http');
   return { ...mod, ...network };
 }
+
+/*
+  Warm the module graph once per file. Every test resets modules and imports
+  a fresh copy, and the first import in a worker also pays for transforming
+  the whole graph. Under a full parallel run that one-off cost took the first
+  test from about 0.5 s to past its 5 s timeout, and the timed-out test's
+  retries then landed in the next test's fake network. Done here, the cost
+  falls on the hook (10 s budget) and every test still gets a fresh module.
+*/
+beforeAll(async () => {
+  await import('./http');
+});
 
 const authHeader = (config: AxiosRequestConfig) => String((config.headers as Record<string, unknown> | undefined)?.Authorization ?? '');
 

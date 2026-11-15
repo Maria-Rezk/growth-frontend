@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ATTACHMENT_ACCEPT } from '@/components/domain/AttachmentsPanel';
 import { AttachmentList } from '@/components/domain/AttachmentList';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -11,7 +10,7 @@ import { useAsync, useMutation } from '@/hooks/useAsync';
 import { queryKeys } from '@/lib/queryClient';
 import { fileTooLargeError } from '@/services/files';
 import { guessAssetType, postAssetsService } from '@/services/postAssets';
-import { ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_RECORD, PostAssetType, type Attachment, type PostAsset } from '@/types/domain';
+import { ATTACHMENT_ACCEPT, ATTACHMENT_MAX_BYTES, ATTACHMENTS_PER_RECORD, PostAssetType, type Attachment, type PostAsset } from '@/types/domain';
 import { formatBytes, humanize } from '@/utils/format';
 
 const TYPE_HINT: Record<PostAssetType, string> = {

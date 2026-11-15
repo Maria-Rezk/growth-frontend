@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { RequireAdmin, useIsSuperAdmin } from '@/components/layout/RequireAdmin';
+import { RequireAdmin } from '@/components/layout/RequireAdmin';
+import { useIsSuperAdmin } from '@/hooks/useIsSuperAdmin';
 import { PageHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
@@ -15,6 +16,9 @@ import { CreateEmployeeModal } from '@/components/admin/employees/CreateEmployee
 import { EditEmployeeModal } from '@/components/admin/employees/EditEmployeeModal';
 import { PlatformRoleModal } from '@/components/admin/employees/PlatformRoleModal';
 import { AssignClientModal } from '@/components/admin/employees/AssignClientModal';
+import { EmployeeStatusAction } from '@/components/admin/employees/EmployeeStatusAction';
+import { deactivationBlockReason, employeeActionVisibility } from '@/components/admin/employees/employeeStatus';
+import { useAuth } from '@/context/AuthContext';
 
 export function EmployeesPage() {
   return (
@@ -27,6 +31,9 @@ export function EmployeesPage() {
 function EmployeesInner() {
   const employees = useAsync(() => usersService.list(), [], { queryKey: queryKeys.employees });
   const superAdmin = useIsSuperAdmin();
+  const { user } = useAuth();
+  const viewerId = user?.id;
+  const allEmployees = employees.data;
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [assignTarget, setAssignTarget] = useState<Employee | null>(null);
@@ -78,28 +85,37 @@ function EmployeesInner() {
       key: 'actions',
       header: '',
       className: 'cell-right',
-      render: (employee) => (
-        <div className="button-row">
-          <Button variant="secondary" size="sm" onClick={() => setEditTarget(employee)}>Edit</Button>
-          <Button variant="secondary" size="sm" onClick={() => setAssignTarget(employee)}>Assign to client</Button>
-          {/*
-            Assigning platform roles is Super Admin only. It is kept out of the
-            edit form entirely — it is a different kind of decision, and the API
-            has moved it to its own route.
-          */}
-          {superAdmin ? (
-            <Button variant="ghost" size="sm" onClick={() => setRoleTarget(employee)}>Platform role</Button>
-          ) : null}
-        </div>
-      ),
+      render: (employee) => {
+        const context = { viewerId, viewerIsSuperAdmin: superAdmin, employees: allEmployees ?? [] };
+        const visible = employeeActionVisibility(employee, context);
+        return (
+          <div className="button-row">
+            {/* Name and password: hidden from an Agency Admin on a Super Admin account (guide 1.5). */}
+            {visible.edit ? <Button variant="secondary" size="sm" onClick={() => setEditTarget(employee)}>Edit</Button> : null}
+            <Button variant="secondary" size="sm" onClick={() => setAssignTarget(employee)}>Assign to client</Button>
+            {/*
+              Assigning platform roles is Super Admin only. It is kept out of the
+              edit form entirely — it is a different kind of decision, and the API
+              has moved it to its own route.
+            */}
+            {superAdmin ? (
+              <Button variant="ghost" size="sm" onClick={() => setRoleTarget(employee)}>Platform role</Button>
+            ) : null}
+            {/* Not offered on your own row, nor to an Agency Admin on a Super Admin's row (guide 1.5). */}
+            {visible.statusAction ? (
+              <EmployeeStatusAction employee={employee} blockedReason={deactivationBlockReason(employee, context)} />
+            ) : null}
+          </div>
+        );
+      },
     },
-  ], [superAdmin]);
+  ], [allEmployees, superAdmin, viewerId]);
 
   return (
     <>
       <PageHeader
         title="Employees"
-        subtitle="Create employee accounts, reset access and assign them to clients."
+        subtitle="Create employee accounts, reset access, deactivate or reactivate them, and assign them to clients."
         action={<Button size="sm" onClick={() => setCreateOpen(true)}>Add employee</Button>}
       />
 
@@ -118,7 +134,12 @@ function EmployeesInner() {
       />
 
       <CreateEmployeeModal open={createOpen} onClose={() => setCreateOpen(false)} />
-      <EditEmployeeModal employee={editTarget} onClose={() => setEditTarget(null)} />
+      <EditEmployeeModal
+        employee={editTarget}
+        // The dialog must not be a way round the row's rules: no status field where the row offers none.
+        canChangeStatus={editTarget ? employeeActionVisibility(editTarget, { viewerId, viewerIsSuperAdmin: superAdmin, employees: allEmployees ?? [] }).editStatus : false}
+        onClose={() => setEditTarget(null)}
+      />
       <AssignClientModal employee={assignTarget} onClose={() => setAssignTarget(null)} />
       <PlatformRoleModal employee={roleTarget} onClose={() => setRoleTarget(null)} />
     </>

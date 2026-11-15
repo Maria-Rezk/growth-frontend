@@ -9,26 +9,33 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+/** Where focus lands on open: an element ref, or a function that picks one inside the container. */
+export type InitialFocus = RefObject<HTMLElement | null> | ((container: HTMLElement) => HTMLElement | null);
+
 /**
  * Traps Tab focus inside `containerRef` while `active`, moves focus in on open
- * (to `initialFocusRef` if given, else the first focusable element), and restores
+ * (to `initialFocus` if given, else the first focusable element), and restores
  * focus to the previously-focused element on close. Reusable for dialogs/drawers.
  */
 export function useFocusTrap(
   containerRef: RefObject<HTMLElement | null>,
   active: boolean,
-  initialFocusRef?: RefObject<HTMLElement | null>,
+  initialFocus?: InitialFocus,
 ) {
   useEffect(() => {
     if (!active) return;
     const container = containerRef.current;
     if (!container) return;
 
-    const previouslyFocused = document.activeElement as HTMLElement | null;
+    // Focus already inside (an element that focused itself on mount) is not
+    // somewhere to return to: it is gone once the container closes.
+    const focusedOnOpen = document.activeElement as HTMLElement | null;
+    const previouslyFocused = focusedOnOpen && container.contains(focusedOnOpen) ? null : focusedOnOpen;
 
     const focusInitial = () => {
+      const chosen = typeof initialFocus === 'function' ? initialFocus(container) : initialFocus?.current;
       const target =
-        initialFocusRef?.current ??
+        chosen ??
         container.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ??
         container;
       target.focus();
@@ -65,5 +72,5 @@ export function useFocusTrap(
       document.removeEventListener('keydown', onKeyDown, true);
       previouslyFocused?.focus?.();
     };
-  }, [active, containerRef, initialFocusRef]);
+  }, [active, containerRef, initialFocus]);
 }

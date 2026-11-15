@@ -24,6 +24,8 @@ export function SegmentedControl<T extends string>({
           key={option.value}
           type="button"
           className={clsx('segmented__button', option.value === value && 'segmented__button--active')}
+          // The active class is visual only; this is what tells a screen reader which one is on.
+          aria-pressed={option.value === value}
           onClick={() => onChange(option.value)}
         >
           <span>{option.label}</span>

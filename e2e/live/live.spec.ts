@@ -19,7 +19,7 @@ test.skip(!email || !password, 'E2E_LIVE_EMAIL and E2E_LIVE_PASSWORD are require
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(password);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).not.toHaveURL(/\/login/);
   await expect(page.locator('main h1').first()).toBeVisible();
@@ -52,7 +52,7 @@ test('signs in, survives a reload, and signs out', async ({ page }) => {
 test('a wrong password is refused with a message', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(`${password}-wrong`);
+  await page.getByLabel('Password', { exact: true }).fill(`${password}-wrong`);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('alert').first()).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
