@@ -260,13 +260,13 @@ function RuleModal({ open, companyId, rule, onClose }: { open: boolean; companyI
       )}
     >
       <form id="rule-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Name" htmlFor="rule-name" error={form.formState.errors.name?.message}>
+        <Field label="Name" htmlFor="rule-name" required error={form.formState.errors.name?.message}>
           <Input id="rule-name" placeholder="e.g. Fix-ups when the client asks for changes" {...form.register('name')} />
         </Field>
         {/* The trigger decides the action and cannot change once the rule exists. */}
         <Field
           label="When this happens"
-          htmlFor="rule-trigger"
+          htmlFor="rule-trigger" required
           hint={editing ? 'A rule’s trigger is fixed. Create a new rule to react to something else.' : undefined}
           error={form.formState.errors.triggerType?.message}
         >

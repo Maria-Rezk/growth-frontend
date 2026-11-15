@@ -8,14 +8,15 @@ import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
 import { LogoutIcon, MenuIcon } from '@/components/ui/icons';
 import { env } from '@/config/env';
+import { SIDEBAR_ID } from '@/components/layout/Sidebar';
 
-export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
+export function Topbar({ onMenuClick, menuOpen }: { onMenuClick: () => void; menuOpen: boolean }) {
   const { user, logout } = useAuth();
   const { t } = useLocale();
 
   return (
     <header className="topbar">
-      <button className="icon-button mobile-only" type="button" onClick={onMenuClick} aria-label={t('a11y.openMenu')}>
+      <button className="icon-button mobile-only" type="button" onClick={onMenuClick} aria-label={t('a11y.openMenu')} aria-expanded={menuOpen} aria-controls={SIDEBAR_ID}>
         <MenuIcon size={18} />
       </button>
 

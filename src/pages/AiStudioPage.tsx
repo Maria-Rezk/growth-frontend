@@ -169,12 +169,12 @@ function AiStudioInner({ companyId }: { companyId: string }) {
         {draft.restored ? <p className="muted">Restored what you were writing before.</p> : null}
         <form className="form-grid form-card" onSubmit={submit} noValidate>
           <div className="grid-2">
-            <Field label="Output type" htmlFor="ai-type">
+            <Field label="Output type" htmlFor="ai-type" required>
               <Select id="ai-type" {...form.register('type')}>
                 {Object.values(AiGenerationType).map((t) => <option key={t} value={t}>{humanize(t)}</option>)}
               </Select>
             </Field>
-            <Field label="Language" htmlFor="ai-language">
+            <Field label="Language" htmlFor="ai-language" required>
               <Select id="ai-language" {...form.register('language')}>
                 <option value="ar">Arabic</option>
                 <option value="en">English</option>
@@ -185,7 +185,7 @@ function AiStudioInner({ companyId }: { companyId: string }) {
           {type !== AiGenerationType.CAPTION_SUGGESTION ? (
             <Field
               label="Goal"
-              htmlFor="ai-goal"
+              htmlFor="ai-goal" optional
               hint="What this content should achieve."
               error={form.formState.errors.goal?.message}
             >
@@ -195,16 +195,16 @@ function AiStudioInner({ companyId }: { companyId: string }) {
 
           {type === AiGenerationType.CONTENT_PLAN_PREVIEW ? (
             <div className="field-grid">
-              <Field label="Month" htmlFor="ai-month" error={form.formState.errors.month?.message}>
+              <Field label="Month" htmlFor="ai-month" optional error={form.formState.errors.month?.message}>
                 <Input id="ai-month" type="number" min={1} max={12} {...form.register('month')} />
               </Field>
-              <Field label="Year" htmlFor="ai-year" error={form.formState.errors.year?.message}>
+              <Field label="Year" htmlFor="ai-year" optional error={form.formState.errors.year?.message}>
                 <Input id="ai-year" type="number" min={2020} max={2100} {...form.register('year')} />
               </Field>
-              <Field label="Number of posts" htmlFor="ai-nposts" error={form.formState.errors.numberOfPosts?.message}>
+              <Field label="Number of posts" htmlFor="ai-nposts" optional error={form.formState.errors.numberOfPosts?.message}>
                 <Input id="ai-nposts" type="number" min={1} max={30} {...form.register('numberOfPosts')} />
               </Field>
-              <Field label="Platform" htmlFor="ai-plat">
+              <Field label="Platform" htmlFor="ai-plat" optional>
                 <Select id="ai-plat" {...form.register('platform')}>
                   {PLATFORMS.map((p) => <option key={p} value={p}>{humanize(p)}</option>)}
                 </Select>
@@ -214,15 +214,15 @@ function AiStudioInner({ companyId }: { companyId: string }) {
 
           {type === AiGenerationType.POST_IDEAS ? (
             <div className="field-grid">
-              <Field label="Count" htmlFor="ai-count" error={form.formState.errors.count?.message}>
+              <Field label="Count" htmlFor="ai-count" optional error={form.formState.errors.count?.message}>
                 <Input id="ai-count" type="number" min={1} max={20} {...form.register('count')} />
               </Field>
-              <Field label="Platform" htmlFor="ai-plat2">
+              <Field label="Platform" htmlFor="ai-plat2" optional>
                 <Select id="ai-plat2" {...form.register('platform')}>
                   {PLATFORMS.map((p) => <option key={p} value={p}>{humanize(p)}</option>)}
                 </Select>
               </Field>
-              <Field label="Content type" htmlFor="ai-ctype">
+              <Field label="Content type" htmlFor="ai-ctype" optional>
                 <Select id="ai-ctype" {...form.register('contentType')}>
                   {CONTENT_TYPES.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
                 </Select>
@@ -234,7 +234,7 @@ function AiStudioInner({ companyId }: { companyId: string }) {
             <div className="field-grid">
               <Field
                 label="Target post"
-                htmlFor="ai-post"
+                htmlFor="ai-post" optional
                 hint={posts.error ? 'Could not load posts.' : 'The caption is written for this post.'}
                 error={form.formState.errors.postId?.message}
               >
@@ -258,10 +258,10 @@ function AiStudioInner({ companyId }: { companyId: string }) {
                   ))}
                 </Select>
               </Field>
-              <Field label="Number of options" htmlFor="ai-nopt" error={form.formState.errors.numberOfOptions?.message}>
+              <Field label="Number of options" htmlFor="ai-nopt" optional error={form.formState.errors.numberOfOptions?.message}>
                 <Input id="ai-nopt" type="number" min={1} max={10} {...form.register('numberOfOptions')} />
               </Field>
-              <Field label="Tone override" htmlFor="ai-tone" hint="Optional.">
+              <Field label="Tone override" htmlFor="ai-tone" optional>
                 <Input id="ai-tone" {...form.register('toneOverride')} />
               </Field>
             </div>

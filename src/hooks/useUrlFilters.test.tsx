@@ -41,4 +41,36 @@ describe('useUrlFilters', () => {
     act(() => result.current.reset());
     expect(result.current.search).toBe('?utm=x');
   });
+
+  /*
+    REGRESSION (N-6): two updates in one event. The Leads setters set a filter
+    and then page=1; the second update started from the last-rendered URL and
+    erased the first, so no Leads filter ever applied.
+  */
+  it('keeps both of two updates made in the same event', () => {
+    const { result } = renderHook(useHarness, { wrapper: wrapper('/leads?view=table') });
+    act(() => {
+      result.current.set({ status: 'INTERESTED' });
+      result.current.set({ search: 'Nour' });
+    });
+    expect(result.current.values).toEqual({ status: 'INTERESTED', search: 'Nour', view: 'table' });
+  });
+
+  it('lets a later update in the same event override an earlier one for the same key', () => {
+    const { result } = renderHook(useHarness, { wrapper: wrapper('/leads') });
+    act(() => {
+      result.current.set({ status: 'NEW' });
+      result.current.set({ status: 'WON' });
+    });
+    expect(result.current.search).toBe('?status=WON');
+  });
+
+  it('starts from the current URL again on the next event, not a stale pending one', async () => {
+    const { result } = renderHook(useHarness, { wrapper: wrapper('/leads') });
+    act(() => result.current.set({ status: 'NEW' }));
+    act(() => result.current.reset());
+    await act(async () => { await Promise.resolve(); });
+    act(() => result.current.set({ search: 'x' }));
+    expect(result.current.search).toBe('?search=x');
+  });
 });

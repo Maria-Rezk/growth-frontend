@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { useAsync, useMutation } from '@/hooks/useAsync';
@@ -12,9 +12,12 @@ import { useOpenNotification } from './useOpenNotification';
 
 export function NotificationsDropdown() {
   const navigate = useNavigate();
-  const { unreadCount, refreshUnreadCount } = useNotifications();
+  const { unreadCount, refreshUnreadCount, refreshNotifications } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const panelId = useId();
   /*
     Shares `queryKeys.notifications` with the full Notifications page and
     NotificationsContext — it used to key on its own `factory.toString()`
@@ -35,7 +38,11 @@ export function NotificationsDropdown() {
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      // Closing must not strand focus on a panel that is about to disappear.
+      const focusInside = Boolean(ref.current?.contains(document.activeElement));
+      setOpen(false);
+      if (focusInside) bellRef.current?.focus();
     };
 
     document.addEventListener('mousedown', onPointerDown);
@@ -45,6 +52,16 @@ export function NotificationsDropdown() {
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
+  }, [open]);
+
+  /*
+    A disclosure, not a menu: the panel holds a heading, buttons and a list,
+    which `role="menu"` (menu items and arrow keys only) cannot describe. On
+    open, focus moves into the labelled panel so a screen reader announces it
+    and Tab walks its controls in order.
+  */
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
   }, [open]);
 
   const openNotification = useOpenNotification();
@@ -61,21 +78,35 @@ export function NotificationsDropdown() {
   };
 
   return (
-    <div className="notifications-dropdown" ref={ref}>
+    <div
+      className="notifications-dropdown"
+      ref={ref}
+      // Tabbing out of the panel closes it, so it never stays open behind the
+      // keyboard user. A click elsewhere is handled by the mousedown listener.
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (open && next && !event.currentTarget.contains(next)) setOpen(false);
+      }}
+    >
       <button
+        ref={bellRef}
         className="icon-button"
         type="button"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-        aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => {
+          // Opening always shows the latest: the cached list is shown at once and replaced when the refetch lands.
+          if (!open) void refreshNotifications();
+          setOpen((value) => !value);
+        }}
       >
         <BellIcon size={18} />
         {unreadCount > 0 ? <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
       </button>
 
       {open ? (
-        <div className="notifications-panel" role="menu" aria-label="Recent notifications">
+        <section ref={panelRef} id={panelId} className="notifications-panel" aria-label="Recent notifications" tabIndex={-1}>
           <div className="notifications-panel__header">
             <div>
               <strong>Notifications</strong>
@@ -86,7 +117,8 @@ export function NotificationsDropdown() {
 
           <div className="notifications-panel__body">
             {list.loading ? <p className="muted">Loading notifications…</p> : null}
-            {list.error ? <p className="error-text">{list.error}</p> : null}
+            {/* A failed background refresh keeps the last list on screen; the error only shows when there is nothing to show. */}
+            {list.error && !list.data ? <p className="error-text">{list.error}</p> : null}
             {!list.loading && !list.error && recentItems.length === 0 ? <p className="muted">No notifications yet.</p> : null}
             {recentItems.map((notification) => (
               <NotificationItem key={notification.id} notification={notification} compact onSelect={handleSelect} />
@@ -103,7 +135,7 @@ export function NotificationsDropdown() {
           >
             View all notifications
           </button>
-        </div>
+        </section>
       ) : null}
     </div>
   );

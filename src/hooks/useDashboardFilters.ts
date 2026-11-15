@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { today } from '@/utils/dashboardFilters';
 import type { DashboardFilters } from '@/types/domain';
@@ -111,33 +111,48 @@ export function useUrlFilters<T extends Record<string, string>>(defaults: T): [T
     return next;
   }, [defaults, searchParams]);
 
+  /*
+    Updates made in the same event build on one another.
+
+    React Router's functional setSearchParams starts from the params of the
+    last render, not from an update made a moment earlier in the same
+    handler, so a second call erased the first. That was N-6: every Leads
+    filter set its value and then page=1, and only page=1 survived, so no
+    filter ever applied. Pending params are held for the rest of the current
+    task and dropped after it, so the next event starts from the URL again.
+  */
+  const pending = useRef<URLSearchParams | null>(null);
+  // Read through a ref so `set` and `reset` keep one identity, as before.
+  const latest = useRef(searchParams);
+  latest.current = searchParams;
+  const write = useCallback(
+    (change: (next: URLSearchParams) => void) => {
+      const next = new URLSearchParams(pending.current ?? latest.current);
+      change(next);
+      if (!pending.current) queueMicrotask(() => { pending.current = null; });
+      pending.current = next;
+      setSearchParams(next, { replace: true });
+    },
+    [setSearchParams],
+  );
+
   const set = useCallback(
     (patch: Partial<T>) => {
-      setSearchParams(
-        (current) => {
-          const next = new URLSearchParams(current);
-          Object.entries(patch).forEach(([key, value]) => {
-            if (value === undefined || value === defaults[key]) next.delete(key);
-            else next.set(key, String(value));
-          });
-          return next;
-        },
-        { replace: true },
-      );
+      write((next) => {
+        Object.entries(patch).forEach(([key, value]) => {
+          if (value === undefined || value === defaults[key]) next.delete(key);
+          else next.set(key, String(value));
+        });
+      });
     },
-    [defaults, setSearchParams],
+    [defaults, write],
   );
 
   const reset = useCallback(() => {
-    setSearchParams(
-      (current) => {
-        const next = new URLSearchParams(current);
-        Object.keys(defaults).forEach((key) => next.delete(key));
-        return next;
-      },
-      { replace: true },
-    );
-  }, [defaults, setSearchParams]);
+    write((next) => {
+      Object.keys(defaults).forEach((key) => next.delete(key));
+    });
+  }, [defaults, write]);
 
   return [values, set, reset];
 }

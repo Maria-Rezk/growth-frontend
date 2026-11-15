@@ -6,11 +6,11 @@ import { RequireCompany } from '@/components/layout/RequireCompany';
 import { RoleGate } from '@/components/domain/RoleGate';
 import { AttachmentsPanel } from '@/components/domain/AttachmentsPanel';
 import { StatusBadge } from '@/components/domain/StatusBadges';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, PageHeader } from '@/components/ui/Card';
 import { Field, Select } from '@/components/ui/Fields';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { CloseIcon, PlusIcon } from '@/components/ui/icons';
 import { appRoutes } from '@/config/appRoutes';
@@ -53,6 +53,7 @@ function CampaignDetailInner({ companyId, campaignId }: { companyId: string; cam
   const confirm = useConfirm();
 
   if (overview.loading) return <DetailSkeleton />;
+  if (overview.errorStatus === 404) return <RecordNotFound title="Campaign not found" backTo={appRoutes.campaigns} backLabel="Back to campaigns" />;
   if (overview.error || !overview.data) return <ErrorState message={overview.error ?? 'Campaign not found.'} onRetry={overview.refetch} />;
 
   const { campaign, metrics } = overview.data;
@@ -81,7 +82,7 @@ function CampaignDetailInner({ companyId, campaignId }: { companyId: string; cam
       <PageHeader
         title={campaign.name}
         subtitle={`${humanize(campaign.objective)} · ${formatDate(campaign.startDate)} – ${formatDate(campaign.endDate)}${campaign.budget ? ` · ${campaign.currency ?? ''} ${campaign.budget}` : ''}`}
-        action={<ButtonLink to="/campaigns" variant="secondary" size="sm">All campaigns</ButtonLink>}
+        back={{ to: appRoutes.campaigns, label: 'Back to campaigns' }}
       />
 
       <div className="stat-grid stat-grid--3">

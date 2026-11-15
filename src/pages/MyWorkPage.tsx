@@ -28,6 +28,8 @@ import {
   type DueBucket,
 } from '@/utils/dueBuckets';
 import { TaskStatus } from '@/types/domain';
+import { useAuth } from '@/context/AuthContext';
+import { isStepFlow, liveStep, stepActions } from '@/utils/taskSteps';
 import { ListSkeleton } from '@/components/ui/Skeleton';
 
 /**
@@ -138,7 +140,7 @@ function MyWorkInner() {
     if (result) toast.success(`${task.title} → ${humanize(status)}`);
   };
 
-  const submit = (task: MyWorkTask) => review.submit(task.clientId, task.id);
+  const submit = (task: MyWorkTask) => review.submit(task.clientId, task.id, undefined, liveStep(task)?.stepOrder);
 
   if (work.loading) return <><PageHeader title="My work" subtitle={MY_WORK_SUBTITLE} /><ListSkeleton rows={6} /></>;
   if (work.error) return <ErrorState message={work.error} onRetry={work.refetch} />;
@@ -165,7 +167,7 @@ function MyWorkInner() {
     );
   }
 
-  const headline = summarise(groups);
+  const nothingDueSoon = groups.overdue.length + groups.today.length + groups.week.length === 0;
 
   return (
     <>
@@ -180,7 +182,7 @@ function MyWorkInner() {
         </div>
       ) : null}
 
-      <div className="stat-grid stat-grid--3">
+      <div className="stat-grid stat-grid--3 kpi-strip">
         <WorkTile label="Overdue" value={groups.overdue.length} tone="accent" helper="Late and still open." />
         <WorkTile label="Due today" value={groups.today.length} tone="warning" helper="Before the end of today." />
         <WorkTile label="This week" value={groups.week.length} tone="info" helper="Within the next seven days." />
@@ -215,7 +217,11 @@ function MyWorkInner() {
         </Card>
       ) : (
         <>
-          <p className="muted">{headline}</p>
+          {/* The tiles above already give these counts, and each group below is
+              titled with its own ("This week (3)"), so the old one-line summary
+              said everything a third time. It stays only when it adds something:
+              nothing is due this week, and the groups below are later work. */}
+          {nothingDueSoon ? <p className="muted">Nothing due in the next seven days.</p> : null}
           {DUE_BUCKETS.map((bucket) => (
             <DueGroup
               key={bucket}
@@ -248,16 +254,6 @@ function listNames(names: string[]): string {
   return `${names[0]}, ${names[1]} and ${names.length - 2} others`;
 }
 
-/** "3 overdue · 4 due today · 2 this week" — the day in one line. */
-function summarise(groups: Record<DueBucket, MyWorkTask[]>): string {
-  const parts: string[] = [];
-  if (groups.overdue.length) parts.push(`${groups.overdue.length} overdue`);
-  if (groups.today.length) parts.push(`${groups.today.length} due today`);
-  if (groups.week.length) parts.push(`${groups.week.length} this week`);
-  if (!parts.length) return 'Nothing due in the next seven days.';
-  return parts.join(' · ');
-}
-
 function WorkTile({
   label,
   value,
@@ -270,7 +266,8 @@ function WorkTile({
   tone: 'accent' | 'warning' | 'info';
 }) {
   return (
-    <Card className={clsx('metric-card', `metric-card--${tone}`)}>
+    // A zero is not a warning: the tone dot marks only a count that needs attention.
+    <Card className={clsx('metric-card', `metric-card--${tone}`, value === 0 && 'metric-card--zero')}>
       <span>{label}</span>
       <strong>{value}</strong>
       <p>{helper}</p>
@@ -295,6 +292,7 @@ function DueGroup({
   onMove: (task: MyWorkTask, status: TaskStatus) => void;
   onSubmit: (task: MyWorkTask) => void;
 }) {
+  const { user } = useAuth();
   // An empty bucket is noise, not information — the tiles above already say
   // "zero overdue" for the one case where zero is worth stating.
   if (tasks.length === 0) return null;
@@ -326,7 +324,10 @@ function DueGroup({
               </div>
 
               <div className="work-row__actions">
-                {isInReview(task) ? (
+                {isStepFlow(task) ? (
+                  // A flow: only the live step's person starts or submits, and never by a free status change.
+                  <FlowRowActions task={task} userId={user?.id} busy={busy} onMove={onMove} onSubmit={onSubmit} onOpen={onOpen} />
+                ) : isInReview(task) ? (
                   <span className={isWaitingLong(task.submittedForReviewAt) ? 'muted danger-text' : 'muted'}>
                     Waiting on {userLabel(task.approver, 'an approver')} · {formatWaiting(task.submittedForReviewAt)}
                   </span>
@@ -354,5 +355,50 @@ function DueGroup({
         </ul>
       </div>
     </Card>
+  );
+}
+
+/** My work's row actions on a task that runs as a flow of steps: the same rules as the task page. */
+function FlowRowActions({
+  task,
+  userId,
+  busy,
+  onMove,
+  onSubmit,
+  onOpen,
+}: {
+  task: MyWorkTask;
+  userId?: string;
+  busy: boolean;
+  onMove: (task: MyWorkTask, status: TaskStatus) => void;
+  onSubmit: (task: MyWorkTask) => void;
+  onOpen: (task: MyWorkTask) => void;
+}) {
+  const live = liveStep(task);
+  const actions = stepActions(task, userId);
+  if (live?.status === 'IN_REVIEW') {
+    return (
+      <span className={isWaitingLong(task.submittedForReviewAt) ? 'muted danger-text' : 'muted'}>
+        Waiting on {userLabel(live.approver ?? task.approver, 'an approver')} · {formatWaiting(task.submittedForReviewAt)}
+      </span>
+    );
+  }
+  if (actions.waitingForTeammates) {
+    // Your part is in; the step waits for the others before it moves on.
+    return <span className="muted">Your part is in · waiting for teammates</span>;
+  }
+  if (!actions.canStart && !actions.canSubmit) {
+    // Their step is done, or somebody else's turn: nothing to press here.
+    return <Button size="sm" variant="ghost" onClick={() => onOpen(task)}>Open</Button>;
+  }
+  return (
+    <>
+      {actions.canStart ? (
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => onMove(task, TaskStatus.IN_PROGRESS)}>Start</Button>
+      ) : null}
+      <Button size="sm" disabled={busy} onClick={() => onSubmit(task)}>
+        {(live?.assignees.length ?? 0) > 1 ? 'Hand in my part' : live?.approverId ? 'Submit for review' : 'Mark step done'}
+      </Button>
+    </>
   );
 }

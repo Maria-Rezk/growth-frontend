@@ -1,7 +1,8 @@
 import { env } from '@/config/env';
 import { apiRoutes } from '@/config/apiRoutes';
 import { http, unwrap } from '@/lib/http';
-import { demoDelay, demoNotificationPreferences, demoNotifications } from '@/services/demoStore';
+import { demoDelay, demoMemberUser, demoNotificationPreferences, demoNotifications, demoTasks } from '@/services/demoStore';
+import { liveStep } from '@/utils/taskSteps';
 import type { AppNotification, NotificationPreferences, NotificationType } from '@/types/domain';
 
 /**
@@ -14,6 +15,36 @@ function normalizeNotification(raw: AppNotification): AppNotification {
     ...raw,
     relatedEntityType: raw.relatedEntityType ?? raw.entityType,
     relatedEntityId: raw.relatedEntityId ?? raw.entityId,
+    // The people fields (parallel-steps guide 2). An older API sends none of them.
+    actionBy: raw.actionBy ?? null,
+    createdBy: raw.createdBy ?? null,
+    assignedTo: raw.assignedTo ?? null,
+    currentAssignees: Array.isArray(raw.currentAssignees) ? raw.currentAssignees : [],
+    task: raw.task ?? null,
+  };
+}
+
+/**
+ * Demo-only: the people fields the API resolves on read: the task as it is
+ * NOW (its status, who has it, who is on the live step) and who acted.
+ */
+function demoWithPeople(notification: AppNotification): AppNotification {
+  const actor = notification.actorUserId ? demoMemberUser(notification.actorUserId) : null;
+  const actionBy = actor ? { id: actor.id, fullName: actor.fullName } : null;
+  const target = notification.relatedEntityType === 'TASK' ? demoTasks.find((task) => task.id === notification.relatedEntityId) : undefined;
+  if (!target) return { ...notification, actionBy, createdBy: null, assignedTo: null, currentAssignees: [], task: null };
+  const creator = target.createdById ? demoMemberUser(target.createdById) : null;
+  const live = liveStep(target);
+  const currentAssignees = live
+    ? live.assignees.map((person) => ({ id: person.userId, fullName: person.user?.fullName ?? null, role: person.role, status: person.status ?? null, stepOrder: person.stepOrder ?? null }))
+    : target.assignedToId ? [{ id: target.assignedToId, fullName: target.assignedTo?.fullName ?? null, role: null, status: target.status, stepOrder: null }] : [];
+  return {
+    ...notification,
+    actionBy,
+    createdBy: creator ? { id: creator.id, fullName: creator.fullName } : null,
+    assignedTo: target.assignedToId ? { id: target.assignedToId, fullName: target.assignedTo?.fullName ?? null } : null,
+    currentAssignees,
+    task: { id: target.id, title: target.title, status: target.status },
   };
 }
 
@@ -32,7 +63,7 @@ function normalizePreferences(raw: Partial<NotificationPreferences> | null | und
 export const notificationsService = {
   /** Muted types are excluded server-side unless `includeMuted` is set. */
   async list(options?: { includeMuted?: boolean }): Promise<AppNotification[]> {
-    if (env.demoMode) return demoDelay(options?.includeMuted ? demoNotifications : demoNotifications.filter(demoVisible));
+    if (env.demoMode) return demoDelay((options?.includeMuted ? demoNotifications : demoNotifications.filter(demoVisible)).map(demoWithPeople));
     const response = await http.get(apiRoutes.notifications.list, {
       params: options?.includeMuted ? { includeMuted: true } : undefined,
     });

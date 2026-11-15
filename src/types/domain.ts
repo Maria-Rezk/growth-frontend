@@ -33,7 +33,17 @@ export interface ApiErrorShape {
   userId?: string;
   /** On DUPLICATE_ASSIGNEE: the role they were listed in twice. */
   role?: string;
+  /** On INVALID_TRANSITION / STEP_* codes: the step the answer is about. */
+  stepOrder?: number;
+  /** On STEP_ASSIGNEE_REQUIRED / NOT_IN_STEP: the people involved. */
+  userIds?: string[];
 }
+
+/** Codes the sign-in endpoint adds to a 401. A wrong password has none. */
+export const AuthErrorCode = {
+  /** Correct password, but the account is INACTIVE or SUSPENDED. No token is issued. */
+  ACCOUNT_DISABLED: 'ACCOUNT_DISABLED',
+} as const;
 
 /** Same rule for creating a user, accepting an invitation and resetting a password. */
 export const PASSWORD_MIN_LENGTH = 12;
@@ -69,12 +79,17 @@ export function isSuperAdmin(role?: PlatformRole): boolean {
   return role === PlatformRole.SUPER_ADMIN;
 }
 
+/** Staff of the agency, or a contact at a client. Every user carries one. */
+export type UserType = 'EMPLOYEE' | 'CLIENT';
+
 export interface User {
   id: UUID;
   email: string;
   fullName?: string;
   platformRole?: PlatformRole;
   status?: string;
+  /** Older responses omit it. */
+  userType?: UserType;
   createdAt?: ISODate;
   updatedAt?: ISODate;
 }
@@ -436,6 +451,16 @@ export const ATTACHMENT_LABEL_MAX = 180;
 
 /** Mirrors the API: 25MB per file, 20 attachments per record, 20 ids on a create. */
 export const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
+
+/** What the upload picker accepts — the API refuses anything else at upload. */
+export const ATTACHMENT_ACCEPT = [
+  'image/*',
+  '.pdf',
+  '.doc,.docx,.xls,.xlsx,.ppt,.pptx',
+  '.csv,.txt',
+  '.mp4,.mov',
+  '.zip',
+].join(',');
 export const ATTACHMENTS_PER_RECORD = 20;
 
 /** Post stages: tasks on the post with a `sequence`. Only on the single-post read. */
@@ -489,7 +514,8 @@ export interface Lead {
   name: string;
   email?: string;
   phone?: string;
-  source?: string;
+  /** A LeadSource value. The API uses the same enum set (see docs/backend-contract-audit.md). */
+  source?: LeadSource;
   interestedService?: string;
   notes?: string;
   nextFollowUpAt?: ISODate;
@@ -580,20 +606,87 @@ export const TaskAssigneeRole = {
 } as const;
 export type TaskAssigneeRole = (typeof TaskAssigneeRole)[keyof typeof TaskAssigneeRole];
 
-/** One person on a task in one role. `id` is the assignment, not the user. */
+/**
+ * Where one person's part, or one step, of a task's flow stands. At most one
+ * step is TODO, IN_PROGRESS or IN_REVIEW at a time — the live step.
+ */
+export const TaskStepStatus = {
+  /** Not reached: nobody on it has been told yet. */
+  PENDING: 'PENDING',
+  /** Reached; this person (or, on a step, anybody) has not started. */
+  TODO: 'TODO',
+  /** Working. On a step: at least one person started or submitted. */
+  IN_PROGRESS: 'IN_PROGRESS',
+  /**
+   * A person handed their part in and waits for the others on the step.
+   * Only on a person, never on a step, and never on a one-person step.
+   */
+  SUBMITTED: 'SUBMITTED',
+  /** Everybody submitted; with the step's approver. */
+  IN_REVIEW: 'IN_REVIEW',
+  /** Finished (approved, when the step had an approver). */
+  DONE: 'DONE',
+} as const;
+export type TaskStepStatus = (typeof TaskStepStatus)[keyof typeof TaskStepStatus];
+
+/**
+ * One person on a task's flow, in one role, on one step. Several people may
+ * share a step and work on it side by side; each has their own status and
+ * clock. `id` is this person's row, not the user.
+ */
 export interface TaskAssignee {
   id: UUID;
   userId: UUID;
   role: TaskAssigneeRole;
+  /** The step this person is on, from 1. Older responses may omit it; each row is then a step of its own, in list order. */
+  stepOrder?: number;
+  /** This person's own status. Older responses may omit it. */
+  status?: TaskStepStatus;
+  user?: User | null;
+  /** The step's approver — shared by everybody on the step. Null: the step is done once everybody submits. */
+  approverId?: UUID | null;
+  approver?: User | null;
+  /** When the step reached them, or when they were added to a live step. */
+  reachedAt?: ISODate | null;
+  /** When their own clock started. */
+  startedAt?: ISODate | null;
+  /** When they handed their part in. */
+  submittedAt?: ISODate | null;
+  reviewedAt?: ISODate | null;
+  completedAt?: ISODate | null;
+  /** The approver's note, when this person was sent back. */
+  reviewNote?: string | null;
   assignedById?: UUID | null;
   createdAt?: ISODate;
-  user?: User | null;
 }
 
-/** What create and update send: the whole list, replacing the old one. Max 20. */
+/** One step of the flow, as the API groups it in `task.steps`. */
+export interface TaskStep {
+  stepOrder: number;
+  /** PENDING, TODO, IN_PROGRESS, IN_REVIEW or DONE — never SUBMITTED. */
+  status: TaskStepStatus;
+  approverId: UUID | null;
+  approver?: User | null;
+  reachedAt?: ISODate | null;
+  completedAt?: ISODate | null;
+  assigneeCount: number;
+  /** People in SUBMITTED, IN_REVIEW or DONE: "1 of 2 submitted". */
+  submittedCount: number;
+  assignees: TaskAssignee[];
+}
+
+/**
+ * What create and update send: the WHOLE list, replacing the old one. Max 20.
+ * Without `stepOrder` on anybody each person is a step of their own, in the
+ * order sent. Once any step has more than one person, `stepOrder` goes on
+ * everybody (400 STEP_ORDER_REQUIRED otherwise); the same number is the same step.
+ */
 export interface TaskAssigneeInput {
   userId: UUID;
   role: TaskAssigneeRole;
+  stepOrder?: number;
+  /** The step's approver. One per step; on one person or on all of them. */
+  approverId?: UUID;
 }
 
 /** Most people on one task the API accepts. */
@@ -615,18 +708,22 @@ export interface Task {
   /** First time the task moved to IN_PROGRESS. Null until work starts. */
   startedAt?: ISODate | null;
   /**
-   * The lead: who dashboards count the work against. Stays on the same person
-   * through every round of review. Defaults to the first of `assignees`.
+   * Who is working on it now. On a task without steps, the assignee; on a
+   * flow, the live step's person (read-only — sending it on a flow is a 400).
    */
   assignedToId?: UUID | null;
   assignedTo?: User | null;
   /**
-   * Everybody on the task, each in a role. Order is not guaranteed — sort with
-   * `sortAssignees`. Tasks from before this shipped have `[]` and only a lead.
+   * The flow's steps (section 3.5 of the release guide). `[]` for a task
+   * without people, which runs with one assignee and one approver. Sort with
+   * `sortSteps`.
    */
   assignees: TaskAssignee[];
+  /** The flow grouped by step, when the API sends it. Read through `flowSteps`, which also builds it from `assignees`. */
+  steps?: TaskStep[];
   /**
-   * Who must say yes. `null` means the task cannot be submitted for review —
+   * Who must approve now. On a flow, the live step's approver. On a task
+   * without steps, `null` means it cannot be submitted for review —
    * the UI has to ask for a name first. Resolved from the responsibility
    * matrix at creation; changing the matrix later never rewrites it.
    */
@@ -683,6 +780,20 @@ export const TaskReviewErrorCode = {
   ASSIGNEE_NOT_A_MEMBER: 'ASSIGNEE_NOT_A_MEMBER',
   /** 400 on create/update: the same person twice in the same role. Body carries `userId` and `role`. */
   DUPLICATE_ASSIGNEE: 'DUPLICATE_ASSIGNEE',
+  /** 403: acting on a step that is not yours (not the live step's person or approver). */
+  NOT_YOUR_STEP: 'NOT_YOUR_STEP',
+  /** 409: a free status change on a flow. Only Start (IN_PROGRESS) and Cancel are allowed there. */
+  STEP_FLOW_ONLY: 'STEP_FLOW_ONLY',
+  /** 409 on update: a step that has started was changed or moved. Body lists the locked steps. */
+  STEP_FLOW_STARTED: 'STEP_FLOW_STARTED',
+  /** 400: `stepOrder` on some people but not all. */
+  STEP_ORDER_REQUIRED: 'STEP_ORDER_REQUIRED',
+  /** 400: two different approvers named on one step. Body: `stepOrder`, `approverIds`. */
+  STEP_APPROVER_CONFLICT: 'STEP_APPROVER_CONFLICT',
+  /** 409: an admin acted on a shared step without saying for whom. Body: `stepOrder`, `userIds`. */
+  STEP_ASSIGNEE_REQUIRED: 'STEP_ASSIGNEE_REQUIRED',
+  /** 422: `userIds` / `onBehalfOfUserId` names somebody not on the live step. Body: `stepOrder`, `userIds`. */
+  NOT_IN_STEP: 'NOT_IN_STEP',
 } as const;
 export type TaskReviewErrorCode = (typeof TaskReviewErrorCode)[keyof typeof TaskReviewErrorCode];
 
@@ -964,6 +1075,28 @@ export interface AppNotification {
   /** The client the target belongs to, when the API sends it. Opening the target switches to it. */
   companyId?: UUID;
   createdAt?: ISODate;
+  /** Whose action produced it. Null for reminders and older notifications. */
+  actorUserId?: UUID | null;
+  actionBy?: NotificationPerson | null;
+  /** Who created the task. Null when not about a task. */
+  createdBy?: NotificationPerson | null;
+  /** Who has the task NOW: on a flow, the first person on the live step still working. */
+  assignedTo?: NotificationPerson | null;
+  /** Everybody on the live step NOW, each with their own role and status. */
+  currentAssignees?: NotificationAssignee[];
+  /** The task as it is NOW. Null when not about a task, or the task is gone. */
+  task?: { id: UUID; title: string; status: TaskStatus } | null;
+}
+
+export interface NotificationPerson {
+  id: UUID;
+  fullName?: string | null;
+}
+
+export interface NotificationAssignee extends NotificationPerson {
+  role?: string | null;
+  status?: string | null;
+  stepOrder?: number | null;
 }
 
 /** GET/PUT /me/notification-preferences. PUT replaces the whole object — a missing key means off. */

@@ -174,7 +174,7 @@ function ApplyContentPlan({ companyId, generation, canApply, applied, onApplied,
 
       {!applied ? (
         <div className="form-grid">
-          <Field label="Title override" htmlFor={`title-${generation.id}`} hint="Optional. Rename the plan when applying.">
+          <Field label="Title override" htmlFor={`title-${generation.id}`} optional hint="Rename the plan when applying.">
             <Input id={`title-${generation.id}`} value={titleOverride} onChange={(e) => setTitleOverride(e.target.value)} />
           </Field>
           <label className="checkbox-row">

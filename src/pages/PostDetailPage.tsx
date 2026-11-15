@@ -3,9 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { appRoutes } from '@/config/appRoutes';
 import { RequireCompany } from '@/components/layout/RequireCompany';
 import { PageHeader, Card, CardHeader } from '@/components/ui/Card';
-import { Button, ButtonLink } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Fields';
-import { EmptyState, ErrorState } from '@/components/ui/State';
+import { EmptyState, ErrorState, RecordNotFound } from '@/components/ui/State';
 import { Badge } from '@/components/ui/Badge';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { RoleGate } from '@/components/domain/RoleGate';
@@ -45,8 +45,8 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
 
   const postsPrefix = [['companies', companyId, 'posts']];
   const post = useAsync(() => contentService.getPost(companyId, postId), [companyId, postId], { queryKey: queryKeys.post(companyId, postId) });
-  const comments = useAsync(() => contentService.comments(companyId, postId), [companyId, postId]);
-  const logs = useAsync(() => contentService.approvalLogs(companyId, postId), [companyId, postId], { enabled: canSeeHistory });
+  const comments = useAsync(() => contentService.comments(companyId, postId), [companyId, postId], { queryKey: queryKeys.postComments(companyId, postId) });
+  const logs = useAsync(() => contentService.approvalLogs(companyId, postId), [companyId, postId], { queryKey: queryKeys.postLogs(companyId, postId), enabled: canSeeHistory });
 
   // All mutations declared before any early return (rules of hooks).
   // 409 STAGES_OPEN is a gate, not a race: the refetch after the press brings the stages that are in the way.
@@ -82,6 +82,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
   if (isClient && (post.errorStatus === 404 || (post.data && isHiddenFromClient(post.data.status)))) {
     return <EmptyState title="This post is not available" description="It may still be in preparation. Your agency will send it when it is ready for you." />;
   }
+  if (post.errorStatus === 404) return <RecordNotFound title="Post not found" backTo={appRoutes.posts} backLabel="Back to posts" />;
   if (post.error || !post.data) return <ErrorState message={post.error ?? 'Post not found.'} onRetry={post.refetch} />;
 
   const next = postActionsFor(post.data.status);
@@ -147,7 +148,7 @@ function PostDetailInner({ companyId, postId }: { companyId: string; postId: str
       <PageHeader
         title={post.data.title}
         subtitle="Caption, visual brief, assets, comments and approval decisions."
-        action={<ButtonLink to="/posts" variant="secondary" size="sm">Back to posts</ButtonLink>}
+        back={{ to: appRoutes.posts, label: 'Back to posts' }}
       />
 
       <WorkflowStepper status={post.data.status} />

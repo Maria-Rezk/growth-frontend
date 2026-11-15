@@ -94,27 +94,27 @@ export function PostContentEditor({
 
   return (
     <form className="form-grid" onSubmit={submit} noValidate>
-      <Field label="Title" htmlFor="edit-title" error={errors.title?.message}>
+      <Field label="Title" htmlFor="edit-title" required error={errors.title?.message}>
         <Input id="edit-title" {...form.register('title')} />
       </Field>
       <div className="grid-2">
-        <Field label="Platform" htmlFor="edit-platform">
+        <Field label="Platform" htmlFor="edit-platform" optional>
           <Select id="edit-platform" {...form.register('platform')}>
             <option value="">—</option>
             {platformOptions.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
           </Select>
         </Field>
-        <Field label="Format" htmlFor="edit-type">
+        <Field label="Format" htmlFor="edit-type" optional>
           <Select id="edit-type" {...form.register('contentType')}>
             <option value="">—</option>
             {typeOptions.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
           </Select>
         </Field>
       </div>
-      <Field label="Caption" htmlFor="edit-caption" hint="What the audience reads. Emoji and line breaks are kept.">
+      <Field label="Caption" htmlFor="edit-caption" optional hint="What the audience reads. Emoji and line breaks are kept.">
         <Textarea id="edit-caption" rows={6} {...form.register('caption')} />
       </Field>
-      <Field label="Visual brief" htmlFor="edit-brief" hint="What the designer needs to make.">
+      <Field label="Visual brief" htmlFor="edit-brief" optional hint="What the designer needs to make.">
         <Textarea id="edit-brief" rows={4} {...form.register('visualBrief')} />
       </Field>
       {draft.restored ? <p className="muted">Restored your unsaved edits from before.</p> : null}

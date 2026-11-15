@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Logo } from '@/components/brand/Logo';
 import { Button } from '@/components/ui/Button';
-import { Field, Input } from '@/components/ui/Fields';
+import { Field, Input, ShowPasswordToggle } from '@/components/ui/Fields';
 import { appRoutes } from '@/config/appRoutes';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { errorMessage } from '@/lib/http';
@@ -40,7 +40,7 @@ export function ForgotPasswordPage() {
   usePageTitle(token ? 'Choose a new password' : 'Forgot password');
 
   return (
-    <main className="auth-shell">
+    <main id="main-content" className="auth-shell" tabIndex={-1}>
       <section className="auth-card">
         <div className="auth-brand">
           <Logo height={36} title="Solu1ions Business Development" />
@@ -86,7 +86,7 @@ function RequestForm() {
       <h1>Forgot your password?</h1>
       <p className="muted">Enter the email you sign in with and we will send a link to choose a new one.</p>
       <form className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Email" htmlFor="reset-email" error={form.formState.errors.email?.message}>
+        <Field label="Email" htmlFor="reset-email" required error={form.formState.errors.email?.message}>
           <Input id="reset-email" type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
         </Field>
         {failure ? <p className="error-box" role="alert">{failure}</p> : null}
@@ -148,16 +148,13 @@ function ResetForm({ token, onRequestNew }: { token: string; onRequestNew: () =>
     <>
       <h1>Choose a new password</h1>
       <form className="form-grid" onSubmit={submit} noValidate>
-        <Field label="New password" htmlFor="new-password" error={form.formState.errors.password?.message} hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}>
+        <Field label="New password" htmlFor="new-password" required error={form.formState.errors.password?.message} hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}>
           <Input id="new-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" {...form.register('password')} />
         </Field>
-        <Field label="Confirm password" htmlFor="confirm-password" error={form.formState.errors.confirm?.message}>
+        <Field label="Confirm password" htmlFor="confirm-password" required error={form.formState.errors.confirm?.message}>
           <Input id="confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" {...form.register('confirm')} />
         </Field>
-        <label className="checkbox-row">
-          <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
-          <span>Show passwords</span>
-        </label>
+        <ShowPasswordToggle checked={showPassword} onChange={setShowPassword} controls="new-password confirm-password" label="Show passwords" />
         {failure ? <p className="error-box" role="alert">{failure}</p> : null}
         <Button type="submit" loading={form.formState.isSubmitting}>Set password</Button>
         <p className="field__hint">You will be signed out on every device, then sign in with the new password.</p>

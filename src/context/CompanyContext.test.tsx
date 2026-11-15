@@ -18,7 +18,8 @@ vi.mock('@/services/companies', () => ({
 const mine = vi.fn();
 vi.mock('@/services/memberships', () => ({ membershipsService: { mine: () => mine() } }));
 
-import { CompanyProvider, useCompany } from './CompanyContext';
+import { useCompany } from './CompanyContext';
+import { CompanyProvider } from './CompanyProvider';
 
 const ALL: Company[] = [
   { id: 'A', name: 'Alpha' } as Company,
@@ -316,5 +317,26 @@ describe('one person\'s data is never shown to the next', () => {
     expect(context.hasRole('DESIGNER')).toBe(false);
     expect(client.getQueryData(['me', 'memberships', 'u1'])).toEqual([membership('A', ['DESIGNER'])]);
     expect(client.getQueryData(['me', 'memberships', 'u2'])).toEqual([membership('A', ['SALES_AGENT'])]);
+  });
+});
+
+describe('context value stability', () => {
+  /*
+    refreshMemberships wraps the memberships query's refetch. That used to be
+    a new function every render, so the context value (which lists it) was
+    rebuilt each time the provider rendered and every useCompany() consumer
+    re-rendered with it. Same inputs must now give the same value.
+  */
+  it('keeps the same context value when the provider re-renders with nothing changed', async () => {
+    mine.mockResolvedValue([membership('A', ['DESIGNER'])]);
+    const { rerender } = mount();
+    await ready();
+    const first = context;
+
+    rerender(wrap(<Probe />));
+    rerender(wrap(<Probe />));
+
+    expect(context.refreshMemberships).toBe(first.refreshMemberships);
+    expect(context).toBe(first);
   });
 });

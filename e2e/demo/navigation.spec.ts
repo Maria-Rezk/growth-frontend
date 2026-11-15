@@ -11,14 +11,77 @@ test.describe('routes', () => {
     });
   }
 
-  test('an unknown address shows the not-found page', async ({ page }) => {
-    await page.goto('/no-such-page');
-    await expect(page).toHaveURL(/\/404$/);
+  test('an unknown address shows the not-found page in place, inside the app', async ({ page }) => {
+    await page.goto('/taks');
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    // The typo stays visible and fixable, and the app around it stays.
+    await expect(page).toHaveURL(/\/taks$/);
+    await expect(page).toHaveTitle(/^Page not found · /);
+    await expect(sidebar(page)).toBeVisible();
+    await expect(page.locator('main').getByText('/taks')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Go to my home page' }).click();
+    await expect(page).toHaveURL(/\/my-work$/);
+  });
+
+  test('signed out, an unknown address asks for sign-in first, then answers not found', async ({ page }) => {
+    await open(page, '/my-work');
+    await page.getByRole('button', { name: 'Logout' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    // In-app navigation: a full load would restore the demo session.
+    await page.evaluate(() => {
+      window.history.pushState({}, '', '/taks');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await expect(page).toHaveURL(/\/login$/);
+
+    await page.getByLabel('Email').fill('e2e-demo@example.test');
+    await page.getByLabel('Password', { exact: true }).fill('e2e-demo-password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/taks$/);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  });
+
+  test('an unknown address on a phone keeps the menu', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/no-such-page');
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(overflow).toBe(false);
   });
 });
 
 test.describe('sidebar navigation', () => {
+  /*
+    A sidebar label names the page it opens: same words as its heading. The
+    two exceptions name a dynamic thing: Client overview and Home are headed
+    by the client's own name.
+  */
+  test('every sidebar label matches the heading of the page it opens', async ({ page }) => {
+    await open(page, '/my-work');
+    const links = sidebar(page).getByRole('link');
+    for (let index = 0; index < await links.count(); index += 1) {
+      const link = links.nth(index);
+      const href = (await link.getAttribute('href'))!;
+      const label = (await link.locator('.sidebar__label').textContent())!.trim();
+      await link.click();
+      await expect(page).toHaveURL(new RegExp(`${href}$`));
+      await expect(link).toHaveClass(/sidebar__link--active/);
+      if (href === '/dashboard' || href === '/home') continue;
+      // Soft, so one run lists every mismatch; waits for the page to replace the last heading.
+      await expect.soft(page.locator('main h1').first(), `${href}`).toHaveText(label);
+    }
+  });
+
+  test('the logo goes to the signed-in person’s home page, from anywhere', async ({ page }) => {
+    await open(page, '/campaigns/campaign-1');
+    await page.getByRole('link', { name: 'Solu1ions — go to your home page' }).click();
+    // The demo user is staff: home is My work, not Client overview.
+    await expect(page).toHaveURL(/\/my-work$/);
+    await expect(page.locator('main h1').first()).toHaveText('My work');
+  });
+
   test('every sidebar link opens its page and marks itself active', async ({ page }) => {
     await open(page, '/my-work');
     const links = sidebar(page).getByRole('link');
@@ -60,4 +123,32 @@ test.describe('command palette', () => {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
   });
+
+  // F-23: the hint names the modifier this platform uses; both modifiers open it everywhere.
+  const PLATFORMS = [
+    { name: 'Windows', platform: 'Win32', hint: 'Windows', keys: 'Ctrl K', label: 'Ctrl+K', aria: 'Control+K' },
+    { name: 'Linux', platform: 'Linux x86_64', hint: 'Linux', keys: 'Ctrl K', label: 'Ctrl+K', aria: 'Control+K' },
+    { name: 'macOS', platform: 'MacIntel', hint: 'macOS', keys: '⌘K', label: '⌘K', aria: 'Meta+K' },
+  ];
+  for (const os of PLATFORMS) {
+    test(`on ${os.name} the search button shows ${os.keys}, and both shortcuts open the palette`, async ({ page }) => {
+      await page.addInitScript(({ platform, hint }) => {
+        Object.defineProperty(Navigator.prototype, 'platform', { get: () => platform });
+        Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => ({ platform: hint, brands: [], mobile: false }) });
+      }, os);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await open(page, '/my-work');
+      const trigger = page.locator('.topbar .search-trigger');
+      await expect(trigger.locator('kbd')).toHaveText(os.keys);
+      await expect(trigger).toHaveAccessibleName(`Search (${os.label})`);
+      await expect(trigger).toHaveAttribute('aria-keyshortcuts', os.aria);
+      await expect(trigger).toHaveAttribute('title', `Search · ${os.label}`);
+      for (const chord of ['Control+k', 'Meta+k']) {
+        await page.keyboard.press(chord);
+        await expect(page.getByRole('dialog')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toBeHidden();
+      }
+    });
+  }
 });

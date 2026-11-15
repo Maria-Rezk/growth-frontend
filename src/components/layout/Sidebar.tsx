@@ -1,4 +1,4 @@
-import type { ComponentType, SVGProps } from 'react';
+import { useRef, type ComponentType, type SVGProps } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCan } from '@/hooks/usePermission';
 import type { Permission } from '@/utils/permissions';
 import { Logo } from '@/components/brand/Logo';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { isPlatformAdmin } from '@/types/domain';
 import { useClientView } from '@/hooks/useClientView';
 import {
@@ -15,6 +16,7 @@ import {
   CampaignIcon,
   CheckAllIcon,
   ClockIcon,
+  CloseIcon,
   GlobeIcon,
   LeadIcon,
   MatrixIcon,
@@ -118,6 +120,9 @@ const PLATFORM_ADMIN_GROUP: NavGroup = {
   ],
 };
 
+/** Referenced by the menu button's aria-controls. */
+export const SIDEBAR_ID = 'app-sidebar';
+
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { unreadCount } = useNotifications();
   const { t } = useLocale();
@@ -131,13 +136,39 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   });
   const navGroups = (isClient ? CLIENT_NAV : admin ? [...NAV_GROUPS, PLATFORM_ADMIN_GROUP] : NAV_GROUPS).map(visible);
 
+  /*
+    Below the drawer breakpoint the open sidebar is a modal: focus moves in,
+    Tab stays inside, and closing hands focus back to the menu button. `open`
+    is only ever true there — the menu button is hidden on wider screens.
+    Closed, CSS hides it from the tab order as well as from sight.
+
+    A div, not an <aside> (A-4): aside cannot take role="dialog". The same
+    element is named "Menu" either way: a modal dialog while open on a
+    phone, otherwise a region, so the logo link and the footer around the
+    "Main navigation" nav stay inside a landmark.
+  */
+  const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(ref, open);
+
   return (
-    <aside className={open ? 'sidebar sidebar--open' : 'sidebar'}>
+    <div
+      ref={ref}
+      id={SIDEBAR_ID}
+      className={open ? 'sidebar sidebar--open' : 'sidebar'}
+      {...(open ? { role: 'dialog', 'aria-modal': true } : { role: 'region' })}
+      aria-label={t('a11y.menu')}
+    >
       {/* Plain Link, not NavLink — the brand is a shortcut home, not a nav
-          item, and it should never render in the active state. */}
-      <Link to={isClient ? '/home' : '/dashboard'} className="sidebar__brand" onClick={onClose} aria-label={t('brand.home')}>
+          item, and it should never render in the active state. "/" is the
+          role-aware home (LandingRedirect): My work for staff, Home for a
+          client, Operations for a platform admin with no client. It used to
+          send staff to /dashboard, which is not where they land. */}
+      <Link to="/" className="sidebar__brand" onClick={onClose} aria-label={t('brand.home')}>
         <Logo height={30} />
       </Link>
+      <button className="icon-button mobile-only sidebar__close" type="button" onClick={onClose} aria-label={t('a11y.closeMenu')}>
+        <CloseIcon size={18} />
+      </button>
 
       <nav className="sidebar__nav" aria-label="Main navigation">
         {navGroups.map((group) => (
@@ -162,6 +193,6 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       </nav>
 
       <div className="sidebar__footer">{t('sidebar.footer')}</div>
-    </aside>
+    </div>
   );
 }

@@ -23,7 +23,16 @@ const editEmployeeSchema = z.object({
 
 type EditEmployeeForm = z.infer<typeof editEmployeeSchema>;
 
-export function EditEmployeeModal({ employee, onClose }: { employee: Employee | null; onClose: () => void }) {
+export function EditEmployeeModal({
+  employee,
+  onClose,
+  canChangeStatus = true,
+}: {
+  employee: Employee | null;
+  onClose: () => void;
+  /** False on your own account, and wherever the row's status action is hidden or blocked: the field is left out and status is not sent. */
+  canChangeStatus?: boolean;
+}) {
   const form = useForm<EditEmployeeForm>({
     resolver: zodResolver(editEmployeeSchema),
     values: employee
@@ -45,7 +54,7 @@ export function EditEmployeeModal({ employee, onClose }: { employee: Employee | 
     if (!employee) return;
     const updated = await update.mutate(employee.id, {
       fullName: values.fullName.trim(),
-      status: values.status,
+      ...(canChangeStatus ? { status: values.status } : {}),
       password: values.password ? values.password : undefined,
     });
     if (updated) {
@@ -77,12 +86,13 @@ export function EditEmployeeModal({ employee, onClose }: { employee: Employee | 
       )}
     >
       <form id="edit-employee-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Full name" htmlFor="edit-employee-name" error={form.formState.errors.fullName?.message}>
+        <Field label="Full name" htmlFor="edit-employee-name" required error={form.formState.errors.fullName?.message}>
           <Input id="edit-employee-name" autoComplete="name" aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />
         </Field>
+        {canChangeStatus ? (
         <Field
           label="Status"
-          htmlFor="edit-employee-status"
+          htmlFor="edit-employee-status" required
           hint="Setting status to anything other than Active ends the employee's session immediately."
           error={form.formState.errors.status?.message}
         >
@@ -90,10 +100,11 @@ export function EditEmployeeModal({ employee, onClose }: { employee: Employee | 
             {['ACTIVE', 'INACTIVE', 'SUSPENDED'].map((status) => <option key={status} value={status}>{humanize(status)}</option>)}
           </Select>
         </Field>
-        {form.watch('status') !== 'ACTIVE' && employee ? <HeldReviewsNotice userId={employee.id} /> : null}
+        ) : null}
+        {canChangeStatus && form.watch('status') !== 'ACTIVE' && employee ? <HeldReviewsNotice userId={employee.id} /> : null}
         <Field
           label="New password"
-          htmlFor="edit-employee-password"
+          htmlFor="edit-employee-password" optional
           hint="Leave blank to keep the current password. Setting one ends the employee's session immediately."
           error={form.formState.errors.password?.message}
         >

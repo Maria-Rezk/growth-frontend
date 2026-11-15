@@ -12,8 +12,9 @@ import {
   makeId,
   moveLeadStatus,
   pushNotification,
+  demoNotFound,
 } from '@/services/demoStore';
-import { attachmentFieldsForWire, attachmentsService, type AttachmentCreateFields } from '@/services/attachments';
+import { addAllDemoAttachments, attachmentFieldsForWire, type AttachmentCreateFields } from '@/services/attachments';
 import type { Lead, LeadNote, LeadStatus, LeadStatusHistory, ListParams, LostReason } from '@/types/domain';
 
 export interface LeadStatusOutcome {
@@ -148,7 +149,7 @@ export const leadsService = {
   async get(companyId: string, leadId: string): Promise<Lead> {
     if (env.demoMode) {
       const lead = demoLeads.find((item) => item.companyId === companyId && item.id === leadId);
-      if (!lead) throw new Error('Lead not found.');
+      if (!lead) throw demoNotFound('Lead not found.');
       return demoDelay(lead);
     }
     const response = await http.get(apiRoutes.leads.detail(companyId, leadId));
@@ -174,7 +175,7 @@ export const leadsService = {
         updatedAt: new Date().toISOString(),
       };
       demoLeads.unshift(lead);
-      await attachmentsService.addAllDemo(companyId, { entityType: 'LEAD', entityId: lead.id }, payload);
+      await addAllDemoAttachments(companyId, { entityType: 'LEAD', entityId: lead.id }, payload);
       pushNotification({ type: 'LEAD_ASSIGNED', title: 'New lead created', message: lead.name, readAt: null, relatedEntityType: 'LEAD', relatedEntityId: lead.id });
       return demoDelay(lead);
     }
@@ -197,7 +198,7 @@ export const leadsService = {
   async update(companyId: string, leadId: string, payload: Partial<Lead>): Promise<Lead> {
     if (env.demoMode) {
       const lead = demoLeads.find((item) => item.companyId === companyId && item.id === leadId);
-      if (!lead) throw new Error('Lead not found.');
+      if (!lead) throw demoNotFound('Lead not found.');
       Object.assign(lead, payload, { updatedAt: new Date().toISOString() });
       return demoDelay(lead);
     }

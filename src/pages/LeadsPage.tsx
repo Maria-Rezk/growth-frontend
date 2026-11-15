@@ -10,7 +10,8 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Field, Input, Select, Textarea } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
-import { NO_PENDING_ATTACHMENTS, PendingAttachmentsField, pendingPayload, type PendingAttachments } from '@/components/domain/PendingAttachmentsField';
+import { PendingAttachmentsField } from '@/components/domain/PendingAttachmentsField';
+import { NO_PENDING_ATTACHMENTS, pendingPayload, type PendingAttachments } from '@/utils/pendingAttachments';
 import { Pagination } from '@/components/ui/Pagination';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState, ErrorState } from '@/components/ui/State';
@@ -31,7 +32,8 @@ import { useDiscardGuard } from '@/hooks/useDiscardGuard';
 import { BoardSkeleton } from '@/components/ui/Skeleton';
 import { useTaskActor } from '@/hooks/useTaskActor';
 import { Badge } from '@/components/ui/Badge';
-import { AssigneeOptions, assigneeUserId, assigneeValueFor } from '@/components/domain/AssigneeOptions';
+import { AssigneeOptions } from '@/components/domain/AssigneeOptions';
+import { assigneeUserId, assigneeValueFor } from '@/utils/assigneeOptions';
 import { contactLinks, followUpBucket, isAdrift, isOpenLead, looksLikeDuplicate, type FollowUpBucket } from '@/utils/leadFollowUp';
 import { formatWaiting } from '@/utils/taskReview';
 
@@ -87,10 +89,6 @@ function LeadsInner({ companyId }: { companyId: string }) {
   const { userId } = useTaskActor();
   const view = (urlFilters.view === 'table' ? 'table' : 'pipeline') as ViewMode;
   const page = Math.max(1, Number.parseInt(urlFilters.page, 10) || 1);
-  const setStatus = (value: string) => setUrlFilters({ status: value });
-  const setSource = (value: string) => setUrlFilters({ source: value });
-  const setSearch = (value: string) => setUrlFilters({ search: value });
-  const setView = (value: ViewMode) => setUrlFilters({ view: value });
   const setPage = (value: number) => setUrlFilters({ page: String(value) });
   const setScope = (value: Scope) => setUrlFilters({ scope: value, page: '1' });
   const setDue = (value: DueFilter) => setUrlFilters({ due: value, page: '1' });
@@ -145,11 +143,17 @@ function LeadsInner({ companyId }: { companyId: string }) {
     return { overdue: count('overdue'), today: count('today'), week: count('week'), none: open.filter(isAdrift).length };
   }, [allLeads.data]);
 
-  // Any filter or view change restarts from page 1 so offsets stay valid.
-  const setStatusFilter = (value: string) => { setStatus(value); setPage(1); };
-  const setSourceFilter = (value: string) => { setSource(value); setPage(1); };
-  const setSearchFilter = (value: string) => { setSearch(value); setPage(1); };
-  const setViewMode = (value: ViewMode) => { setView(value); setPage(1); };
+  /*
+    Any filter or view change restarts from page 1 so offsets stay valid, in
+    one URL update with the change itself. These used to be two updates (the
+    filter, then the page), and the second erased the first, so none of them
+    applied (N-6).
+  */
+  const setStatusFilter = (value: string) => setUrlFilters({ status: value, page: '1' });
+  const setSourceFilter = (value: string) => setUrlFilters({ source: value, page: '1' });
+  const setSearchFilter = (value: string) => setUrlFilters({ search: value, page: '1' });
+  const setViewMode = (value: ViewMode) => setUrlFilters({ view: value, page: '1' });
+  const clearFilters = () => setUrlFilters({ status: '', source: '', search: '', page: '1' });
 
   const assigneeName = useMemo<AssigneeNameFn>(() => {
     const map = new Map<string, string>();
@@ -185,20 +189,34 @@ function LeadsInner({ companyId }: { companyId: string }) {
         title="Leads"
         subtitle="Social enquiries and website forms, assigned and tracked through to close."
         action={
-          <RoleGate permission="leads:manage" fallback={<Button size="sm" disabled>New lead</Button>}>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>New lead</Button>
-          </RoleGate>
+          <span className="button-row leads-header-actions">
+            <RoleGate permission="leads:manage" fallback={<Button size="sm" disabled>New lead</Button>}>
+              <Button size="sm" onClick={() => setCreateOpen(true)}>New lead</Button>
+            </RoleGate>
+            {/* Phones only (CSS): the view switch rides in this row, which has
+                room to spare, instead of taking a row of its own in the
+                filter card. The card's own switch serves wider screens. Both
+                read and set the same URL value. */}
+            <span className="leads-view leads-view--phone">
+              <SegmentedControl<ViewMode>
+                label="Lead view"
+                value={view}
+                onChange={setViewMode}
+                options={[{ label: 'Pipeline', value: 'pipeline' }, { label: 'Table', value: 'table' }]}
+              />
+            </span>
+          </span>
         }
       />
 
-      <div className="task-alerts task-alerts--4">
+      <div className="task-alerts task-alerts--4 kpi-strip">
         <DueTile label="Overdue" value={followUp.overdue} tone="danger" active={due === 'overdue'} onClick={() => setDue(due === 'overdue' ? '' : 'overdue')} helper="Follow-up date has passed." loading={allLeads.loading} />
         <DueTile label="Due today" value={followUp.today} tone="warning" active={due === 'today'} onClick={() => setDue(due === 'today' ? '' : 'today')} helper="Contact them before the day ends." loading={allLeads.loading} />
         <DueTile label="This week" value={followUp.week} tone="info" active={due === 'week'} onClick={() => setDue(due === 'week' ? '' : 'week')} helper="Within the next seven days." loading={allLeads.loading} />
         <DueTile label="No follow-up set" value={followUp.none} tone="neutral" active={due === 'none'} onClick={() => setDue(due === 'none' ? '' : 'none')} helper="Open leads nobody has scheduled." loading={allLeads.loading} />
       </div>
 
-      <div className="pipeline-summary card">
+      <div className="pipeline-summary card" role="group" aria-label="Filter by pipeline stage">
         {LEAD_PIPELINE.map((item) => (
           <button
             key={item}
@@ -210,11 +228,14 @@ function LeadsInner({ companyId }: { companyId: string }) {
             <span>{humanize(item)}</span>
             {/* "—" on failure too: a failed count must not read as "nobody in this stage". */}
             <strong title={counts.error ? `Could not load: ${counts.error}` : undefined}>{counts.loading || counts.error ? '—' : counts.data?.[item] ?? 0}</strong>
+            {/* Phones (CSS): on the chip that filters, a sign that pressing again
+                clears it. Decorative: the button already says "pressed". */}
+            {status === item ? <span className="pipeline-summary__clear" aria-hidden="true">×</span> : null}
           </button>
         ))}
       </div>
 
-      <div className="toolbar card">
+      <div className="toolbar toolbar--leads card">
         <div className="toolbar__filters toolbar__filters--wide">
           <div className="field">
             <span className="field__label">Scope</span>
@@ -228,7 +249,10 @@ function LeadsInner({ companyId }: { companyId: string }) {
           <Field label="Search" htmlFor="lead-search">
             <Input id="lead-search" placeholder="Search name or contact" value={search} onChange={(event) => setSearchFilter(event.target.value)} />
           </Field>
-          <Field label="Status" htmlFor="lead-filter">
+          {/* Hidden on phones (CSS), where the stage chips above are the status
+              filter: the same seven statuses, the same URL value, and pressing
+              the active chip again is "All statuses". */}
+          <Field label="Status" htmlFor="lead-filter" className="toolbar__status">
             <Select id="lead-filter" value={status} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All statuses</option>
               {STATUS_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
@@ -240,13 +264,18 @@ function LeadsInner({ companyId }: { companyId: string }) {
               {SOURCE_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
             </Select>
           </Field>
+          {/* The last column of the single filter row on wide screens; on
+              phones the header carries the switch instead. */}
+          <div className="field toolbar__view leads-view leads-view--wide">
+            <span className="field__label">View</span>
+            <SegmentedControl<ViewMode>
+              label="Lead view"
+              value={view}
+              onChange={setViewMode}
+              options={[{ label: 'Pipeline', value: 'pipeline' }, { label: 'Table', value: 'table' }]}
+            />
+          </div>
         </div>
-        <SegmentedControl<ViewMode>
-          label="Lead view"
-          value={view}
-          onChange={setViewMode}
-          options={[{ label: 'Pipeline', value: 'pipeline' }, { label: 'Table', value: 'table' }]}
-        />
       </div>
 
       {view === 'pipeline' ? (
@@ -258,7 +287,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
           onRetry={leads.refetch}
           assigneeName={assigneeName}
           filtersActive={Boolean(status || source || search)}
-          onClearFilters={() => setUrlFilters({ status: '', source: '', search: '' })}
+          onClearFilters={clearFilters}
           onCreate={() => setCreateOpen(true)}
           page={page}
           totalPages={totalPages}
@@ -276,7 +305,7 @@ function LeadsInner({ companyId }: { companyId: string }) {
             emptyTitle={status || source || search ? 'No leads match these filters' : 'No leads yet'}
             emptyDescription={status || source || search ? undefined : 'Every enquiry from social, the website or a referral becomes a lead here, with a follow-up date so nothing goes cold.'}
             emptyAction={status || source || search
-              ? <Button variant="secondary" size="sm" onClick={() => setUrlFilters({ status: '', source: '', search: '' })}>Clear filters</Button>
+              ? <Button variant="secondary" size="sm" onClick={clearFilters}>Clear filters</Button>
               : <RoleGate permission="leads:manage"><Button size="sm" onClick={() => setCreateOpen(true)}>Add the first lead</Button></RoleGate>}
             defaultSortKey="name"
           />
@@ -444,24 +473,24 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
       }
     >
       <form id="lead-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Name" htmlFor="lead-name" error={form.formState.errors.name?.message}>
+        <Field label="Name" htmlFor="lead-name" required error={form.formState.errors.name?.message}>
           <Input id="lead-name" aria-invalid={Boolean(form.formState.errors.name)} {...form.register('name')} />
         </Field>
         <div className="grid-2">
-          <Field label="Email" htmlFor="lead-email" error={form.formState.errors.email?.message}>
+          <Field label="Email" htmlFor="lead-email" optional error={form.formState.errors.email?.message}>
             <Input id="lead-email" type="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
           </Field>
-          <Field label="Phone" htmlFor="lead-phone" error={form.formState.errors.phone?.message}>
+          <Field label="Phone" htmlFor="lead-phone" optional error={form.formState.errors.phone?.message}>
             <Input id="lead-phone" {...form.register('phone')} />
           </Field>
         </div>
         <div className="grid-2">
-          <Field label="Source" htmlFor="lead-source" error={form.formState.errors.source?.message}>
+          <Field label="Source" htmlFor="lead-source" required error={form.formState.errors.source?.message}>
             <Select id="lead-source" {...form.register('source')}>
               {SOURCE_OPTIONS.map((item) => <option key={item} value={item}>{humanize(item)}</option>)}
             </Select>
           </Field>
-          <Field label="Next follow-up" htmlFor="lead-followup">
+          <Field label="Next follow-up" htmlFor="lead-followup" optional>
             <Input id="lead-followup" type="datetime-local" {...form.register('nextFollowUpAt')} />
           </Field>
         </div>
@@ -476,10 +505,10 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
             </div>
           </div>
         ) : null}
-        <Field label="Interested service" htmlFor="lead-service" hint="What the lead asked about.">
+        <Field label="Interested service" htmlFor="lead-service" optional hint="What the lead asked about.">
           <Input id="lead-service" {...form.register('interestedService')} />
         </Field>
-        <Field label="Assigned to" htmlFor="lead-assignee" hint="Who follows this lead up. Defaults to you.">
+        <Field label="Assigned to" htmlFor="lead-assignee" optional hint="Who follows this lead up. Defaults to you.">
           <Select
             id="lead-assignee"
             value={assigneeValueFor(members, form.watch('assignedToId'))}
@@ -488,7 +517,7 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
             <AssigneeOptions members={members} />
           </Select>
         </Field>
-        <Field label="Notes" htmlFor="lead-notes">
+        <Field label="Notes" htmlFor="lead-notes" optional>
           <Textarea id="lead-notes" rows={3} {...form.register('notes')} />
         </Field>
         <PendingAttachmentsField companyId={companyId} value={pendingFiles} onChange={setPendingFiles} onBusyChange={setUploading} disabled={create.loading} />
@@ -502,7 +531,8 @@ function LeadModal({ open, companyId, onClose, members, existing }: { open: bool
 /** One of the four follow-up tiles. Pressed = the list is filtered to it. */
 function DueTile({ label, value, helper, tone, active, onClick, loading }: { label: string; value: number; helper: string; tone: 'danger' | 'warning' | 'info' | 'neutral'; active: boolean; onClick: () => void; loading: boolean }) {
   return (
-    <button type="button" className={`task-alert card due-tile due-tile--${tone}${active ? ' due-tile--active' : ''}`} onClick={onClick} aria-pressed={active}>
+    // A zero is not a warning: the tone colours only a count that needs attention.
+    <button type="button" className={`task-alert card due-tile due-tile--${tone}${active ? ' due-tile--active' : ''}${!loading && value === 0 ? ' due-tile--zero' : ''}`} onClick={onClick} aria-pressed={active}>
       <span>{label}</span>
       <strong>{loading ? '—' : value}</strong>
       <p>{helper}</p>

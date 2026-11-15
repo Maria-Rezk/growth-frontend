@@ -1,13 +1,17 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryCache, QueryClient } from '@tanstack/react-query';
 import type { ApiErrorShape, DashboardFilters } from '@/types/domain';
+import { noteQueryError, syncRefetchInterval } from '@/lib/syncPolicy';
 
 function shouldRetry(failureCount: number, error: unknown) {
   const statusCode = (error as ApiErrorShape | undefined)?.statusCode;
+  // 4xx, 429 included, is never retried: a retry on a rate limit only spends more of it.
   if (statusCode && statusCode >= 400 && statusCode < 500) return false;
   return failureCount < 2;
 }
 
 export const queryClient = new QueryClient({
+  // A 429 from any query backs every synced query off (syncPolicy.ts).
+  queryCache: new QueryCache({ onError: (error) => noteQueryError(error) }),
   defaultOptions: {
     queries: {
       staleTime: 45_000,
@@ -23,6 +27,12 @@ export const queryClient = new QueryClient({
       */
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
+      /*
+        Automatic sync, phase 1: the few screens listed in syncPolicy.ts
+        re-fetch on a timer while the tab is in front; every other key gets
+        `false`. Foreground only is React Query's default and is kept.
+      */
+      refetchInterval: (query) => syncRefetchInterval(query),
       retry: shouldRetry,
     },
     mutations: {
@@ -59,11 +69,21 @@ export const queryKeys = {
   brandProfile: (companyId: string) => ['companies', companyId, 'brand-profile'] as const,
   posts: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'posts', filters ?? {}] as const,
   post: (companyId: string, postId: string) => ['companies', companyId, 'posts', postId] as const,
+  /*
+    A post's comments and approval trail, nested under the post: every post
+    mutation invalidates ['companies', id, 'posts'], so an approval made from
+    the queue or the client Home refreshes the trail here too.
+  */
+  postComments: (companyId: string, postId: string) => ['companies', companyId, 'posts', postId, 'comments'] as const,
+  postLogs: (companyId: string, postId: string) => ['companies', companyId, 'posts', postId, 'approval-logs'] as const,
   leads: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'leads', filters ?? {}] as const,
   // Nested under 'leads' on purpose: invalidating ['companies', id, 'leads']
   // after a status change refreshes the list AND the pipeline counts.
   leadCounts: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'leads', 'counts', filters ?? {}] as const,
   lead: (companyId: string, leadId: string) => ['companies', companyId, 'leads', leadId] as const,
+  // Under the lead, so a status change (which writes history) refreshes them.
+  leadNotes: (companyId: string, leadId: string) => ['companies', companyId, 'leads', leadId, 'notes'] as const,
+  leadHistory: (companyId: string, leadId: string) => ['companies', companyId, 'leads', leadId, 'status-history'] as const,
   tasks: (companyId: string, filters?: Record<string, unknown>) => ['companies', companyId, 'tasks', filters ?? {}] as const,
   /*
     "My work" spans clients, so it cannot live under ['companies', id, …] and
@@ -73,6 +93,9 @@ export const queryKeys = {
   myWork: (companyIds: readonly string[], filters?: Record<string, unknown>) =>
     ['my-work', [...companyIds].sort().join('|'), filters ?? {}] as const,
   task: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId] as const,
+  // Nested under the task for the same reason: any task mutation refreshes them.
+  taskComments: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId, 'comments'] as const,
+  taskLogs: (companyId: string, taskId: string) => ['companies', companyId, 'tasks', taskId, 'activity-logs'] as const,
   /*
     Nested under 'tasks' on purpose: every task mutation already invalidates
     ['companies', id, 'tasks'], and a verdict must drop the task out of the
@@ -87,6 +110,7 @@ export const queryKeys = {
   responsibilityAreaOptions: (companyId: string) => ['companies', companyId, 'responsibilities', 'area-options'] as const,
   taskDrafts: (companyId: string) => ['companies', companyId, 'tasks', 'drafts'] as const,
   reports: (companyId: string) => ['companies', companyId, 'reports'] as const,
+  report: (companyId: string, reportId: string) => ['companies', companyId, 'reports', reportId] as const,
   reportShare: (companyId: string, reportId: string) => ['companies', companyId, 'reports', reportId, 'share'] as const,
   attachments: (companyId: string, entityType: string, entityId?: string) =>
     ['companies', companyId, 'attachments', entityType, entityId ?? 'singleton'] as const,

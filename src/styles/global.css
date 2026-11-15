@@ -29,6 +29,13 @@
 
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  /* The type floor (F-33). --text-meta is the smallest size for anything read
+     as text: meta lines, chips, helper notes, calendar entries. --text-label
+     is only for uppercase, letter-spaced labels and for numbers in counters,
+     badges and keycaps, where the caps or the digit carry the size. Nothing
+     goes below it. */
+  --text-label: 11px;
+  --text-meta: 12px;
 
   font-family: var(--font-sans);
   font-size: 14px;
@@ -88,7 +95,11 @@
   /* Text */
   --ink: var(--n-900);
   --ink-secondary: var(--n-600);
-  --muted: var(--n-500);
+  /* A shade under --n-500: at #6b7280 the muted text fell under 4.5:1 on every
+     tinted surface (4.39 on --n-100, 4.42 on the accent tint, 4.45 on the
+     danger tint). #646c7a is 4.8:1 or more on all of them, 5.3 on white,
+     and still well apart from --ink-secondary (7.6). F-33. */
+  --muted: #646c7a;
 
   /* Status */
   --danger: #b42318;
@@ -430,7 +441,7 @@ hr {
 
 .sidebar__group-label {
   padding: var(--s-4) var(--s-2) var(--s-1);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 600;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -498,7 +509,7 @@ hr {
   color: var(--on-accent);
   display: inline-grid;
   place-items: center;
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 500;
   padding: 0 5px;
 }
@@ -553,7 +564,7 @@ hr {
 
 .company-switcher__label {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 600;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -620,7 +631,7 @@ span.company-switcher {
   border-radius: 999px;
   min-width: 16px;
   height: 16px;
-  font-size: 10px;
+  font-size: var(--text-label);
 }
 
 .mobile-only {
@@ -685,7 +696,7 @@ span.company-switcher {
 
 .eyebrow {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 500;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -1142,6 +1153,34 @@ select.input {
   font-size: 13.5px;
 }
 
+/* Native checkboxes and radios in the brand accent rather than the browser's
+   blue (N-11). They stay native: keyboard, states and forced-colours mode are
+   the browser's. --accent-text is the accent tuned per theme: magenta on
+   light (5.7:1 on white), the lighter pink on dark (over 6:1), where magenta
+   itself falls under 3:1 on the raised surfaces. A control flagged invalid
+   gets the danger ring; focus still wins. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent-text);
+}
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
+input[type="checkbox"][aria-invalid="true"],
+input[type="radio"][aria-invalid="true"] {
+  outline: 2px solid var(--danger);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"][aria-invalid="true"]:focus-visible,
+input[type="radio"][aria-invalid="true"]:focus-visible {
+  outline-color: var(--accent-text);
+  outline-offset: 2px;
+}
+
 .form-status-row {
   display: flex;
   justify-content: space-between;
@@ -1250,6 +1289,60 @@ select.input {
   }
 }
 
+/* Tasks: scope (which list) and view (board or table) share the first row;
+   the filter fields take the row below. */
+.toolbar__scope-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--s-3) var(--s-4);
+}
+
+.toolbar__scope-row .toolbar__scope {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toolbar__scope-row .toolbar__view {
+  flex: 0 0 auto;
+}
+
+/* The scope options at their own width, not a grey bar stretched to the view switch. */
+.toolbar__scope-row .segmented {
+  justify-self: start;
+}
+
+/* Tablets and small laptops: the four task filters on one row. The shared
+   auto-fit rule above fitted three, left Type alone on a second row, and put
+   the view switch on a third. */
+@media (min-width: 761px) and (max-width: 1180px) {
+  .toolbar--tasks .toolbar__filters--wide {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Phones: scope across the full width, then the view switch on one line
+   with its label, at its own width, instead of a stacked label and bar. */
+@media (max-width: 760px) {
+  .toolbar__scope-row .toolbar__scope,
+  .toolbar__scope-row .toolbar__view {
+    flex-basis: 100%;
+  }
+
+  .toolbar__scope-row .toolbar__view {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+  }
+
+  .toolbar__scope-row .toolbar__view .segmented {
+    width: auto;
+  }
+}
+
 .segmented {
   display: inline-flex;
   padding: 2px;
@@ -1257,14 +1350,14 @@ select.input {
   background: var(--n-100);
   border-radius: var(--r-md);
   border: 1px solid var(--line);
-  /* More options than the screen is wide: scroll the strip, not the page. */
+  /*
+    More options than the screen is wide: wrap onto a second line. They used
+    to scroll inside the strip with the scrollbar hidden, so on a phone "My
+    drafts" sat off the edge with nothing to say it was there. Wrapping only
+    happens when the options do not fit; wider screens look as before.
+  */
   max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.segmented::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
 }
 
 .segmented > * {
@@ -1300,7 +1393,7 @@ select.input {
   place-items: center;
   background: var(--wash);
   border-radius: var(--r-sm);
-  font-size: 11px;
+  font-size: var(--text-label);
 }
 
 .segmented__button--active {
@@ -1513,7 +1606,7 @@ select.input {
 
 .table-sort-icon {
   opacity: 0;
-  font-size: 11px;
+  font-size: var(--text-label);
   transition: opacity .12s ease;
 }
 
@@ -1892,7 +1985,6 @@ a.list-row:hover strong {
   position: relative;
 }
 
-.notifications-menu,
 .notifications-panel {
   position: absolute;
   inset-inline-end: 0;
@@ -1906,8 +1998,6 @@ a.list-row:hover strong {
   overflow: hidden;
 }
 
-.notifications-menu__header,
-.notifications-menu__footer,
 .notifications-panel__header {
   padding: var(--s-3) var(--s-4);
   display: flex;
@@ -1927,15 +2017,6 @@ a.list-row:hover strong {
   margin-top: 2px;
 }
 
-.notifications-menu__footer {
-  border-top: 1px solid var(--line);
-  border-bottom: 0;
-  justify-content: center;
-  color: var(--accent-text);
-  font-weight: 500;
-}
-
-.notifications-menu__body,
 .notifications-panel__body {
   max-height: 380px;
   overflow: auto;
@@ -1944,7 +2025,6 @@ a.list-row:hover strong {
   gap: var(--s-1);
 }
 
-.notifications-menu__body>p,
 .notifications-panel__body>p {
   padding: var(--s-3);
   font-size: 13px;
@@ -1964,6 +2044,34 @@ a.list-row:hover strong {
 
 .notifications-panel__footer:hover {
   background: var(--n-50);
+}
+
+/*
+  Phones: anchored to the bell, the panel ran off the left edge — the bell sits
+  ~54px in from the right, but the panel is nearly the full width. Pin it to
+  the viewport instead, inside the topbar's 16px gutters, just under the
+  topbar. On a short screen the list shrinks first, so the header (Mark all
+  read) and the footer (View all) stay on screen.
+*/
+@media (max-width: 640px) {
+  .notifications-panel {
+    position: fixed;
+    top: calc(var(--topbar-h) - 2px);
+    inset-inline-end: var(--s-4);
+    width: min(400px, calc(100vw - 2 * var(--s-4)));
+    max-height: calc(100dvh - var(--topbar-h) - var(--s-4));
+    display: flex;
+    flex-direction: column;
+  }
+
+  .notifications-panel__header,
+  .notifications-panel__footer {
+    flex-shrink: 0;
+  }
+
+  .notifications-panel__body {
+    min-height: 0;
+  }
 }
 
 .notification-row {
@@ -2021,12 +2129,43 @@ a.list-row:hover strong {
   transition: background .12s ease, border-color .12s ease;
 }
 
-.notification-item[role='button'] {
+.notification-item--openable {
   cursor: pointer;
 }
 
-.notification-item[role='button']:hover {
+.notification-item--openable:hover {
   background: var(--n-50);
+}
+
+/* The title is the button that opens the item (A-2). It reads as the title
+   did; its ::after stretches over the card so a click anywhere opens it,
+   and the focus ring is drawn around the whole card. */
+.notification-item__open {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
+.notification-item__open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.notification-item__open:focus-visible {
+  outline: none;
+}
+
+.notification-item:has(.notification-item__open:focus-visible) {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
 }
 
 .notification-item--compact {
@@ -2096,12 +2235,153 @@ a.list-row:hover strong {
   font-size: 12px;
 }
 
+/* The task as it is now, beside what the notification said then. */
+.notification-item__task {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+}
+
+.notification-item__task-title {
+  color: var(--ink);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.notification-item__people {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Who is on the live step, in the task's Current step card. */
+.current-step-people {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+/* A plain list of checkboxes or radios inside a dialog. */
+.checkbox-group {
+  display: grid;
+  gap: var(--s-1);
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* One step of the flow in the task form: its people side by side, then its approver. */
+.task-step-block {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.task-step-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+}
+
+.task-step-block__head .task-step-row__tools {
+  margin-inline-start: auto;
+}
+
+.task-step-block__people {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-step-person__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.task-step-person__remove {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.task-step-person--locked {
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-subtle);
+}
+
+.task-step-block__foot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.task-step-block__foot .field__error {
+  grid-column: 1 / -1;
+}
+
+.task-step-block__approver:only-child {
+  grid-column: 1 / -1;
+}
+
+/* People on one step in the task page's timeline. */
+.step-timeline__people {
+  display: grid;
+  gap: var(--s-1);
+  margin: var(--s-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-timeline__person-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  margin: 0;
+  font-size: 14px;
+}
+
+@media (max-width: 560px) {
+  .task-step-person__controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .task-step-person__controls > :nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .task-step-person__controls > .task-step-person__remove {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .task-step-block__foot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
 .notification-item__meta {
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: .04em;
@@ -2115,6 +2395,9 @@ a.list-row:hover strong {
 }
 
 .notification-item__action {
+  /* Above the title button's stretched click area. */
+  position: relative;
+  z-index: 1;
   align-self: center;
 }
 
@@ -2144,6 +2427,8 @@ a.list-row:hover strong {
 .timeline__title {
   font-weight: 500;
   color: var(--ink);
+  /* A long file name in an activity row wraps rather than widening the card. */
+  overflow-wrap: anywhere;
 }
 
 /* ---------------------------------------------------- Dashboard modules */
@@ -2277,7 +2562,11 @@ a.list-row:hover strong {
 .workflow-summary,
 .pipeline-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  /* One row, one equal column per stage. auto-fit columns could not divide
+     the seven stages evenly: below ~1300px they wrapped 5 + 2 and left three
+     empty bordered cells. Phones switch to wrapping chips (end of file). */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   background: var(--surface);
   overflow: hidden;
   padding: 0;
@@ -2291,6 +2580,11 @@ a.list-row:hover strong {
   text-align: start;
   cursor: pointer;
   transition: background .12s ease;
+  /* Label at the top, count at the bottom: when a narrow column wraps a
+     label onto two lines, every count still sits on the same line. */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .workflow-summary__item:hover,
@@ -2360,6 +2654,12 @@ a.list-row:hover strong {
   grid-auto-columns: minmax(272px, 1fr);
   gap: var(--s-3);
   overflow-x: auto;
+  /* Sideways only. With overflow-x set, a visible overflow-y computes to
+     auto, so a card's focus ring or a 1px rounding overflow would make the
+     strip a second, nested vertical scroller that swallows the wheel over the
+     board. The page is the one vertical scroller. */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   padding-bottom: var(--s-2);
 }
 
@@ -2446,7 +2746,7 @@ a.list-row:hover strong {
   background: var(--n-100);
   border-radius: var(--r-sm);
   padding: 2px 7px;
-  font-size: 11.5px;
+  font-size: var(--text-meta);
   font-weight: 500;
 }
 
@@ -2784,6 +3084,19 @@ a.list-row:hover strong {
   top: 16px;
 }
 
+/* Dev builds pointed at the production API only. See DevApiWarning.tsx. */
+.dev-api-warning {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--danger-fill);
+  color: var(--on-danger);
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
@@ -2828,7 +3141,7 @@ a.list-row:hover strong {
 .role-checklist__group legend {
   padding: 0 0 var(--s-1);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 600;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -2838,6 +3151,9 @@ a.list-row:hover strong {
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  /* Rows 24px apart, so each 13px box keeps its own 24px target (WCAG 2.5.8;
+     axe flagged the 21px rows). Phones and touch screens get 32px below. */
+  min-height: 24px;
   font-size: 13px;
   color: var(--ink-secondary);
   cursor: pointer;
@@ -2851,7 +3167,6 @@ a.list-row:hover strong {
 }
 
 .role-checklist__option input {
-  accent-color: var(--accent);
   cursor: inherit;
 }
 
@@ -3134,8 +3449,8 @@ fieldset.field > legend {
   padding-inline: 6px;
   border-radius: 999px;
   background: var(--n-100);
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--ink-secondary);
+  font-size: var(--text-label);
   font-style: normal;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -3491,13 +3806,24 @@ fieldset.field > legend {
     inset-inline-start: 0;
     top: 0;
     transform: translateX(-110%);
-    transition: transform .18s ease;
+    /* Hidden, not just moved: an off-screen drawer must not sit in the tab
+       order. Visibility flips after the slide so closing still animates. */
+    visibility: hidden;
+    transition: transform .18s ease, visibility 0s linear .18s;
     z-index: 80;
     box-shadow: var(--shadow-md);
   }
 
   .sidebar--open {
     transform: translateX(0);
+    visibility: visible;
+    transition: transform .18s ease;
+  }
+
+  .sidebar__close {
+    position: absolute;
+    top: var(--s-3);
+    inset-inline-end: var(--s-3);
   }
 
   .sidebar-scrim {
@@ -3814,7 +4140,7 @@ fieldset.field > legend {
   border-radius: var(--r-md);
   background: var(--surface-subtle);
   color: var(--ink-secondary);
-  font-size: 11px;
+  font-size: var(--text-meta);
   line-height: 1.2;
 }
 
@@ -3915,7 +4241,7 @@ fieldset.field > legend {
   background: var(--info-soft);
   border: 1px solid var(--info-border);
   color: var(--info);
-  font-size: 10.5px;
+  font-size: var(--text-label);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -4032,31 +4358,88 @@ fieldset.field > legend {
   font-size: 12px;
 }
 
+/*
+  When the columns overflow (KanbanBoard measures it): a bar that stays just
+  under the sticky topbar while the page scrolls down a long board, so the
+  later stages are always one click away, and a fade on whichever edge has
+  more. Its own background so cards pass under it, below the topbar's layer.
+*/
+.kanban-nav {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  margin-bottom: var(--s-1);
+  background: var(--canvas);
+}
+
+.kanban-nav__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kanban-nav__buttons {
+  display: flex;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.kanban-scroller {
+  position: relative;
+}
+
+.kanban-scroller::before,
+.kanban-scroller::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  width: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s ease;
+  z-index: 1;
+}
+
+.kanban-scroller::before {
+  inset-inline-start: 0;
+  background: linear-gradient(to var(--fade-from-start, left), transparent, var(--canvas));
+}
+
+.kanban-scroller::after {
+  inset-inline-end: 0;
+  background: linear-gradient(to var(--fade-from-end, right), transparent, var(--canvas));
+}
+
+[dir='rtl'] .kanban-scroller::before {
+  --fade-from-start: right;
+}
+
+[dir='rtl'] .kanban-scroller::after {
+  --fade-from-end: left;
+}
+
+.kanban-scroller[data-more-start]::before,
+.kanban-scroller[data-more-end]::after {
+  opacity: 1;
+}
+
 @media (max-width: 980px) {
-  .kanban-wrap {
-    position: relative;
-  }
-
-  .kanban-wrap::after {
-    content: '';
-    position: absolute;
-    inset-block: 0;
-    inset-inline-end: 0;
-    width: 40px;
-    pointer-events: none;
-    background: linear-gradient(to var(--fade-direction, right), transparent, var(--canvas));
-  }
-
-  [dir='rtl'] .kanban-wrap::after {
-    --fade-direction: left;
-  }
-
   .kanban {
     grid-auto-columns: min(82vw, 300px);
   }
 
   .board-hint {
     display: block;
+  }
+
+  /* The phone hint above already says "swipe sideways". */
+  .kanban-nav__hint {
+    display: none;
   }
 }
 
@@ -4162,12 +4545,21 @@ fieldset.field > legend {
 .waiting-banner {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: var(--s-3);
   padding: 8px var(--s-6);
   background: var(--warning-soft);
   border-bottom: 1px solid var(--warning-border);
   color: var(--ink);
   font-size: 13px;
+}
+
+.waiting-banner__link {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--s-2);
+  color: inherit;
   text-decoration: none;
 }
 
@@ -4176,13 +4568,53 @@ fieldset.field > legend {
   color: var(--warning);
 }
 
-.waiting-banner:hover span {
+.waiting-banner__link:hover span {
   text-decoration: underline;
+}
+
+/* A quiet text button: the reminder is the message, the snooze is an aside. */
+.waiting-banner__snooze {
+  flex: none;
+  min-height: 24px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  /* The 24px target without making the 20px line taller. */
+  margin-block: -2px;
+}
+
+.waiting-banner__snooze:hover {
+  color: var(--ink);
 }
 
 @media (max-width: 760px) {
   .waiting-banner {
     padding-inline: var(--s-4);
+  }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .waiting-banner__snooze {
+    min-height: 32px;
+    margin-block: -6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .waiting-banner__snooze-when {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -4210,7 +4642,7 @@ fieldset.field > legend {
 .search-trigger__kbd,
 .palette__input kbd {
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-label);
   padding: 1px 6px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -4274,7 +4706,7 @@ fieldset.field > legend {
 .palette__group-label {
   padding: var(--s-2) var(--s-3) 4px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -4373,7 +4805,7 @@ fieldset.field > legend {
   background: var(--surface-subtle);
   border: 1px solid var(--line);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 600;
 }
 
@@ -4650,7 +5082,6 @@ fieldset.field > legend {
 
 .calendar__grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 1px;
   background: var(--line);
   border: 1px solid var(--line);
@@ -4658,17 +5089,27 @@ fieldset.field > legend {
   overflow: hidden;
 }
 
+/* One row per week (and one for the weekday names), the same seven columns
+   and 1px rules as the single grid had. */
+.calendar__week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+}
+
 .calendar__weekday {
   padding: 6px 8px;
   background: var(--surface-subtle);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .calendar__day {
+  /* Contains its screen-reader labels, which are absolutely positioned. */
+  position: relative;
   min-height: 96px;
   padding: 6px;
   background: var(--surface);
@@ -4714,7 +5155,7 @@ fieldset.field > legend {
   display: block;
   padding: 2px 6px;
   border-radius: var(--r-sm);
-  font-size: 11.5px;
+  font-size: var(--text-meta);
   line-height: 1.3;
   text-decoration: none;
   color: var(--ink);
@@ -4736,7 +5177,7 @@ fieldset.field > legend {
 .calendar__chip--danger { border-color: var(--danger); background: var(--danger-soft); }
 
 .calendar__more {
-  font-size: 11px;
+  font-size: var(--text-meta);
   color: var(--muted);
 }
 
@@ -4761,7 +5202,7 @@ fieldset.field > legend {
   }
 
   .calendar__chip {
-    font-size: 10px;
+    font-size: var(--text-meta);
     padding: 1px 4px;
   }
 }
@@ -4789,7 +5230,7 @@ fieldset.field > legend {
 .raci__routing {
   display: block;
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--text-meta);
   font-weight: 400;
   color: var(--muted);
 }
@@ -4850,7 +5291,7 @@ fieldset.field > legend {
   border-radius: var(--r-sm);
   background: var(--accent-soft);
   color: var(--accent-text);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .04em;
@@ -5360,4 +5801,563 @@ fieldset.field > legend {
     grid-column: 2;
     grid-row: 1 / span 2;
   }
+}
+
+/* ------------------------------------------------ Task steps (flow) */
+.task-steps-editor,
+.step-timeline {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-step-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--s-2);
+  align-items: start;
+  padding: var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.task-step-row--locked {
+  background: var(--surface-subtle);
+}
+
+.task-step-row__number,
+.step-timeline__marker {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-step-row__body {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+/* Person | role on the first line; approver | move/remove on the second. */
+.task-step-row__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.task-step-row__controls > :nth-child(2) {
+  grid-column: 2 / span 2;
+}
+
+.task-step-row__approver {
+  grid-column: 1 / span 2;
+}
+
+.task-step-row__summary,
+.task-step-row__lock {
+  margin: 0;
+  font-size: 14px;
+}
+
+.task-step-row__lock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.task-step-row__lock svg {
+  vertical-align: -1px;
+}
+
+.task-step-row__tools {
+  display: flex;
+  gap: 2px;
+}
+
+.task-step-row__tools .btn {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.step-timeline__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--s-2);
+  padding-bottom: var(--s-2);
+}
+
+/* The rail joining one step to the next. */
+.step-timeline__item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 13.5px;
+  top: 30px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--line);
+}
+
+.step-timeline__item--done .step-timeline__marker {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.step-timeline__item[aria-current='step'] .step-timeline__marker {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.step-timeline__item--pending .step-timeline__head strong {
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
+.step-timeline__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.step-timeline__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  margin: 0;
+  font-size: 14px;
+}
+
+.step-timeline__head strong {
+  font-weight: 600;
+}
+
+.step-timeline__meta,
+.step-timeline__note {
+  margin: 0;
+  font-size: 13px;
+}
+
+.step-timeline__note {
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--warning-soft);
+  color: var(--ink);
+}
+
+@media (max-width: 560px) {
+  .task-step-row__controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .task-step-row__controls > :nth-child(1),
+  .task-step-row__controls > :nth-child(2),
+  .task-step-row__approver {
+    grid-column: 1 / -1;
+  }
+
+  .task-step-row__tools {
+    grid-column: 2;
+    justify-self: end;
+  }
+}
+
+/* ------------------------------------------- Compact KPIs and stage chips */
+/*
+  Phones, on My work, Tasks and Leads (opt-in with .kpi-strip). The KPI tiles
+  were two per row with an orphan third, and Leads stacked four follow-up
+  tiles plus seven stage tiles: the first lead started ~1.5 screens down.
+  Here every count stays on screen, in one compact row: label over number,
+  numbers aligned on a common baseline. The helper sentences, already hidden
+  on phones, stay available to screen readers instead of being removed.
+  Kept at the end of the file so it wins over the earlier phone rules.
+*/
+@media (max-width: 760px) {
+  .kpi-strip,
+  .kpi-strip.stat-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--s-2);
+  }
+
+  .kpi-strip.task-alerts--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .kpi-strip > * {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2px;
+    min-width: 0;
+    padding: var(--s-2) var(--s-3);
+  }
+
+  .kpi-strip > * > span {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .kpi-strip > * > strong {
+    font-size: 20px;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .kpi-strip > * > p {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Pipeline (Leads) and workflow (Posts) stages as wrapping chips: every
+     stage visible, no empty grid cell. */
+  .pipeline-summary,
+  .workflow-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    padding: var(--s-3);
+  }
+
+  .pipeline-summary__item,
+  .workflow-summary__item {
+    display: inline-flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: none;
+  }
+
+  .pipeline-summary__item span,
+  .pipeline-summary__item strong,
+  .workflow-summary__item span,
+  .workflow-summary__item strong {
+    display: inline;
+    margin: 0;
+  }
+
+  .pipeline-summary__item strong,
+  .workflow-summary__item strong {
+    font-size: 14px;
+  }
+
+  .pipeline-summary__item[aria-pressed="true"],
+  .workflow-summary__item[aria-pressed="true"] {
+    border-color: var(--accent-text);
+    box-shadow: none;
+  }
+}
+
+/* Four follow-up counts do not fit four across below 360px: two by two. */
+@media (max-width: 359px) {
+  .kpi-strip.task-alerts--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Every width: a zero is not a warning, so it loses the warning colour. */
+.due-tile.due-tile--zero strong {
+  color: var(--ink-secondary);
+}
+
+.metric-card.metric-card--zero span::before {
+  background: var(--n-300);
+}
+
+/* ------------------------------------------------- Detail page navigation */
+/* The way back from a detail page: one small link above the title, the same
+   on every detail page and at every width (see PageHeader `back`). */
+.page-header__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin-bottom: var(--s-2);
+  color: var(--ink-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.page-header__back:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+@media (pointer: coarse) {
+  .page-header__back {
+    min-height: 32px;
+  }
+}
+
+@media print {
+  .page-header__back {
+    display: none;
+  }
+}
+
+/* The phone summary line of the post workflow; wider screens show the full steps. */
+.workflow-stepper__summary {
+  display: none;
+}
+
+/*
+  Phones: the four stacked steps with their descriptions took ~400px before
+  the post itself. Now: "Step 2 of 4: Client review. …" in one line, and the
+  steps as a row of numbered dots with their names, so every stage and the
+  current one are still visible. The per-step descriptions stay available to
+  screen readers.
+*/
+@media (max-width: 640px) {
+  .workflow-stepper__summary {
+    display: block;
+    color: var(--ink-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .workflow-stepper__summary strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .workflow-stepper {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--s-1);
+  }
+
+  .workflow-step {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    gap: var(--s-1);
+    padding: var(--s-2) var(--s-1);
+  }
+
+  .workflow-step strong {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .workflow-step p {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* The smallest phones (320px): four step columns are ~59px, and "Approved"
+   and "Published" ran 3-4px past their boxes. Tighter side padding and a
+   size smaller name fit them; hyphenation is the fallback for longer names. */
+@media (max-width: 359px) {
+  .workflow-step {
+    padding-inline: 2px;
+  }
+
+  /* The one running-text exception to the type floor: at 12px "Approved"
+     and "Published" overflow their ~57px columns again (measured, F-33). */
+  .workflow-step strong {
+    font-size: var(--text-label);
+    hyphens: auto;
+    overflow-wrap: break-word;
+  }
+}
+
+/* ------------------------------------------------------ Leads filter card */
+/*
+  Wide screens: one filter row, the view switch as its last column; between
+  761 and 1180px the switch shares the second row with Source.
+
+  Phones (N-7): the card had five controls in four rows. Two of them are now
+  elsewhere, with nothing lost:
+  - Status is hidden: the stage chips above set the same seven statuses
+    through the same URL value, and pressing the active chip again clears
+    it. The dropdown stays on tablet and desktop.
+  - The view switch moves into the header row beside "New lead", which has
+    room to spare; this card's own switch is hidden. The header's order
+    (New lead, then the switch) is also its Tab order.
+  Left: Scope, Search, Source, each a full row so none is cramped.
+*/
+.toolbar--leads .toolbar__view .segmented {
+  justify-self: start;
+}
+
+.leads-view--phone,
+.pipeline-summary__clear {
+  display: none;
+}
+
+@media (min-width: 1181px) {
+  .toolbar--leads .toolbar__filters--wide {
+    grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px)) auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .toolbar--leads .toolbar__status,
+  .toolbar--leads .leads-view--wide {
+    display: none;
+  }
+
+  .toolbar--leads .toolbar__filters--wide > .field {
+    grid-column: 1 / -1;
+  }
+
+  /* The header row: New lead on the left, the view switch on the right.
+     The stacked phone header shrinks its action area to fit; this one
+     takes the full width so the two can sit at either end. */
+  .page-header__action:has(.leads-header-actions) {
+    align-self: stretch;
+  }
+
+  .leads-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .leads-view--phone {
+    display: block;
+  }
+
+  /* The chip that filters shows how to clear it. */
+  .pipeline-summary__item[aria-pressed="true"] .pipeline-summary__clear {
+    display: inline;
+    margin-inline-start: 2px;
+    color: var(--accent-text);
+    font-size: 15px;
+    line-height: 1;
+  }
+}
+
+/* --------------------------------------------- Touch targets, every width */
+/*
+  WCAG 2.5.8 (target size, minimum) asks for 24x24px whatever the pointer.
+  The phone and touch rule above gives these 32px, but with a mouse at
+  desktop width they were 17-22px. Buttons centre their content, so the
+  extra height adds no visual shift; nothing changes size on screen except
+  the gap of 1-3px under a few standalone links.
+*/
+.table-sort-button,
+.attachment-row__name,
+.link-button,
+.work-row__title,
+.checkbox-row,
+.contact-row a,
+.table-link {
+  min-height: 24px;
+}
+
+.contact-row a,
+.table-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* "Call" is 21px of text: the link is at least as wide as it is tall. */
+.contact-row a {
+  min-width: 24px;
+  justify-content: center;
+}
+
+/* Phones and touch screens keep the larger 32px from the touch rule above:
+   this block comes later in the file, so without restating it the 24px
+   minimum would win there too. */
+@media (max-width: 760px), (pointer: coarse) {
+  .table-sort-button,
+  .attachment-row__name,
+  .link-button,
+  .work-row__title,
+  .checkbox-row {
+    min-height: 32px;
+  }
+
+  .contact-row a {
+    min-height: 32px;
+    min-width: 32px;
+  }
+}
+
+/*
+  Controls whose look must stay small: the hit area grows, the drawing does
+  not. A transparent ::before extends past the control; sideways it grows by
+  at most half the gap to the next control, so neighbouring targets never
+  overlap.
+*/
+.switch::before {
+  content: "";
+  position: absolute;
+  inset: -1px -4px;
+}
+
+.search-trigger {
+  position: relative;
+}
+
+@media (pointer: coarse) {
+  /* Touch: 44px tall (48x44 for a switch), the size a fingertip needs. */
+  .switch::before {
+    inset: -11px -4px;
+  }
+
+  /* Sideways only 2px: on a phone the top bar packs its icons 4px apart, and
+     each may claim half of that gap, never the neighbour's half. */
+  .topbar .icon-button::before,
+  .topbar .search-trigger::before,
+  .topbar .btn::before,
+  .sidebar__close::before,
+  .modal__header .icon-button::before {
+    content: "";
+    position: absolute;
+    inset: -7px -2px;
+  }
+
+  .topbar .btn {
+    position: relative;
+  }
+}
+
+/* Small phones: the search button kept shrinking to 18px wide in a crowded
+   top bar; it keeps its 32px and the client name truncates instead. */
+@media (max-width: 760px) {
+  .search-trigger {
+    flex-shrink: 0;
+  }
+}
+
+/* "(optional)" after a field's label: quieter than the label itself. */
+.field__optional {
+  color: var(--muted);
+  font-weight: 400;
 }

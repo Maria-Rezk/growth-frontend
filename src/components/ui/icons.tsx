@@ -129,6 +129,10 @@ export function DotIcon(props: IconProps) {
   return <IconShell {...props}><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" /></IconShell>;
 }
 
+export function ArrowLeftIcon(props: IconProps) {
+  return <IconShell {...props}><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></IconShell>;
+}
+
 export function ChevronDownIcon(props: IconProps) {
   return <IconShell {...props}><path d="m6 9 6 6 6-6" /></IconShell>;
 }
@@ -147,4 +151,12 @@ export function MenuIcon(props: IconProps) {
 
 export function LogoutIcon(props: IconProps) {
   return <IconShell {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></IconShell>;
+}
+
+export function ChevronUpIcon(props: IconProps) {
+  return <IconShell {...props}><path d="m18 15-6-6-6 6" /></IconShell>;
+}
+
+export function LockIcon(props: IconProps) {
+  return <IconShell {...props}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></IconShell>;
 }

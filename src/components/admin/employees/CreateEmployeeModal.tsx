@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
-import { useIsSuperAdmin } from '@/components/layout/RequireAdmin';
+import { useIsSuperAdmin } from '@/hooks/useIsSuperAdmin';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select } from '@/components/ui/Fields';
 import { Modal } from '@/components/ui/Modal';
@@ -74,17 +74,17 @@ export function CreateEmployeeModal({ open, onClose }: { open: boolean; onClose:
       )}
     >
       <form id="create-employee-form" className="form-grid" onSubmit={submit} noValidate>
-        <Field label="Full name" htmlFor="employee-name" error={form.formState.errors.fullName?.message}>
-          <Input id="employee-name" autoComplete="name" autoFocus aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />
+        <Field label="Full name" htmlFor="employee-name" required error={form.formState.errors.fullName?.message}>
+          <Input id="employee-name" autoComplete="name" aria-invalid={Boolean(form.formState.errors.fullName)} {...form.register('fullName')} />
         </Field>
-        <Field label="Email" htmlFor="employee-email" error={form.formState.errors.email?.message}>
+        <Field label="Email" htmlFor="employee-email" required error={form.formState.errors.email?.message}>
           <Input id="employee-email" type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} {...form.register('email')} />
         </Field>
-        <Field label="Temporary password" htmlFor="employee-password" hint="At least 12 characters. Share it securely." error={form.formState.errors.password?.message}>
+        <Field label="Temporary password" htmlFor="employee-password" required hint="At least 12 characters. Share it securely." error={form.formState.errors.password?.message}>
           <Input id="employee-password" type="password" autoComplete="new-password" aria-invalid={Boolean(form.formState.errors.password)} {...form.register('password')} />
         </Field>
         {superAdmin ? (
-          <Field label="Platform role" htmlFor="employee-role" error={form.formState.errors.platformRole?.message}>
+          <Field label="Platform role" htmlFor="employee-role" required error={form.formState.errors.platformRole?.message}>
             <Select id="employee-role" {...form.register('platformRole')}>
               {Object.values(PlatformRole).map((role) => <option key={role} value={role}>{humanize(role)}</option>)}
             </Select>
